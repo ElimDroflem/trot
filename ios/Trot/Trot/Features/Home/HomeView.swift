@@ -9,6 +9,8 @@ struct HomeView: View {
     )
     private var activeDogs: [Dog]
 
+    @State private var showingLogWalk = false
+
     var body: some View {
         TabView {
             todayTab
@@ -26,6 +28,9 @@ struct HomeView: View {
                 }
         }
         .tint(.brandPrimary)
+        .sheet(isPresented: $showingLogWalk) {
+            LogWalkSheet(dogs: Array(activeDogs.prefix(1)))
+        }
     }
 
     @ViewBuilder
@@ -36,7 +41,7 @@ struct HomeView: View {
             if let dog = activeDogs.first {
                 ScrollView {
                     VStack(spacing: Space.lg) {
-                        HomeHeader()
+                        HomeHeader(onAddWalk: { showingLogWalk = true })
                         StreakAndDateRow(
                             streakDays: 14,
                             dateLabel: Self.dateLabel(for: .now)
@@ -126,6 +131,8 @@ struct HomeView: View {
 }
 
 private struct HomeHeader: View {
+    let onAddWalk: () -> Void
+
     var body: some View {
         HStack {
             Button(action: {}) {
@@ -140,15 +147,15 @@ private struct HomeHeader: View {
 
             Spacer()
 
-            Button(action: {}) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
+            Button(action: onAddWalk) {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.brandTextOnPrimary)
                     .frame(width: 44, height: 44)
-                    .background(Color.brandSurfaceElevated)
+                    .background(Color.brandPrimary)
                     .clipShape(Circle())
             }
-            .accessibilityLabel("More options")
+            .accessibilityLabel("Log a walk")
         }
     }
 }
