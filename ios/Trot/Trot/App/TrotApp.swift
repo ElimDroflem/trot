@@ -3,8 +3,6 @@ import SwiftData
 
 @main
 struct TrotApp: App {
-    @State private var hasContinued = false
-
     let modelContainer: ModelContainer = {
         let schema = Schema(versionedSchema: TrotSchemaV1.self)
 
@@ -34,11 +32,7 @@ struct TrotApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if hasContinued {
-                HomeView()
-            } else {
-                OnboardingGateView(onContinue: { hasContinued = true })
-            }
+            RootView()
         }
         .modelContainer(modelContainer)
     }
