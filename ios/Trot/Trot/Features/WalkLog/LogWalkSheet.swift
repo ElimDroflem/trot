@@ -12,13 +12,28 @@ struct LogWalkSheet: View {
     @State private var saveError: String?
     @State private var showingDeleteConfirmation = false
 
-    init(dogs: [Dog], editingWalk: Walk? = nil) {
+    init(dogs: [Dog], editingWalk: Walk? = nil, initialDate: Date? = nil) {
         self.dogs = dogs
         self.editingWalk = editingWalk
         if let walk = editingWalk {
             self._form = State(initialValue: LogWalkFormState.from(walk))
         } else {
-            self._form = State(initialValue: LogWalkFormState())
+            var state = LogWalkFormState()
+            if let initialDate {
+                // Use the supplied calendar day, but keep the time as "now" so it feels natural.
+                let calendar = Calendar.current
+                let dayStart = calendar.startOfDay(for: initialDate)
+                let nowComponents = calendar.dateComponents([.hour, .minute], from: .now)
+                let combined = calendar.date(
+                    bySettingHour: nowComponents.hour ?? 12,
+                    minute: nowComponents.minute ?? 0,
+                    second: 0,
+                    of: dayStart
+                ) ?? initialDate
+                // Clamp to today if the initial date is today and the time would be in the future
+                state.startedAt = min(combined, .now)
+            }
+            self._form = State(initialValue: state)
         }
     }
 

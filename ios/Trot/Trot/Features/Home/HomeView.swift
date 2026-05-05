@@ -17,7 +17,7 @@ struct HomeView: View {
             todayTab
                 .tabItem { Label("Today", systemImage: "house.fill") }
 
-            placeholderTab(title: "Activity")
+            ActivityView()
                 .tabItem { Label("Activity", systemImage: "calendar") }
 
             placeholderTab(title: "Insights")
