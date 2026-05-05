@@ -8,6 +8,37 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-05 (evening) — iOS skeleton built and compiling
+
+**Done this session:**
+- Verified Xcode 26.4.1 installed (newer than the 26.3 minimum), `xcode-select` pointing at it.
+- Created the Xcode project via the wizard: bundle id `dog.trot.Trot`, Personal Team for now, SwiftUI + SwiftData with "Host in CloudKit" ticked (auto-adds iCloud entitlement), Swift Testing system, save location `ios/Trot/Trot.xcodeproj`. Unticked Xcode's "Create Git repository" since the repo already exists at the root.
+- **Option B taken on Sign in with Apple**: skeleton ships without the auth capability so we don't pay $99 yet. Placeholder gate (logo, headline, dimmed Sign in with Apple button, "Continue without sign-in" stub) is what users see at launch. Real auth lands when the Apple Developer Program is paid for.
+- Set up the source folder structure under `ios/Trot/Trot/`: `App/`, `Features/{Onboarding,Home,Activity,Insights,Profile}/`, `Core/{DesignSystem,Models,Services,Extensions}/`, `Resources/Fonts/`. Project uses Xcode 16's `PBXFileSystemSynchronizedRootGroup` so files are auto-discovered — no `.pbxproj` editing needed when adding Swift files.
+- Built the design system in `Core/DesignSystem/`: `BrandColor.swift` (semantic aliases only — Xcode 26 auto-generates `Color.brandPrimary` etc from asset-catalog colorsets, manual declarations would collide), `BrandFont.swift` (Bricolage display + SF Pro UI), `BrandTokens.swift` (`Space`, `Radius` enums), `BrandMotion.swift` (`brandDefault`/`brandCelebration` springs), `TrotLogo.swift` (wordmark with coral spot inside the `o`).
+- 22 brand colorsets added to the asset catalog (light only). Bricolage `.ttf` files copied into `Resources/Fonts/`. `Info.plist` updated with `UIUserInterfaceStyle = Light` and `UIAppFonts`. Placeholder app icon (`app-icon-1024.png`) wired into `AppIcon.appiconset` — single universal entry, light only (Xcode warns about missing dark/tinted variants, accepted as placeholder).
+- `OnboardingGateView` and a basic Outdoorsy + Grounded `HomeView` written. Home matches `snapshots/home.png` structurally: header with chevron + ellipsis, streak chip + date chip row, hero photo placeholder (tinted card with paw symbol — see Open below), "Luna's morning." progress card with rationale text, progress track in evergreen, "This morning" walks section with a confirmed walk row, branded TabView (Today/Activity/Insights/Luna).
+- Stripped the wizard's SwiftData boilerplate: deleted `Item.swift` and `ContentView.swift`, simplified `TrotApp.swift` to a `@State` flag swapping between `OnboardingGateView` and `HomeView`. The real Dog/Walk/WalkWindow schema + CloudKit wiring stays deferred to its own plan-mode session per architecture.md ("Initial models. Refine in plan mode before implementing.") — half-doing it now would create migration debt.
+- `architecture.md` folder-layout block updated to match Xcode's actual output (`ios/Trot/Trot.xcodeproj` rather than `ios/Trot.xcodeproj`). Decided that's cleaner than trying to fight Xcode's wrapper-folder convention.
+- `xcodebuild build -scheme Trot -destination "platform=iOS Simulator,name=iPhone 17 Pro"` returns BUILD SUCCEEDED. Both Bricolage TTFs bundled in the .app, asset catalog compiled, app installable in simulator.
+
+**Committed this session:**
+- (To commit at end of session: the entire `ios/` directory and the `architecture.md` + `log.md` updates)
+
+**Next session pickup:**
+- Decide which feature comes next. Likely candidates in rough order: (a) **Sign in with Apple wiring** — requires paying the $99 Apple Developer Program; (b) **SwiftData models + CloudKit** — dedicated plan-mode session; (c) **Onboarding flow** beyond the gate (add-a-dog form, breed picker, walk windows, permissions ask); (d) **Home with real data** — needs (b) first.
+- My recommendation: pay the $99 *and* run the SwiftData plan-mode session next. Auth is the entry point, models are the spine — everything else slots in once those are in place.
+
+**Open from this session that may surface later:**
+- **Hero photo source.** Home currently shows a tinted placeholder card where the dog photo should go. The AI-generated `dog-luna.jpg` in `design-reference/Trot Design System/assets/` does not ship with the iOS app per `decisions.md`. Need to generate or commission a non-AI placeholder photo (or the proper user-upload flow) before this looks right. Action: Corey to generate this at some point — flagged here so it's not forgotten.
+- **App icon production version.** Current icon in the asset catalog is `app-icon-1024.png` from design-reference, used as a placeholder. Needs replacement before TestFlight: generate via Claude Design (prompt drafted previously) and add proper light/dark/tinted variants per Apple's iOS 18+ icon system.
+- **Sign in with Apple capability.** Disabled in the gate via Option B. When Corey pays for the Apple Developer Program, add the Sign in with Apple capability via Xcode UI, swap the dimmed placeholder button for the real `SignInWithAppleButton`, wire `CKContainer.accountStatus()` for the iCloud-required gate.
+- **SwiftData + CloudKit plan-mode session.** Architecture.md flags the initial models as "refine in plan mode before implementing." Skeleton currently has no SwiftData wiring; the iCloud entitlement (`aps-environment=development` + CloudKit container array) sits idle until that session.
+- Walk detection algorithm — still flagged Open in `decisions.md`, dedicated plan-mode session before HealthKitService is built.
+- Breed-table verification pass — pre-launch task, all 30 entries flagged `needs verification`.
+
+---
+
 ## 2026-05-05 — Foundation locked, skeleton blocked on Xcode install
 
 **Done this session:**

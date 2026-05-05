@@ -41,25 +41,30 @@ trot/
 │       └── ui_kits/
 │           ├── ios-app/             # React-based interactive component reference (iOS)
 │           └── landing/             # The trot.dog landing page source (drops into web/)
-├── ios/                             # The Xcode project
-│   ├── Trot.xcodeproj
-│   ├── Trot/
-│   │   ├── App/                     # App entry point
-│   │   ├── Features/                # One folder per feature
-│   │   │   ├── Onboarding/
-│   │   │   ├── Home/
-│   │   │   ├── Activity/
-│   │   │   ├── Insights/
-│   │   │   └── Profile/
-│   │   ├── Core/
-│   │   │   ├── Models/
-│   │   │   ├── Services/
-│   │   │   ├── Extensions/
-│   │   │   └── DesignSystem/        # Swift mirrors of colors_and_type.css
-│   │   └── Resources/
-│   │       ├── Fonts/               # Bricolage Grotesque .ttf
-│   │       └── BreedData.json       # Loaded from docs/breed-table.md schema
-│   └── TrotTests/
+├── ios/                                 # iOS project root
+│   └── Trot/                            # Xcode workspace folder (created by `Create New Project`)
+│       ├── Trot.xcodeproj
+│       ├── Trot/                        # App source (synchronized group, files auto-discovered)
+│       │   ├── App/                     # App entry point (TrotApp.swift)
+│       │   ├── Features/                # One folder per feature
+│       │   │   ├── Onboarding/
+│       │   │   ├── Home/
+│       │   │   ├── Activity/
+│       │   │   ├── Insights/
+│       │   │   └── Profile/
+│       │   ├── Core/
+│       │   │   ├── Models/
+│       │   │   ├── Services/
+│       │   │   ├── Extensions/
+│       │   │   └── DesignSystem/        # Swift mirrors of colors_and_type.css
+│       │   ├── Resources/
+│       │   │   ├── Fonts/               # Bricolage Grotesque .ttf
+│       │   │   └── BreedData.json       # Loaded from docs/breed-table.md schema
+│       │   ├── Assets.xcassets
+│       │   ├── Info.plist
+│       │   └── Trot.entitlements
+│       ├── TrotTests/
+│       └── TrotUITests/
 └── web/                             # Single Vercel deployment for landing + backend
     ├── index.html                   # Landing page (sourced from ui_kits/landing/)
     ├── privacy.html
