@@ -200,6 +200,10 @@ struct DogProfileView: View {
         dog.archivedAt = .now
         do {
             try modelContext.save()
+            // After archiving, the @Query on RootView will fall through to AddDogView
+            // (or to the next active dog if multi-dog). Cancel all notifications now;
+            // RootView's scenePhase handler will reschedule for the next dog if any.
+            Task { await NotificationService.cancelAll() }
         } catch {
             actionError = error.localizedDescription
         }

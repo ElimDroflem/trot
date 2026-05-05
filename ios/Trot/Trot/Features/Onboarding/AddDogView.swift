@@ -251,13 +251,17 @@ struct AddDogView: View {
     private func save() {
         guard form.isValid else { return }
         do {
+            let savedDog: Dog
             if let editingDog {
                 form.apply(to: editingDog)
+                savedDog = editingDog
             } else {
                 let dog = form.makeDog()
                 modelContext.insert(dog)
+                savedDog = dog
             }
             try modelContext.save()
+            Task { await NotificationService.reschedule(for: savedDog) }
             if isEditing { dismiss() }
         } catch {
             saveError = error.localizedDescription

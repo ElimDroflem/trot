@@ -186,6 +186,7 @@ struct LogWalkSheet: View {
                 modelContext.insert(walk)
             }
             try modelContext.save()
+            rescheduleNotifications()
             dismiss()
         } catch {
             saveError = error.localizedDescription
@@ -197,10 +198,16 @@ struct LogWalkSheet: View {
         modelContext.delete(editingWalk)
         do {
             try modelContext.save()
+            rescheduleNotifications()
             dismiss()
         } catch {
             saveError = error.localizedDescription
         }
+    }
+
+    private func rescheduleNotifications() {
+        guard let dog = dogs.first else { return }
+        Task { await NotificationService.reschedule(for: dog) }
     }
 
     // MARK: - Helpers

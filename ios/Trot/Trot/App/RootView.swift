@@ -6,14 +6,34 @@ struct RootView: View {
     private var activeDogs: [Dog]
 
     @State private var hasContinued = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        if !hasContinued {
-            OnboardingGateView(onContinue: { hasContinued = true })
-        } else if activeDogs.isEmpty {
-            AddDogView()
+        Group {
+            if !hasContinued {
+                OnboardingGateView(onContinue: { hasContinued = true })
+            } else if activeDogs.isEmpty {
+                AddDogView()
+            } else {
+                HomeView()
+            }
+        }
+        .task {
+            _ = await NotificationService.requestPermission()
+            await rescheduleNotificationsIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await rescheduleNotificationsIfNeeded() }
+            }
+        }
+    }
+
+    private func rescheduleNotificationsIfNeeded() async {
+        if let dog = activeDogs.first {
+            await NotificationService.reschedule(for: dog)
         } else {
-            HomeView()
+            await NotificationService.cancelAll()
         }
     }
 }
