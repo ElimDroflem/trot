@@ -43,7 +43,7 @@ struct HomeView: View {
                     VStack(spacing: Space.lg) {
                         HomeHeader(onAddWalk: { showingLogWalk = true })
                         StreakAndDateRow(
-                            streakDays: 14,
+                            streakDays: StreakService.currentStreak(for: dog),
                             dateLabel: Self.dateLabel(for: .now)
                         )
                         HeroPhoto(dog: dog)
