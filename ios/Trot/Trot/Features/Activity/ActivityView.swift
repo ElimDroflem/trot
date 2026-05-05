@@ -9,10 +9,11 @@ struct ActivityView: View {
     )
     private var activeDogs: [Dog]
 
+    @Environment(AppState.self) private var appState
     @State private var currentMonth: Date = .now
     @State private var selectedDay: SelectedDay?
 
-    private var activeDog: Dog? { activeDogs.first }
+    private var activeDog: Dog? { appState.selectedDog(from: activeDogs) }
 
     var body: some View {
         ZStack {

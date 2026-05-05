@@ -10,12 +10,14 @@ struct DogProfileView: View {
     private var activeDogs: [Dog]
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppState.self) private var appState
 
     @State private var showingEdit = false
+    @State private var showingAddAnother = false
     @State private var showingArchiveConfirmation = false
     @State private var actionError: String?
 
-    private var activeDog: Dog? { activeDogs.first }
+    private var activeDog: Dog? { appState.selectedDog(from: activeDogs) }
 
     var body: some View {
         ZStack {
@@ -29,6 +31,7 @@ struct DogProfileView: View {
                         activityCard(dog: dog)
                         healthCard(dog: dog)
                         WalkWindowsCard(dog: dog)
+                        addAnotherDogButton
                         archiveButton(dog: dog)
                         Color.clear.frame(height: Space.lg)
                     }
@@ -46,6 +49,13 @@ struct DogProfileView: View {
                         .navigationTitle("Edit profile")
                         .navigationBarTitleDisplayMode(.inline)
                 }
+            }
+        }
+        .sheet(isPresented: $showingAddAnother) {
+            NavigationStack {
+                AddDogView(showsCancelButton: true)
+                    .navigationTitle("Add a dog")
+                    .navigationBarTitleDisplayMode(.inline)
             }
         }
         .confirmationDialog(
@@ -170,6 +180,26 @@ struct DogProfileView: View {
         }
     }
 
+    private var addAnotherDogButton: some View {
+        Button(action: { showingAddAnother = true }) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "plus")
+                Text("Add another dog")
+            }
+            .font(.bodyLarge.weight(.semibold))
+            .foregroundStyle(Color.brandPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Space.md)
+            .background(Color.brandSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .stroke(Color.brandPrimary, lineWidth: 1.5)
+            }
+        }
+        .padding(.top, Space.lg)
+    }
+
     private func archiveButton(dog: Dog) -> some View {
         Button(action: { showingArchiveConfirmation = true }) {
             Text("Archive \(dog.name)")
@@ -178,7 +208,6 @@ struct DogProfileView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Space.md)
         }
-        .padding(.top, Space.lg)
     }
 
     private var emptyState: some View {
@@ -200,9 +229,11 @@ struct DogProfileView: View {
         dog.archivedAt = .now
         do {
             try modelContext.save()
-            // After archiving, the @Query on RootView will fall through to AddDogView
-            // (or to the next active dog if multi-dog). Cancel all notifications now;
-            // RootView's scenePhase handler will reschedule for the next dog if any.
+            // Drop the selection so AppState falls back to the next active dog
+            // (or none, in which case RootView routes to AddDogView).
+            if appState.selectedDogID == dog.persistentModelID {
+                appState.selectedDogID = nil
+            }
             Task { await NotificationService.cancelAll() }
         } catch {
             actionError = error.localizedDescription

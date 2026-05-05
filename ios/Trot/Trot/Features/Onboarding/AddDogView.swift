@@ -4,16 +4,19 @@ import PhotosUI
 
 struct AddDogView: View {
     let editingDog: Dog?
+    let showsCancelButton: Bool
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
 
     @State private var form: AddDogFormState
     @State private var photoItem: PhotosPickerItem?
     @State private var saveError: String?
 
-    init(editingDog: Dog? = nil) {
+    init(editingDog: Dog? = nil, showsCancelButton: Bool = false) {
         self.editingDog = editingDog
+        self.showsCancelButton = showsCancelButton
         if let dog = editingDog {
             self._form = State(initialValue: AddDogFormState.from(dog))
         } else {
@@ -22,6 +25,7 @@ struct AddDogView: View {
     }
 
     private var isEditing: Bool { editingDog != nil }
+    private var showCancel: Bool { isEditing || showsCancelButton }
 
     var body: some View {
         ZStack {
@@ -44,7 +48,7 @@ struct AddDogView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .toolbar {
-            if isEditing {
+            if showCancel {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
                         .tint(.brandPrimary)
@@ -261,8 +265,13 @@ struct AddDogView: View {
                 savedDog = dog
             }
             try modelContext.save()
+            // Newly added dogs become the selected one — both for first-run onboarding
+            // and for "add another dog" flows. Edits leave selection alone.
+            if !isEditing {
+                appState.select(savedDog)
+            }
             Task { await NotificationService.reschedule(for: savedDog) }
-            if isEditing { dismiss() }
+            if showCancel { dismiss() }
         } catch {
             saveError = error.localizedDescription
         }

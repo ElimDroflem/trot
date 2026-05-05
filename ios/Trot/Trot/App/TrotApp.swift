@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct TrotApp: App {
+    @State private var appState = AppState()
+
     let modelContainer: ModelContainer = {
         let schema = Schema(versionedSchema: TrotSchemaV1.self)
 
@@ -33,6 +35,7 @@ struct TrotApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(appState)
         }
         .modelContainer(modelContainer)
     }

@@ -9,8 +9,12 @@ struct HomeView: View {
     )
     private var activeDogs: [Dog]
 
+    @Environment(AppState.self) private var appState
     @State private var showingLogWalk = false
     @State private var editingWalk: Walk?
+    @State private var showingAddAnotherDog = false
+
+    private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
     var body: some View {
         TabView {
@@ -25,15 +29,26 @@ struct HomeView: View {
 
             DogProfileView()
                 .tabItem {
-                    Label(activeDogs.first?.name ?? "Dog", systemImage: "person.crop.circle")
+                    Label(selectedDog?.name ?? "Dog", systemImage: "person.crop.circle")
                 }
         }
         .tint(.brandPrimary)
         .sheet(isPresented: $showingLogWalk) {
-            LogWalkSheet(dogs: Array(activeDogs.prefix(1)))
+            if let dog = selectedDog {
+                LogWalkSheet(dogs: [dog])
+            }
         }
         .sheet(item: $editingWalk) { walk in
-            LogWalkSheet(dogs: Array(activeDogs.prefix(1)), editingWalk: walk)
+            if let dog = selectedDog {
+                LogWalkSheet(dogs: [dog], editingWalk: walk)
+            }
+        }
+        .sheet(isPresented: $showingAddAnotherDog) {
+            NavigationStack {
+                AddDogView(showsCancelButton: true)
+                    .navigationTitle("Add a dog")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
         }
     }
 
@@ -42,10 +57,16 @@ struct HomeView: View {
         ZStack {
             Color.brandSurface.ignoresSafeArea()
 
-            if let dog = activeDogs.first {
+            if let dog = selectedDog {
                 ScrollView {
                     VStack(spacing: Space.lg) {
-                        HomeHeader(onAddWalk: { showingLogWalk = true })
+                        HomeHeader(
+                            activeDogs: activeDogs,
+                            selectedDog: dog,
+                            onSelectDog: { appState.select($0) },
+                            onAddAnotherDog: { showingAddAnotherDog = true },
+                            onAddWalk: { showingLogWalk = true }
+                        )
                         StreakAndDateRow(
                             streakDays: StreakService.currentStreak(for: dog),
                             dateLabel: Self.dateLabel(for: .now)
@@ -136,19 +157,47 @@ struct HomeView: View {
 }
 
 private struct HomeHeader: View {
+    let activeDogs: [Dog]
+    let selectedDog: Dog
+    let onSelectDog: (Dog) -> Void
+    let onAddAnotherDog: () -> Void
     let onAddWalk: () -> Void
 
     var body: some View {
         HStack {
-            Button(action: {}) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(Color.brandSurfaceElevated)
-                    .clipShape(Circle())
+            Menu {
+                ForEach(activeDogs) { dog in
+                    Button {
+                        onSelectDog(dog)
+                    } label: {
+                        if dog.persistentModelID == selectedDog.persistentModelID {
+                            Label(dog.name, systemImage: "checkmark")
+                        } else {
+                            Text(dog.name)
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    onAddAnotherDog()
+                } label: {
+                    Label("Add another dog", systemImage: "plus")
+                }
+            } label: {
+                HStack(spacing: Space.xs) {
+                    Text(selectedDog.name)
+                        .font(.bodyLarge.weight(.semibold))
+                        .foregroundStyle(Color.brandTextPrimary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.brandTextSecondary)
+                }
+                .padding(.horizontal, Space.md)
+                .frame(height: 44)
+                .background(Color.brandSurfaceElevated)
+                .clipShape(Capsule())
             }
-            .accessibilityLabel("Back")
+            .accessibilityLabel("Switch dog")
 
             Spacer()
 
