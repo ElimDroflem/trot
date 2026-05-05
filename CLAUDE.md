@@ -12,6 +12,8 @@ Brand and design system: @docs/brand.md
 Landing page brief: @docs/landing.md
 Decisions log: @docs/decisions.md
 
+Session log lives at `docs/log.md` (not auto-loaded). Read it on demand when resuming work after a break, or when the user references "where we left off." Update it at the end of substantive sessions.
+
 ## Working with me
 
 - I'm not a developer. Explain non-obvious choices briefly — one or two sentences, not lectures.
