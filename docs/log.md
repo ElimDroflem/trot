@@ -20,9 +20,11 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 - All eight project docs updated to reflect the locked decisions. New `docs/breed-table.md` created.
 - Two defaults taken without explicit ask, both flagged in decisions.md: deceased-dog v1 = 14-day no-walks safeguard, full memorialise UX deferred to v1.1; pre-Trot lifetime backfill = accept zero, "Trot starts counting today."
 - Git initialised, `.gitignore` written, repo pushed to https://github.com/ElimDroflem/trot (commit `92d7b8e`).
+- This session-log mechanism set up: `docs/log.md` (you're reading it) plus a pointer in `CLAUDE.md`. Not auto-loaded — read on demand when resuming work.
 
 **Committed this session:**
 - `92d7b8e` — Initial project setup: docs, brand, design system, decisions
+- `7134ba7` — Add session log to docs/log.md, pointer in CLAUDE.md
 
 **Blocked on:**
 - **Xcode 26.3 not installed.** The Mac has Command Line Tools only (Swift 5.9, no `xcodebuild`, no simulator). Setup-guide Step 1 lists Xcode as a prerequisite but it was never verified. Corey is doing a system update + Xcode install during the next gap.
