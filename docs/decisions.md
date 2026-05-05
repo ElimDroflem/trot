@@ -218,9 +218,24 @@ The following decisions came out of a structured pressure-test of the project pl
 **Rationale:** Adds GDPR consent UX, sub-processor, drag. v1 is small enough to evaluate qualitatively. v1.1 adds proper analytics if v1 signals are positive.
 
 ### Apple Developer Program timing
-**Decision:** Pay the $99 only when starting HealthKit service work (not day one).
+**Decision (revised May 2026):** Pay the $99 only at the very end of the build, when ready to verify background walk-detection wake on a real device. Not day one, not at "first HealthKit work" — the trigger is "I want to walk around the block and confirm iOS actually wakes my app in the background."
 
-**Rationale:** HealthKit doesn't work in the Simulator. Until HealthKit work begins, on-device testing isn't required and the developer account isn't needed. Concrete signal for when to spend the money.
+**Rationale:** Claude + Xcode + Swift is notoriously bug-prone, and v1 viability isn't yet proved. The $99 acts as a risk gate: build everything that can be built on a free Personal Team first (entire UI, design system, SwiftData local-only persistence, foreground HealthKit, LLM proxy, manual logging, streak engine, breed scoring, insights, every screen) and only spend the money when nothing else stands between the build and the final 10% of validation. If at the trigger point the project doesn't feel viable, £0 has been spent on Apple. If it does feel viable, £79 buys the final reliability check before TestFlight.
+
+**What works on free Personal Team:** every UI flow; SwiftData (local only); HealthKit + Core Motion **in foreground**; local notifications when the app is open or recently active; LLM proxy; running on your own iPhone (re-signs every 7 days).
+
+**What needs paid (small, well-defined swaps near the end):** Sign in with Apple capability, HealthKit background-delivery entitlement, CloudKit sync, TestFlight distribution.
+
+**Replaces:** earlier rule that paid the $99 at "first HealthKit service work." That rule is obsolete given the new build sequence (see next entry).
+
+### Build sequence: passive walk detection ships last
+**Decision (May 2026):** Passive walk detection — HealthKitService, the state machine, the dedicated plan-mode session for the algorithm, and the paid Apple Developer Program — all move to the **end** of the v1 build, not the start.
+
+**Rationale:** Strava and most fitness apps still default to manual start; manual logging is already a first-class flow in v1 (spec.md "Manual logging — Always available"). Sequencing passive detection last means everything else (data layer, every screen, streak engine, LLM personalisation, manual logging, weekly recap, insights) can be built and validated against a free Personal Team. Passive detection is the headline feature but not a blocker for proving the daily-loop product works.
+
+**Caveat (do not lose):** the "wet Tuesday in February" qualitative test under manual-only logging is a *related but not identical* experience to v1 with passive detection on. Friction of manual logging is part of what passive detection eliminates. Pre-launch validation with friends and family will be provisional until passive detection is on. Don't read "I love it manually" as a guarantee that "I love it automatically" — they're related, not equivalent.
+
+**Implication:** manual walk logging is the primary v1-development path. Walk detection algorithm work (currently still flagged Open) stays Open and gets planned at the end of the build, not before.
 
 ### Breed-table verification scope
 **Decision:** All 30 entries in `docs/breed-table.md` are flagged `needs verification` with TODO source URLs. Verification is a single pre-launch pass, not a per-entry research session now. Onboarding can be built against the unverified table and the numbers replaced before TestFlight.
@@ -236,7 +251,7 @@ The following decisions came out of a structured pressure-test of the project pl
 ### Walk detection algorithm
 **Question:** What is the precise state machine and signal-fusion logic that turns Core Motion + HealthKit data into reliable walk-detected events?
 
-**Status:** Deferred to a dedicated plan-mode session before HealthKitService is built. This is the engine of the app and deserves more than a paragraph in spec.md.
+**Status:** Deferred to a dedicated plan-mode session at the **end** of the v1 build (per "Build sequence: passive walk detection ships last" above). Until that point, manual walk logging is the primary path and HealthKitService work does not begin.
 
 **Constraints already locked (do not lose in plan-mode):**
 - Core Motion (`CMMotionActivityManager`) as primary signal source for walking-state transitions

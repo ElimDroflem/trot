@@ -112,7 +112,7 @@ Each service is a single point of contact for that external system. Views and vi
 
 ## The walk detection flow
 
-**This algorithm is open and deferred to a dedicated plan-mode session before HealthKitService is built.** See decisions.md → "Walk detection algorithm." Step count alone won't reliably distinguish a dog walk from a shopping trip; the original algorithm sketched here was technically wrong and has been removed pending a proper design.
+**This algorithm is open and deferred to a dedicated plan-mode session at the END of the v1 build, not the start.** See decisions.md → "Build sequence: passive walk detection ships last" and → "Walk detection algorithm." Until that session, manual walk logging is the primary path and `HealthKitService` is not built. The original algorithm sketched here was technically wrong and has been removed pending a proper design.
 
 What's locked:
 
@@ -128,7 +128,7 @@ What's locked:
 - iOS throttles background updates. Frequency of `.immediate` is a hint, not a guarantee.
 - The app must not crash in background or iOS will reduce future wake frequency.
 - Background app refresh must be enabled in Settings (handled at onboarding).
-- HealthKit does not work in the iOS Simulator. Real-device testing is required from the moment HealthKitService development starts. This is the trigger for paying the Apple Developer Program ($99) — not day one.
+- HealthKit does not work in the iOS Simulator. Real-device testing is required from the moment HealthKitService development starts. Per the revised sequencing, this is at the **end** of the build — and it's the trigger for paying the Apple Developer Program ($99) at that point, not day one and not at first HealthKit work.
 
 ## Notifications
 

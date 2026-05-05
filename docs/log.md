@@ -23,18 +23,23 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 - `xcodebuild build -scheme Trot -destination "platform=iOS Simulator,name=iPhone 17 Pro"` returns BUILD SUCCEEDED. Both Bricolage TTFs bundled in the .app, asset catalog compiled, app installable in simulator.
 
 **Committed this session:**
-- (To commit at end of session: the entire `ios/` directory and the `architecture.md` + `log.md` updates)
+- `eba1f0b` — Add iOS skeleton: design system, gate, basic Home (45 files, +1683/-19). Pushed to `origin/main`. First push timed out with macOS `mmap`/"Stale NFS file handle" errors (likely iCloud Drive syncing the `Documents/` folder mid-push); resolved with `git repack -a -d` to consolidate 158 loose objects into one 890 KiB pack, then push went through. If this recurs on future pushes, same fix.
+- Mid-session decision shift, captured in `decisions.md`:
+    - **Build sequence revised:** passive walk detection (HealthKitService, the algorithm, real-device testing) moves to the **end** of the v1 build, not the start. Manual walk logging is the primary v1-development path. Strava analogy — most fitness apps default to manual start anyway.
+    - **Apple Developer Program timing revised:** $99 paid only at the very end, when ready to verify background walk-detection wake on a real device. Not at "first HealthKit work." Corey's framing: $99 acts as a risk gate, validate everything that can be validated on a free Personal Team first.
+    - Caveat captured: pre-launch validation under manual-only logging is provisional — the friction of manual logging is part of what passive detection eliminates, so "I love it manually" is not a guarantee of "I love it automatically."
 
 **Next session pickup:**
-- Decide which feature comes next. Likely candidates in rough order: (a) **Sign in with Apple wiring** — requires paying the $99 Apple Developer Program; (b) **SwiftData models + CloudKit** — dedicated plan-mode session; (c) **Onboarding flow** beyond the gate (add-a-dog form, breed picker, walk windows, permissions ask); (d) **Home with real data** — needs (b) first.
-- My recommendation: pay the $99 *and* run the SwiftData plan-mode session next. Auth is the entry point, models are the spine — everything else slots in once those are in place.
+- **My recommendation:** SwiftData plan-mode session, local-only persistence (no CloudKit yet — that turns on with the paid program at the end). Refine the Dog / Walk / WalkWindow models per architecture.md, wire `ModelContainer` back into `TrotApp.swift`, replace HomeView's hardcoded constants with real `@Query` reads. Once data has somewhere to live, every feature after has a place to put it.
+- **Then probably:** Add-a-dog onboarding form (the first feature that actually does something — collect profile fields, persist a `Dog`, navigate to Home with real data). After that, manual walk logging sheet, then build out the engagement loops (streak service, daily target scoring, weekly recap, insights).
+- **Held to the end:** Sign in with Apple wiring, CloudKit sync turn-on, HealthKitService + walk detection algorithm, paid Apple Developer Program. All clean, well-defined swaps when we get there — no architectural rework needed.
 
 **Open from this session that may surface later:**
 - **Hero photo source.** Home currently shows a tinted placeholder card where the dog photo should go. The AI-generated `dog-luna.jpg` in `design-reference/Trot Design System/assets/` does not ship with the iOS app per `decisions.md`. Need to generate or commission a non-AI placeholder photo (or the proper user-upload flow) before this looks right. Action: Corey to generate this at some point — flagged here so it's not forgotten.
 - **App icon production version.** Current icon in the asset catalog is `app-icon-1024.png` from design-reference, used as a placeholder. Needs replacement before TestFlight: generate via Claude Design (prompt drafted previously) and add proper light/dark/tinted variants per Apple's iOS 18+ icon system.
-- **Sign in with Apple capability.** Disabled in the gate via Option B. When Corey pays for the Apple Developer Program, add the Sign in with Apple capability via Xcode UI, swap the dimmed placeholder button for the real `SignInWithAppleButton`, wire `CKContainer.accountStatus()` for the iCloud-required gate.
-- **SwiftData + CloudKit plan-mode session.** Architecture.md flags the initial models as "refine in plan mode before implementing." Skeleton currently has no SwiftData wiring; the iCloud entitlement (`aps-environment=development` + CloudKit container array) sits idle until that session.
-- Walk detection algorithm — still flagged Open in `decisions.md`, dedicated plan-mode session before HealthKitService is built.
+- **Sign in with Apple capability — held to end of build.** Disabled in the gate via Option B. When the Apple Developer Program is paid for at the end, add the capability via Xcode UI, swap the dimmed placeholder button for the real `SignInWithAppleButton`, wire `CKContainer.accountStatus()` for the iCloud-required gate.
+- **CloudKit sync — held to end of build.** SwiftData will be wired local-only. The iCloud entitlement and CloudKit container array sit idle on the entitlements file until the end-of-build session that turns sync on (one `ModelConfiguration.cloudKitDatabase` flip plus CloudKit Console schema deploy).
+- **Walk detection algorithm + HealthKitService — held to end of build** per the new sequencing. Constraints already locked in `decisions.md` survive intact.
 - Breed-table verification pass — pre-launch task, all 30 entries flagged `needs verification`.
 
 ---
