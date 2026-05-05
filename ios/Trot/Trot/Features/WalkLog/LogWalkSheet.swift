@@ -3,12 +3,26 @@ import SwiftData
 
 struct LogWalkSheet: View {
     let dogs: [Dog]
+    let editingWalk: Walk?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var form = LogWalkFormState()
+    @State private var form: LogWalkFormState
     @State private var saveError: String?
+    @State private var showingDeleteConfirmation = false
+
+    init(dogs: [Dog], editingWalk: Walk? = nil) {
+        self.dogs = dogs
+        self.editingWalk = editingWalk
+        if let walk = editingWalk {
+            self._form = State(initialValue: LogWalkFormState.from(walk))
+        } else {
+            self._form = State(initialValue: LogWalkFormState())
+        }
+    }
+
+    private var isEditing: Bool { editingWalk != nil }
 
     var body: some View {
         NavigationStack {
@@ -22,6 +36,7 @@ struct LogWalkSheet: View {
                         durationCard
                         notesCard
                         saveButton
+                        if isEditing { deleteButton }
                         Color.clear.frame(height: Space.lg)
                     }
                     .padding(.horizontal, Space.md)
@@ -29,7 +44,7 @@ struct LogWalkSheet: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle("Log a walk")
+            .navigationTitle(isEditing ? "Edit walk" : "Log a walk")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -42,6 +57,16 @@ struct LogWalkSheet: View {
             } message: {
                 Text(saveError ?? "")
             }
+            .confirmationDialog(
+                "Delete this walk?",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) { deleteWalk() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This can't be undone.")
+            }
         }
     }
 
@@ -53,7 +78,7 @@ struct LogWalkSheet: View {
                 .font(.titleLarge)
                 .foregroundStyle(Color.brandSecondary)
                 .multilineTextAlignment(.center)
-            if dogs.count > 1 {
+            if !isEditing && dogs.count > 1 {
                 Text(dogNamesList)
                     .font(.bodyMedium)
                     .foregroundStyle(Color.brandTextSecondary)
@@ -122,12 +147,39 @@ struct LogWalkSheet: View {
         .padding(.top, Space.sm)
     }
 
+    private var deleteButton: some View {
+        Button(action: { showingDeleteConfirmation = true }) {
+            Text("Delete walk")
+                .font(.bodyLarge.weight(.semibold))
+                .foregroundStyle(Color.brandError)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Space.md)
+        }
+        .padding(.top, Space.xs)
+    }
+
     // MARK: - Actions
 
     private func save() {
-        guard form.isValid, !dogs.isEmpty else { return }
-        let walk = form.makeWalk(for: dogs)
-        modelContext.insert(walk)
+        guard form.isValid else { return }
+        do {
+            if let editingWalk {
+                form.apply(to: editingWalk)
+            } else {
+                guard !dogs.isEmpty else { return }
+                let walk = form.makeWalk(for: dogs)
+                modelContext.insert(walk)
+            }
+            try modelContext.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
+    }
+
+    private func deleteWalk() {
+        guard let editingWalk else { return }
+        modelContext.delete(editingWalk)
         do {
             try modelContext.save()
             dismiss()
@@ -139,6 +191,7 @@ struct LogWalkSheet: View {
     // MARK: - Helpers
 
     private var headlineText: String {
+        if isEditing { return "Edit walk." }
         if let only = dogs.first, dogs.count == 1 {
             return "Log a walk with \(only.name)."
         }

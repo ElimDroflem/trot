@@ -72,4 +72,33 @@ struct LogWalkFormStateTests {
         #expect(walk.dogs?.contains(where: { $0.name == "Luna" }) == true)
         #expect(walk.dogs?.contains(where: { $0.name == "Bruno" }) == true)
     }
+
+    @Test("from(walk) round-trips into apply(to:)")
+    func roundTripFromApply() {
+        let original = Walk(
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            durationMinutes: 42,
+            distanceMeters: 2800,
+            source: .passive,
+            notes: "good walk",
+            dogs: []
+        )
+
+        var state = LogWalkFormState.from(original)
+        #expect(state.startedAt == original.startedAt)
+        #expect(state.durationMinutes == 42)
+        #expect(state.notes == "good walk")
+
+        // Mutate state and apply back
+        state.durationMinutes = 55
+        state.notes = "  edited notes  "
+        state.startedAt = Date(timeIntervalSince1970: 1_700_001_000)
+        state.apply(to: original)
+
+        #expect(original.durationMinutes == 55)
+        #expect(original.notes == "edited notes")
+        #expect(original.startedAt == Date(timeIntervalSince1970: 1_700_001_000))
+        #expect(original.source == .passive, "apply doesn't change source")
+        #expect(original.distanceMeters == 2800, "apply doesn't change distance")
+    }
 }

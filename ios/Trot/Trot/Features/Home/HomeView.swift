@@ -10,6 +10,7 @@ struct HomeView: View {
     private var activeDogs: [Dog]
 
     @State private var showingLogWalk = false
+    @State private var editingWalk: Walk?
 
     var body: some View {
         TabView {
@@ -30,6 +31,9 @@ struct HomeView: View {
         .tint(.brandPrimary)
         .sheet(isPresented: $showingLogWalk) {
             LogWalkSheet(dogs: Array(activeDogs.prefix(1)))
+        }
+        .sheet(item: $editingWalk) { walk in
+            LogWalkSheet(dogs: Array(activeDogs.prefix(1)), editingWalk: walk)
         }
     }
 
@@ -58,7 +62,8 @@ struct HomeView: View {
                         )
                         WalksSection(
                             sectionTitle: Self.walksSectionTitle(for: .now),
-                            walks: walksToday(for: dog)
+                            walks: walksToday(for: dog),
+                            onTapWalk: { walk in editingWalk = walk }
                         )
                         Color.clear.frame(height: Space.lg)
                     }
@@ -282,6 +287,7 @@ private struct ProgressTrack: View {
 private struct WalksSection: View {
     let sectionTitle: String
     let walks: [Walk]
+    let onTapWalk: (Walk) -> Void
 
     var body: some View {
         if walks.isEmpty {
@@ -294,7 +300,11 @@ private struct WalksSection: View {
                     .foregroundStyle(Color.brandTextSecondary)
 
                 ForEach(walks) { walk in
-                    WalkRow(walk: walk)
+                    Button(action: { onTapWalk(walk) }) {
+                        WalkRow(walk: walk)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Tap to edit or delete this walk.")
                 }
             }
         }

@@ -19,4 +19,21 @@ struct LogWalkFormState {
             dogs: dogs
         )
     }
+
+    /// Mutates `walk` to reflect the form state. Used when editing an existing walk.
+    /// Doesn't change `walk.dogs` or `walk.source` — those aren't editable in this form.
+    func apply(to walk: Walk) {
+        walk.startedAt = startedAt
+        walk.durationMinutes = durationMinutes
+        walk.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Pre-populates form state from an existing Walk for editing.
+    static func from(_ walk: Walk) -> LogWalkFormState {
+        var state = LogWalkFormState()
+        state.startedAt = walk.startedAt
+        state.durationMinutes = walk.durationMinutes
+        state.notes = walk.notes
+        return state
+    }
 }
