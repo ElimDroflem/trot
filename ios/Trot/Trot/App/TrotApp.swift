@@ -1,8 +1,36 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct TrotApp: App {
     @State private var hasContinued = false
+
+    let modelContainer: ModelContainer = {
+        let schema = Schema(versionedSchema: TrotSchemaV1.self)
+
+        // ← THE ONE LINE. End of build: change `.none` to
+        //   .private("iCloud.dog.trot.Trot")
+        // and deploy CloudKit schema (Development → Production).
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .none
+        )
+
+        do {
+            let container = try ModelContainer(
+                for: schema,
+                migrationPlan: TrotMigrationPlan.self,
+                configurations: [configuration]
+            )
+            #if DEBUG
+            DebugSeed.seedIfEmpty(container: container)
+            #endif
+            return container
+        } catch {
+            fatalError("ModelContainer construction failed: \(error)")
+        }
+    }()
 
     var body: some Scene {
         WindowGroup {
@@ -12,5 +40,6 @@ struct TrotApp: App {
                 OnboardingGateView(onContinue: { hasContinued = true })
             }
         }
+        .modelContainer(modelContainer)
     }
 }
