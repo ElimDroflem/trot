@@ -8,6 +8,54 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-05 (late evening) — Daily loop functional end-to-end
+
+**Done this session:**
+- **SwiftData schema** built CloudKit-ready under `ios/Trot/Trot/Core/Models/`. Three @Model classes (`Dog`, `Walk`, `WalkWindow`), four raw-value enums in `Enums/ModelEnums.swift`, `TrotSchemaV1` + empty `TrotMigrationPlan` in `Schema/`. Every property has a default or is optional; relationships are optional collections; `.nullify` on the many-to-many `Walk.dogs` relationship; no `@Attribute(.unique)`. The single line that flips local→CloudKit at end of build is marked in `TrotApp.swift`. `DebugSeed` populates Luna + sample 42-min walk on first DEBUG launch when the store is empty. `HomeView` now reads from `@Query` instead of hardcoded constants. Plan-mode session backed this; full plan at `~/.claude/plans/melodic-tickling-blum.md`.
+- **Add-a-dog onboarding form** at `Features/Onboarding/AddDogView.swift`. Brand-styled custom form (not native Form) with photo picker, name, breed, DOB, weight, sex, neutered, activity level, three health tickboxes + free-text notes. `AddDogFormState` is a plain struct → unit-testable. `UIImage+Downscale` extension enforces the 1024px / 80% JPEG hard rule from `decisions.md` before bytes hit `dog.photo`. `RootView` extracts the routing: gate → if active dogs empty, AddDogView → Home; else Home directly. After save, the @Query on `RootView` re-evaluates and falls through to Home automatically — no callback plumbing needed.
+- **DEBUG reset button on the gate.** Wipes Dog/Walk/WalkWindow with a confirmation dialog so the add-a-dog flow can be tested without rebuilding or app-deleting. `#if DEBUG` only.
+- **Manual walk logging sheet** at `Features/WalkLog/LogWalkSheet.swift`. Tap "+" on Home (replaced the old ellipsis) → branded sheet: When (date/time picker), Duration (TextField + 5-min Stepper, range 1–300), Notes (optional). Cancel in toolbar, Save at bottom. `LogWalkFormState` is testable. Headline adapts to the active dog or to multi-dog ("Log a walk with Luna and Bruno."). Source = `.manual`, distance = nil.
+- **Walk edit and delete.** Walk rows on Home are tappable → opens `LogWalkSheet` in edit mode (same form, pre-populated, navigation title flips to "Edit walk"). Save mutates in place; destructive Delete button at the bottom with confirmation dialog. `LogWalkFormState` gained `apply(to:)` and `from(walk:)` for the round-trip.
+- **`StreakService`** at `Core/Services/StreakService.swift`. Pure function, no side effects. Replaced the hardcoded `14` on Home. Math per `decisions.md`: HIT day = ≥50% target; PARTIAL/MISS burn rest day; rolling 7-day window of the streak run allows ≤1 non-hit; days before `dog.createdAt` aren't penalised. Streak count = HIT days in the run. Initial test run flagged a real bug — my first interpretation checked the trailing 7 *calendar* days at any cursor, which penalised days before the user's actual streak started. Correct rule walks through *streak-run days only*. Rewrote the algorithm to track `nonHitDaysInRun: [Date]` and check window membership against that list. All tests now pass.
+- **Code review pass.** Used `/swiftdata-pro` and `/swiftui-pro` skills against the schema and HomeView. Findings actioned: cached `DateFormatter` instances (avoid per-render allocation), 44pt tap targets on header buttons (HIG minimum), accessibility labels on icon-only buttons.
+- **Doc updates.** `decisions.md` revised entries for "Apple Developer Program timing" (now: pay only at end-of-build, when ready to verify background wake) and added "Build sequence: passive walk detection ships last" decision. `architecture.md` folder-layout block matches Xcode's actual output (`ios/Trot/Trot.xcodeproj`); walk detection section flags end-of-build sequencing. Captured the Strava framing for manual-first development.
+- **26 unit tests** total, all passing: 6 AddDogFormState, 7 LogWalkFormState (including `roundTripFromApply`), 13 StreakService.
+
+**Committed this session:**
+- `eba1f0b` — Add iOS skeleton: design system, gate, basic Home (45 files)
+- `e8edc4d` — Defer passive walk detection to end of v1 build (decisions.md/architecture.md/log.md)
+- `fda4ab8` — Add SwiftData schema (CloudKit-ready, local-only) and wire HomeView to live data
+- `69d25fa` — Add the add-a-dog onboarding form
+- `8f294e3` — Add DEBUG-only reset button on the gate
+- `7c6e80c` — Add manual walk logging sheet
+- `69abe4b` — Add StreakService and replace hardcoded 14 with real streak math
+- `f7acad9` — Add walk row edit and delete
+- All on `main`, pushed to `ElimDroflem/trot`.
+
+**The app now functions end-to-end as a manual daily-walk tracker:**
+1. Gate → reset (DEBUG) or continue → AddDog form (or Home if dog exists).
+2. AddDog → fill in profile → Save → Home with real data.
+3. Home shows dog name, today's progress (live from walks), streak count (live from `StreakService`), today's walk rows.
+4. Tap "+" → log a walk → Home updates.
+5. Tap a walk row → edit or delete → Home updates.
+
+**Notable workflow note:** The first push of this session timed out with macOS `mmap` / "Stale NFS file handle" errors (likely iCloud Drive syncing the `Documents/` folder mid-push). `git repack -a -d` to consolidate loose objects fixed it. Pattern: if a future push hits the same error, run `git repack -a -d` and retry.
+
+**Next session pickup:**
+- **Activity tab calendar** (the next likely chunk): month view with day cells colour-coded by hit/partial/miss, prev/next month nav, monthly summary aggregates, tap a day → walks for that day. Replaces the current placeholder.
+- After that, **Profile/Account tab** (edit dog, add another dog, archive, walk windows picker), then **LLM service** for personalised exercise targets, then notifications, then the missing-screens polish, then end-of-build (paid program, real auth, CloudKit turn-on, HealthKitService + walk detection algorithm).
+
+**Open from this session that may surface later:**
+- Real Luna photo source — still using a tinted placeholder. Corey to generate at some point.
+- Production app icon — placeholder is in place.
+- Sign in with Apple wiring — held to end of build.
+- CloudKit sync — held to end of build.
+- HealthKitService + walk detection — held to end of build.
+- BreedData.json + breed-table-driven default target — currently every new dog gets `dailyTargetMinutes = 60`. Will be replaced when LLM service / breed-table lookup lands.
+- Mixed-breed UI — current AddDog only collects `breedPrimary`. Secondary-breed collection is a polish pass when breed picker arrives.
+
+---
+
 ## 2026-05-05 (evening) — iOS skeleton built and compiling
 
 **Done this session:**
