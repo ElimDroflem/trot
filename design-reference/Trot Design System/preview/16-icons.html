@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Iconography</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { margin: 0; padding: 22px; background: var(--bg-1); font-family: var(--font-ui); }
+  .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 14px; align-items: start; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-2); }
+  .icon { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-surface-sunken); display: flex; align-items: center; justify-content: center; color: var(--fg-1); }
+  i[data-lucide] { width: 22px; height: 22px; stroke-width: 2; }
+  .note { font-size: 11px; color: var(--fg-3); margin-top: 14px; line-height: 1.4; }
+</style></head><body>
+  <div class="grid">
+    <div class="item"><div class="icon"><i data-lucide="footprints"></i></div>walk</div>
+    <div class="item"><div class="icon"><i data-lucide="flame"></i></div>streak</div>
+    <div class="item"><div class="icon"><i data-lucide="bell"></i></div>notify</div>
+    <div class="item"><div class="icon"><i data-lucide="calendar"></i></div>activity</div>
+    <div class="item"><div class="icon"><i data-lucide="heart"></i></div>health</div>
+    <div class="item"><div class="icon"><i data-lucide="lightbulb"></i></div>insight</div>
+    <div class="item"><div class="icon"><i data-lucide="settings"></i></div>settings</div>
+    <div class="item"><div class="icon"><i data-lucide="plus"></i></div>add</div>
+  </div>
+  <div class="note">SF Symbols on iOS. Lucide on web (closest open match).</div>
+  <script>lucide.createIcons();</script>
+</body></html>

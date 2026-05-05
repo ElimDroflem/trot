@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" style="color-scheme: light"><head>
+<meta charset="utf-8">
+<title>Trot — landing</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+<style>
+  body { margin: 0; background: #FAF7F2; color: #1F1B16; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 32px 80px; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 56px; }
+  header a.x-link { color: #6B6258; text-decoration: none; font-size: 14px; font-weight: 500; }
+  /* D1B Trot wordmark — header size */
+  .trot-wm { position: relative; display: inline-block; line-height: 1; font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: -0.045em; color: #1F1B16; }
+  .trot-wm .spot { position: absolute; width: 5.5px; height: 5.5px; border-radius: 50%; background: #E97451; right: 13px; top: 12px; }
+
+  .hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; }
+  .hero h1 { font-family: var(--font-display); font-size: 64px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margin: 0; }
+  .hero p { margin-top: 18px; font-size: 18px; color: var(--fg-2); line-height: 1.45; max-width: 460px; }
+  .cta-row { display: flex; gap: 10px; margin-top: 28px; max-width: 460px; }
+  .cta-row input { flex: 1; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--brand-divider); font: inherit; font-size: 16px; background: white; }
+  .cta-row button { padding: 14px 20px; border-radius: 12px; border: none; background: var(--brand-primary); color: white; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer; }
+  .cta-row button:hover { background: #D5613F; }
+  .cta-note { margin-top: 12px; font-size: 13px; color: var(--fg-3); }
+
+  .phone-wrap { display: flex; justify-content: center; }
+  .phone { width: 280px; aspect-ratio: 9/19; background: #1F1B16; border-radius: 38px; padding: 8px; box-shadow: 0 24px 60px rgba(31,27,22,0.25); position: relative; }
+  .phone-screen { background: var(--brand-surface); border-radius: 30px; height: 100%; overflow: hidden; padding: 16px; box-sizing: border-box; }
+  .pn-h { font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; }
+  .pn-d { font-size: 11px; color: var(--fg-2); margin-top: 4px; }
+  .pn-photo { width: 100%; height: 170px; border-radius: 16px; background-image: url(../../assets/dog-luna.jpg); background-size: cover; background-position: center; margin-top: 14px; position: relative; overflow: hidden; }
+  /* Stats live BELOW the photo, per design system: "Default is to keep text outside the photo entirely." */
+  .pn-stats { display: flex; align-items: baseline; justify-content: space-between; margin-top: 12px; padding: 0 2px; }
+  .pn-stats .big { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1; letter-spacing: -0.02em; color: var(--fg-1); }
+  .pn-stats .big .target { color: var(--fg-3); font-weight: 600; font-size: 16px; }
+  .pn-stats .pct { font-size: 12px; font-weight: 600; color: var(--brand-primary); background: var(--brand-primary-tint); padding: 4px 10px; border-radius: 999px; }
+  .pn-card { background: white; border-radius: 14px; padding: 12px 14px; margin-top: 12px; box-shadow: var(--shadow-card); display: flex; align-items: center; gap: 10px; }
+  .pn-flame { width: 32px; height: 32px; border-radius: 9px; background: var(--brand-primary-tint); color: var(--brand-primary); display: flex; align-items: center; justify-content: center; }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 96px; }
+  .feature { padding: 28px; background: white; border-radius: 16px; box-shadow: var(--shadow-card); }
+  .feature .ico { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-primary-tint); color: var(--brand-primary); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+  .feature h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
+  .feature p { margin: 8px 0 0; font-size: 14px; color: var(--fg-2); line-height: 1.5; }
+
+  .cta2 { margin-top: 96px; padding: 56px 32px; background: var(--brand-secondary); border-radius: 20px; text-align: center; color: var(--brand-text-on-secondary); }
+  .cta2 h2 { font-family: var(--font-display); font-size: 40px; font-weight: 700; margin: 0; letter-spacing: -0.02em; color: white; }
+  .cta2 p { margin-top: 10px; opacity: 0.8; font-size: 16px; }
+  .cta2 .row { display: flex; gap: 10px; max-width: 440px; margin: 26px auto 0; }
+  .cta2 input { flex: 1; padding: 14px 16px; border-radius: 12px; border: none; font: inherit; font-size: 16px; background: rgba(255,255,255,0.95); color: var(--fg-1); }
+  .cta2 button { padding: 14px 20px; border-radius: 12px; border: none; background: var(--brand-primary); color: white; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer; }
+
+  footer { margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--brand-divider); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--fg-3); }
+  footer a { color: var(--fg-2); text-decoration: none; margin-right: 16px; }
+  footer a:hover { color: var(--fg-1); }
+</style></head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="trot-wm">Trot<span class="spot"></span></span>
+    <a class="x-link" href="#">Building in the open · X</a>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1>The dog walking app that takes your dog seriously.</h1>
+      <p>Passive walk detection, breed-tailored targets, and a streak that belongs to your dog. iOS only, UK launch.</p>
+      <form class="cta-row" onsubmit="event.preventDefault();this.querySelector('button').textContent='Got it.';">
+        <input type="email" placeholder="you@example.com" required>
+        <button type="submit">Get notified</button>
+      </form>
+      <div class="cta-note">No spam. One email when Trot lands on the App Store.</div>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="pn-d">Tuesday, 7 May</div>
+          <div class="pn-h">Good morning,<br>Luna.</div>
+          <div class="pn-photo"></div>
+          <div class="pn-stats">
+            <div class="big">42<span class="target"> / 60 min</span></div>
+            <div class="pct">70%</div>
+          </div>
+          <div class="pn-card">
+            <div class="pn-flame"><i data-lucide="flame" style="width:18px;height:18px"></i></div>
+            <div>
+              <div style="font-weight:600;font-size:14px">14-day streak</div>
+              <div style="font-size:11px;color:var(--fg-2)">Luna's longest so far.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="feature">
+      <div class="ico"><i data-lucide="footprints"></i></div>
+      <h3>Walks log themselves.</h3>
+      <p>Trot detects walks via HealthKit. Tap once to confirm; the rest is automatic.</p>
+    </div>
+    <div class="feature">
+      <div class="ico"><i data-lucide="sliders-horizontal"></i></div>
+      <h3>Targets that fit your dog.</h3>
+      <p>Beagles, Frenchies, and Labradors don't need the same exercise. Trot adjusts to breed, age, and health.</p>
+    </div>
+    <div class="feature">
+      <div class="ico"><i data-lucide="flame"></i></div>
+      <h3>A streak worth keeping.</h3>
+      <p>Track your dog's daily walking habit. One rest day a week is allowed. Skipping more breaks the streak.</p>
+    </div>
+  </section>
+
+  <section class="cta2">
+    <h2>Start walking your dog daily.</h2>
+    <p>Get notified when Trot launches.</p>
+    <form class="row" onsubmit="event.preventDefault();this.querySelector('button').textContent='Got it.';">
+      <input type="email" placeholder="you@example.com" required>
+      <button type="submit">Get notified</button>
+    </form>
+  </section>
+
+  <footer>
+    <div>© 2026 Trot</div>
+    <div>
+      <a href="#">Privacy</a><a href="#">Terms</a><a href="#">X</a>
+    </div>
+  </footer>
+</div>
+<script>window.addEventListener('load', () => lucide.createIcons());</script>
+</body></html>

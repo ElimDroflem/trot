@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.ipa
+.build/
+.swiftpm/
+
+# Node / web
+node_modules/
+.vercel
+
+# Logs
+*.log

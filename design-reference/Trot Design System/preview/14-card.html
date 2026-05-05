@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Card</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; padding: 24px; background: var(--bg-1); font-family: var(--font-ui); }
+  .card { background: white; border-radius: 16px; padding: 16px; box-shadow: var(--shadow-card); display: flex; gap: 14px; align-items: center; }
+  .avatar { width: 56px; height: 56px; border-radius: 9999px; background: url(../assets/dog-luna.jpg) center/cover; flex: none; }
+  .meta { flex: 1; }
+  .title { font-weight: 600; font-size: 17px; }
+  .sub { font-size: 13px; color: var(--fg-2); margin-top: 2px; }
+  .pill { background: var(--brand-success-tint); color: #235236; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+</style>
+</head><body>
+  <div class="card">
+    <div class="avatar"></div>
+    <div class="meta">
+      <div class="title">28-minute walk</div>
+      <div class="sub">7:42 am · Passive detection</div>
+    </div>
+    <div class="pill">Confirmed</div>
+  </div>
+</body></html>

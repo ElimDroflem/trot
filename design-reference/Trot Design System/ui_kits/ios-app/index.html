@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trot — iOS UI kit</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  body { margin: 0; padding: 24px; background: #2a2620; min-height: 100vh; display: flex; gap: 28px; align-items: flex-start; justify-content: center; flex-wrap: wrap; font-family: var(--font-ui); }
+  .label { color: #d9d0c2; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; text-align: center; }
+  .stack { display: flex; flex-direction: column; align-items: center; }
+  .nav { position: fixed; top: 16px; left: 16px; right: 16px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 50; }
+  .nav button { background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.12); padding: 8px 14px; border-radius: 9999px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; }
+  .nav button.active { background: var(--brand-primary); border-color: var(--brand-primary); }
+  .deck { display: contents; }
+  .single .v { display: none; }
+  .single .v.active { display: flex; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="home-variants.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+
+<script type="text/babel">
+const PHOTO = '../../assets/dog-luna.jpg';
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "minutesToday": 42,
+  "targetMinutes": 60,
+  "streakDays": 14,
+  "showWalkConfirmation": false,
+  "viewAll": true
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [activeTab, setActiveTab] = React.useState('home');
+
+  React.useEffect(() => { lucide.createIcons(); });
+
+  const homeContent = (
+    <HomeOutdoorsy
+      photo={PHOTO}
+      minutes={t.minutesToday}
+      target={t.targetMinutes}
+      streak={t.streakDays}
+    />
+  );
+
+  // Single-screen wrapper
+  const screen = (label, content) => (
+    <div className="stack">
+      <div className="label" data-screen-label={label}>{label}</div>
+      <IOSDevice title="" width={380} height={780}>
+        <div style={{ height: '100%', position: 'relative', background: 'var(--brand-surface)' }}>
+          {content}
+          <TrotTabBar active={activeTab} onChange={setActiveTab}/>
+        </div>
+      </IOSDevice>
+    </div>
+  );
+
+  const activityScreen = (
+    <div className="stack">
+      <div className="label" data-screen-label="Activity">Activity</div>
+      <IOSDevice title="" width={380} height={780}>
+        <div style={{ height: '100%', position: 'relative', background: 'var(--brand-surface)' }}>
+          <ActivityScreen photo={PHOTO}/>
+          <TrotTabBar active="activity" onChange={setActiveTab}/>
+        </div>
+      </IOSDevice>
+    </div>
+  );
+
+  const onboardingScreen = (
+    <div className="stack">
+      <div className="label" data-screen-label="Onboarding — Add dog">Onboarding · Add dog</div>
+      <IOSDevice title="" width={380} height={780}>
+        <div style={{ height: '100%', position: 'relative', background: 'var(--brand-surface)' }}>
+          <OnboardingDog onNext={() => {}}/>
+        </div>
+      </IOSDevice>
+    </div>
+  );
+
+  const confirmationScreen = (
+    <div className="stack">
+      <div className="label" data-screen-label="Walk confirmation sheet">Walk confirmation</div>
+      <IOSDevice title="" width={380} height={780}>
+        <div style={{ height: '100%', position: 'relative', background: 'var(--brand-surface)' }}>
+          <HomeOutdoorsy photo={PHOTO} minutes={t.minutesToday} target={t.targetMinutes} streak={t.streakDays}/>
+          <TrotTabBar active="home" onChange={setActiveTab}/>
+          <WalkConfirmation
+            dogName="Luna" minutes={28} photo={PHOTO}
+            onConfirm={() => setTweak('showWalkConfirmation', false)}
+            onDismiss={() => setTweak('showWalkConfirmation', false)}
+          />
+        </div>
+      </IOSDevice>
+    </div>
+  );
+
+  return (
+    <>
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Today's data">
+          <TweakSlider label="Minutes walked" value={t.minutesToday} min={0} max={120} step={1} onChange={v => setTweak('minutesToday', v)}/>
+          <TweakSlider label="Target" value={t.targetMinutes} min={30} max={120} step={5} onChange={v => setTweak('targetMinutes', v)}/>
+          <TweakSlider label="Streak" value={t.streakDays} min={0} max={60} step={1} onChange={v => setTweak('streakDays', v)}/>
+        </TweakSection>
+        <TweakSection title="Show">
+          <TweakToggle label="View all screens" value={t.viewAll} onChange={v => setTweak('viewAll', v)}/>
+          <TweakToggle label="Walk confirmation sheet" value={t.showWalkConfirmation} onChange={v => setTweak('showWalkConfirmation', v)}/>
+        </TweakSection>
+      </TweaksPanel>
+
+      {t.viewAll ? (
+        <>
+          {screen('Home — Outdoorsy + Grounded', homeContent)}
+          {activityScreen}
+          {t.showWalkConfirmation ? confirmationScreen : null}
+          {onboardingScreen}
+        </>
+      ) : (
+        t.showWalkConfirmation ? confirmationScreen :
+          screen('Home — Outdoorsy + Grounded', homeContent)
+      )}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

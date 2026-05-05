@@ -1,0 +1,244 @@
+/* ======================================================================
+ * Trot — Colors & Type
+ * Source of truth for visual tokens. Mirror of docs/brand.md tokens.
+ * Use semantic vars in components; do not reach for raw hex.
+ * ====================================================================== */
+
+/* --- Display face: Bricolage Grotesque (variable) -------------------- */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("./fonts/BricolageGrotesque-Variable.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("./fonts/BricolageGrotesque-Variable-LatinExt.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+1E00-1E9F, U+2020, U+20A0-20AB, U+20AD-20C0;
+}
+
+:root {
+  /* ------------------------------------------------------------------ */
+  /* Brand color tokens                                                 */
+  /* ------------------------------------------------------------------ */
+  --brand-primary:           #E97451; /* warm coral / persimmon */
+  --brand-primary-pressed:   #D5613F; /* primary -6% lightness */
+  --brand-secondary:         #2F5D50; /* deep evergreen */
+  --brand-secondary-pressed: #244A40;
+
+  --brand-surface:           #FAF7F2; /* app background — warm off-white */
+  --brand-surface-elevated:  #FFFFFF; /* cards, sheets */
+  --brand-surface-sunken:    #F2EDE4; /* subtle wells, search field bg */
+
+  --brand-text-primary:      #1F1B16; /* warm charcoal — never pure black */
+  --brand-text-secondary:    #6B6258; /* warm gray */
+  --brand-text-tertiary:     #9A9286; /* metadata, disabled */
+  --brand-text-on-primary:   #FFFFFF;
+  --brand-text-on-secondary: #F5F0E8;
+
+  --brand-success:           #3F8E5C;
+  --brand-warning:           #D89B3F;
+  --brand-error:             #C24E3F;
+
+  --brand-divider:           #EAE3D9;
+  --brand-divider-strong:    #D9D0C2;
+
+  /* Tinted backgrounds for cards / banners */
+  --brand-primary-tint:      #FBE9E2;
+  --brand-secondary-tint:    #E2EAE6;
+  --brand-success-tint:      #DDEEDF;
+  --brand-warning-tint:      #F6E7C9;
+  --brand-error-tint:        #F2D9D4;
+
+  /* Generic semantic foreground/background aliases */
+  --fg-1: var(--brand-text-primary);
+  --fg-2: var(--brand-text-secondary);
+  --fg-3: var(--brand-text-tertiary);
+  --bg-1: var(--brand-surface);
+  --bg-2: var(--brand-surface-elevated);
+  --bg-3: var(--brand-surface-sunken);
+
+  /* ------------------------------------------------------------------ */
+  /* Type tokens                                                        */
+  /* ------------------------------------------------------------------ */
+  --font-display: "Bricolage Grotesque", ui-rounded, system-ui, sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Sizes — pt-equivalent, expressed in px */
+  --size-display-lg: 48px;
+  --size-display-md: 32px;
+  --size-title-lg:   28px;
+  --size-title-md:   22px;
+  --size-title-sm:   17px;
+  --size-body-lg:    17px;
+  --size-body-md:    15px;
+  --size-caption:    13px;
+
+  --leading-tight:  1.1;
+  --leading-snug:   1.25;
+  --leading-normal: 1.4;
+  --leading-loose:  1.55;
+
+  --tracking-tight: -0.02em;
+  --tracking-snug:  -0.01em;
+  --tracking-wide:   0.02em;
+
+  /* ------------------------------------------------------------------ */
+  /* Spacing — 4pt scale                                                */
+  /* ------------------------------------------------------------------ */
+  --space-xs:   4px;
+  --space-sm:   8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-xxl: 48px;
+  --space-huge:64px;
+
+  /* ------------------------------------------------------------------ */
+  /* Radii                                                              */
+  /* ------------------------------------------------------------------ */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-circle: 9999px;
+
+  /* ------------------------------------------------------------------ */
+  /* Elevation (shadows)                                                */
+  /* ------------------------------------------------------------------ */
+  --shadow-card:     0 1px 2px rgba(31,27,22,0.04), 0 4px 16px rgba(31,27,22,0.06);
+  --shadow-elevated: 0 6px 24px rgba(31,27,22,0.10), 0 12px 48px rgba(31,27,22,0.12);
+  --shadow-pressed:  0 1px 2px rgba(31,27,22,0.06);
+
+  /* ------------------------------------------------------------------ */
+  /* Motion                                                             */
+  /* ------------------------------------------------------------------ */
+  --ease-default:     cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-celebration: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-default:      240ms;
+  --dur-celebration:  380ms;
+}
+
+/* --- Dark mode (opt-in) -------------------------------------------- */
+/* Default is LIGHT. To enable dark on a page, add data-theme="dark" to
+   <html> or to any container. Honoring prefers-color-scheme would override
+   the cream-on-cream brand by surprise on user devices in dark mode, which
+   is wrong for the brand surface — make it explicit. */
+[data-theme="dark"] {
+    --brand-surface:           #1A1815;
+    --brand-surface-elevated:  #262320;
+    --brand-surface-sunken:    #141210;
+
+    --brand-text-primary:      #F5F0E8;
+    --brand-text-secondary:    #A29A8E;
+    --brand-text-tertiary:     #7A7268;
+
+    --brand-divider:           #34302A;
+    --brand-divider-strong:    #45403A;
+
+    --brand-primary-tint:      #3A1F18;
+    --brand-secondary-tint:    #1E2C28;
+    --brand-success-tint:      #1F2E26;
+    --brand-warning-tint:      #3A2F1A;
+    --brand-error-tint:        #3A2120;
+
+    --shadow-card:     0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.45);
+    --shadow-elevated: 0 6px 24px rgba(0,0,0,0.55), 0 12px 48px rgba(0,0,0,0.6);
+}
+
+/* ====================================================================== */
+/* Semantic element styles                                                */
+/* Apply by adding classes (.h1, .body-lg) or by relying on tag defaults  */
+/* ====================================================================== */
+
+html, body {
+  background: var(--bg-1);
+  color: var(--fg-1);
+  font-family: var(--font-ui);
+  font-size: var(--size-body-lg);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Display — brand expression only */
+.display-lg, h1.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--size-display-lg);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+.display-md {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--size-display-md);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+
+/* Titles — SF Pro, regular UI */
+h1, .title-lg {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--size-title-lg);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-snug);
+  color: var(--fg-1);
+  margin: 0;
+}
+h2, .title-md {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: var(--size-title-md);
+  line-height: var(--leading-snug);
+  color: var(--fg-1);
+  margin: 0;
+}
+h3, .title-sm {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: var(--size-title-sm);
+  line-height: var(--leading-snug);
+  color: var(--fg-1);
+  margin: 0;
+}
+
+/* Body */
+p, .body-lg {
+  font-family: var(--font-ui);
+  font-size: var(--size-body-lg);
+  font-weight: 400;
+  line-height: var(--leading-normal);
+  color: var(--fg-1);
+  margin: 0;
+}
+.body-md {
+  font-size: var(--size-body-md);
+  line-height: var(--leading-normal);
+  color: var(--fg-2);
+}
+.caption {
+  font-size: var(--size-caption);
+  line-height: var(--leading-snug);
+  color: var(--fg-2);
+}
+.caption-bold {
+  font-size: var(--size-caption);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--fg-1);
+  letter-spacing: var(--tracking-wide);
+}
+
+code, kbd, pre, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+}

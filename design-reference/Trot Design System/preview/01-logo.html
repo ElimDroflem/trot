@@ -1,0 +1,84 @@
+<!doctype html>
+<html style="color-scheme: light"><head><meta charset="utf-8"><title>Logo</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; padding: 32px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: stretch; background: #FAF7F2; font-family: var(--font-ui, system-ui); }
+  .swatch { background: #FFFFFF; border-radius: var(--radius-lg, 14px); padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(31,27,22,0.08); gap: 14px; min-height: 130px; }
+  .swatch.coral { background: #E97451; }
+  .swatch.green { background: #2F5D50; }
+  .swatch.dark { background: #1F1B16; }
+  .swatch.cream { background: #FAF7F2; }
+  .label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); font-weight: 600; }
+  .label.light { color: rgba(255,255,255,0.7); }
+
+  /* The wordmark — D1B canonical, drawn with HTML so we control the spot precisely.
+     The spot sits inside the 'o' counter. Coordinates are calibrated against
+     Bricolage Grotesque 700 at the listed font-size with letter-spacing -0.045em. */
+  .wm { position: relative; display: inline-block; line-height: 1; font-family: var(--font-display); font-weight: 700; font-size: 56px; letter-spacing: -0.045em; color: #1F1B16; }
+  .wm .spot { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: #E97451; right: 25px; top: 24px; }
+  .wm.lg { font-size: 80px; } .wm.lg .spot { width: 16px; height: 16px; right: 36px; top: 34px; }
+  .wm.sm { font-size: 28px; } .wm.sm .spot { width: 5.5px; height: 5.5px; right: 13px; top: 12px; }
+  .wm.coral { color: white; } .wm.coral .spot { background: white; }
+  .wm.cream-on-dark { color: #FAF7F2; } .wm.cream-on-dark .spot { background: var(--brand-primary); }
+  .wm.green-on-cream { color: var(--brand-secondary); } .wm.green-on-cream .spot { background: var(--brand-primary); }
+  .wm.mono-dark { color: #FAF7F2; } .wm.mono-dark .spot { background: #FAF7F2; }
+
+  /* Icon */
+  .icon { width: 72px; height: 72px; border-radius: 16px; display: flex; align-items: center; justify-content: center; position: relative; box-shadow: 0 4px 12px rgba(31,27,22,0.10); }
+  .icon-glyph { font-family: var(--font-display); font-weight: 700; font-size: 70px; line-height: 1; letter-spacing: -0.04em; margin-top: -4px; }
+  .icon-spot { position: absolute; width: 13px; height: 13px; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -22%); }
+</style>
+</head>
+<body>
+  <!-- Primary wordmark on cream -->
+  <div class="swatch">
+    <div class="wm lg"><span>Trot</span><span class="spot"></span></div>
+    <div class="label">Primary · cream</div>
+  </div>
+  <!-- Wordmark on coral -->
+  <div class="swatch coral">
+    <div class="wm coral"><span>Trot</span><span class="spot"></span></div>
+    <div class="label light">On coral</div>
+  </div>
+  <!-- Wordmark on evergreen -->
+  <div class="swatch green">
+    <div class="wm cream-on-dark"><span>Trot</span><span class="spot"></span></div>
+    <div class="label light">On evergreen</div>
+  </div>
+
+  <!-- Icon — cream -->
+  <div class="swatch cream">
+    <div class="icon" style="background: #FAF7F2; border: 1px solid var(--brand-divider);">
+      <span class="icon-glyph" style="color: #1F1B16">o</span>
+      <span class="icon-spot" style="background: var(--brand-primary)"></span>
+    </div>
+    <div class="label">App icon · cream</div>
+  </div>
+  <!-- Icon — coral -->
+  <div class="swatch coral">
+    <div class="icon" style="background: var(--brand-primary)">
+      <span class="icon-glyph" style="color: #FAF7F2">o</span>
+      <span class="icon-spot" style="background: #FAF7F2"></span>
+    </div>
+    <div class="label light">App icon · coral</div>
+  </div>
+  <!-- Icon — evergreen -->
+  <div class="swatch green">
+    <div class="icon" style="background: var(--brand-secondary)">
+      <span class="icon-glyph" style="color: #F5F0E8">o</span>
+      <span class="icon-spot" style="background: var(--brand-primary)"></span>
+    </div>
+    <div class="label light">App icon · evergreen</div>
+  </div>
+
+  <!-- Mono on dark -->
+  <div class="swatch dark" style="grid-column: span 2">
+    <div class="wm mono-dark"><span>Trot</span><span class="spot"></span></div>
+    <div class="label light">Mono · stamp / favicon</div>
+  </div>
+  <!-- Small size lockup -->
+  <div class="swatch">
+    <div class="wm sm"><span>Trot</span><span class="spot"></span></div>
+    <div class="label">Min size · 28px</div>
+  </div>
+</body></html>

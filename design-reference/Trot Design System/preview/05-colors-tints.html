@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tinted backgrounds</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; padding: 20px; background: var(--bg-1); font-family: var(--font-ui); }
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .sw { border-radius: var(--radius-md); padding: 14px 12px; }
+  .name { font-size: 12px; font-weight: 600; }
+  .hex { font-size: 11px; font-family: var(--font-mono); opacity: 0.7; margin-top: 2px; }
+</style>
+</head><body>
+  <div class="row">
+    <div class="sw" style="background:#FBE9E2; color:#7A2C16"><div class="name">primary tint</div><div class="hex">#FBE9E2</div></div>
+    <div class="sw" style="background:#E2EAE6; color:#1F3D34"><div class="name">secondary tint</div><div class="hex">#E2EAE6</div></div>
+    <div class="sw" style="background:#DDEEDF; color:#235236"><div class="name">success tint</div><div class="hex">#DDEEDF</div></div>
+    <div class="sw" style="background:#F6E7C9; color:#705221"><div class="name">warning tint</div><div class="hex">#F6E7C9</div></div>
+  </div>
+</body></html>

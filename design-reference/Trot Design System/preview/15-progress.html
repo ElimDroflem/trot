@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Progress ring</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; padding: 20px; background: var(--bg-1); font-family: var(--font-ui); display: flex; gap: 24px; align-items: center; justify-content: center; }
+  svg { width: 120px; height: 120px; }
+  .ring-bg { stroke: var(--brand-divider); }
+  .ring-fg { stroke: var(--brand-primary); stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+  .center { position: relative; }
+  .label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .pct { font-weight: 700; font-size: 26px; }
+  .sub { font-size: 11px; color: var(--fg-2); }
+  .legend { font-size: 13px; color: var(--fg-2); max-width: 220px; line-height: 1.4; }
+  .legend strong { color: var(--fg-1); }
+</style>
+</head><body>
+  <div class="center">
+    <svg viewBox="0 0 100 100">
+      <circle class="ring-bg" cx="50" cy="50" r="42" stroke-width="8" fill="none"/>
+      <circle class="ring-fg" cx="50" cy="50" r="42" stroke-width="8" fill="none"
+        stroke-dasharray="263.9" stroke-dashoffset="79.2"/>
+    </svg>
+    <div class="label"><div class="pct">70%</div><div class="sub">42 / 60 min</div></div>
+  </div>
+  <div class="legend">Progress ring caps at 100%. Going over does not score higher than hitting it. <strong>Consistency over volume.</strong></div>
+</body></html>
