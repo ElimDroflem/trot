@@ -3,11 +3,25 @@ import SwiftData
 import PhotosUI
 
 struct AddDogView: View {
-    @Environment(\.modelContext) private var modelContext
+    let editingDog: Dog?
 
-    @State private var form = AddDogFormState()
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var form: AddDogFormState
     @State private var photoItem: PhotosPickerItem?
     @State private var saveError: String?
+
+    init(editingDog: Dog? = nil) {
+        self.editingDog = editingDog
+        if let dog = editingDog {
+            self._form = State(initialValue: AddDogFormState.from(dog))
+        } else {
+            self._form = State(initialValue: AddDogFormState())
+        }
+    }
+
+    private var isEditing: Bool { editingDog != nil }
 
     var body: some View {
         ZStack {
@@ -29,6 +43,14 @@ struct AddDogView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .toolbar {
+            if isEditing {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .tint(.brandPrimary)
+                }
+            }
+        }
         .onChange(of: photoItem) { _, newItem in
             Task { await loadPhoto(from: newItem) }
         }
@@ -41,21 +63,33 @@ struct AddDogView: View {
 
     // MARK: - Sections
 
+    @ViewBuilder
     private var header: some View {
-        VStack(spacing: Space.sm) {
-            TrotLogo(size: 32)
-                .padding(.bottom, Space.xs)
-            Text("Tell us about your dog.")
-                .font(.displayMedium)
-                .foregroundStyle(Color.brandSecondary)
-                .multilineTextAlignment(.center)
-            Text("We'll use this to set a sensible daily walking target.")
-                .font(.bodyMedium)
-                .foregroundStyle(Color.brandTextSecondary)
-                .multilineTextAlignment(.center)
+        if isEditing {
+            VStack(spacing: Space.sm) {
+                Text("Edit \(form.trimmedName.isEmpty ? "profile" : form.trimmedName).")
+                    .font(.displayMedium)
+                    .foregroundStyle(Color.brandSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, Space.sm)
+            .padding(.bottom, Space.sm)
+        } else {
+            VStack(spacing: Space.sm) {
+                TrotLogo(size: 32)
+                    .padding(.bottom, Space.xs)
+                Text("Tell us about your dog.")
+                    .font(.displayMedium)
+                    .foregroundStyle(Color.brandSecondary)
+                    .multilineTextAlignment(.center)
+                Text("We'll use this to set a sensible daily walking target.")
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, Space.md)
+            .padding(.bottom, Space.sm)
         }
-        .padding(.top, Space.md)
-        .padding(.bottom, Space.sm)
     }
 
     private var photoSection: some View {
@@ -200,7 +234,7 @@ struct AddDogView: View {
 
     private var saveButton: some View {
         Button(action: save) {
-            Text("Save")
+            Text(isEditing ? "Save changes" : "Save")
                 .font(.bodyLarge.weight(.semibold))
                 .foregroundStyle(Color.brandTextOnPrimary)
                 .frame(maxWidth: .infinity)
@@ -216,10 +250,15 @@ struct AddDogView: View {
 
     private func save() {
         guard form.isValid else { return }
-        let dog = form.makeDog()
-        modelContext.insert(dog)
         do {
+            if let editingDog {
+                form.apply(to: editingDog)
+            } else {
+                let dog = form.makeDog()
+                modelContext.insert(dog)
+            }
             try modelContext.save()
+            if isEditing { dismiss() }
         } catch {
             saveError = error.localizedDescription
         }

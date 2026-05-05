@@ -23,7 +23,7 @@ struct HomeView: View {
             placeholderTab(title: "Insights")
                 .tabItem { Label("Insights", systemImage: "lightbulb") }
 
-            placeholderTab(title: activeDogs.first?.name ?? "Dog")
+            DogProfileView()
                 .tabItem {
                     Label(activeDogs.first?.name ?? "Dog", systemImage: "person.crop.circle")
                 }

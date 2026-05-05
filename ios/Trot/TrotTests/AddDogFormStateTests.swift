@@ -85,4 +85,53 @@ struct AddDogFormStateTests {
         #expect(dog.hasArthritis == true)
         #expect(dog.dailyTargetMinutes == 60, "default until LLM service overwrites")
     }
+
+    @Test("from(dog) round-trips into apply(to:)")
+    func roundTripFromApply() {
+        let original = Dog(
+            name: "Luna",
+            breedPrimary: "Beagle",
+            dateOfBirth: Date(timeIntervalSince1970: 1_500_000_000),
+            weightKg: 12,
+            sex: .female,
+            isNeutered: true,
+            activityLevel: .moderate
+        )
+        original.healthNotes = "no issues"
+        original.hasArthritis = true
+        original.dailyTargetMinutes = 75
+        original.llmRationale = "Beagles benefit from..."
+
+        var state = AddDogFormState.from(original)
+        #expect(state.name == "Luna")
+        #expect(state.breedPrimary == "Beagle")
+        #expect(state.weightKg == 12)
+        #expect(state.sex == .female)
+        #expect(state.isNeutered == true)
+        #expect(state.activityLevel == .moderate)
+        #expect(state.healthNotes == "no issues")
+        #expect(state.hasArthritis == true)
+
+        // Mutate state and apply back
+        state.name = "Bruno"
+        state.weightKg = 30
+        state.sex = .male
+        state.isNeutered = false
+        state.activityLevel = .high
+        state.healthNotes = "  edited  "
+        state.hasHipDysplasia = true
+        state.hasArthritis = false
+        state.apply(to: original)
+
+        #expect(original.name == "Bruno")
+        #expect(original.weightKg == 30)
+        #expect(original.sex == .male)
+        #expect(original.isNeutered == false)
+        #expect(original.activityLevel == .high)
+        #expect(original.healthNotes == "edited", "trimmed whitespace on apply")
+        #expect(original.hasHipDysplasia == true)
+        #expect(original.hasArthritis == false)
+        #expect(original.dailyTargetMinutes == 75, "apply doesn't touch LLM-owned fields")
+        #expect(original.llmRationale == "Beagles benefit from...", "apply doesn't touch llmRationale")
+    }
 }
