@@ -196,4 +196,68 @@ struct RecapServiceTests {
         #expect(recap.dogName == "Bruno")
         #expect(recap.photo == Data([0x01, 0x02, 0x03]))
     }
+
+    // MARK: - Auto-show
+
+    /// Build a Date at the given (year, month, day, hour) in the test calendar.
+    private func dateAt(year: Int, month: Int, day: Int, hour: Int) -> Date {
+        var c = DateComponents()
+        c.year = year; c.month = month; c.day = day; c.hour = hour
+        return calendar.date(from: c) ?? referenceToday
+    }
+
+    /// 2026-05-12 was a Tuesday. The most recent prior Sunday was 2026-05-10.
+    @Test("currentWeekKey returns the most recent Sunday at startOfDay")
+    func weekKeyFromMidweek() {
+        let tuesday = dateAt(year: 2026, month: 5, day: 12, hour: 14)
+        let key = RecapService.currentWeekKey(today: tuesday, calendar: calendar)
+        let expected = calendar.startOfDay(for: dateAt(year: 2026, month: 5, day: 10, hour: 0))
+        #expect(key == expected)
+    }
+
+    @Test("currentWeekKey on Sunday returns that Sunday's startOfDay")
+    func weekKeyOnSunday() {
+        let sunday = dateAt(year: 2026, month: 5, day: 10, hour: 14)
+        let key = RecapService.currentWeekKey(today: sunday, calendar: calendar)
+        #expect(key == calendar.startOfDay(for: sunday))
+    }
+
+    /// Folded matrix per `feedback_targeted_tests_during_iteration.md`:
+    /// "Use @Test(arguments:) for boundary tables." The four shouldAutoShow
+    /// branches in one parameterised test instead of four separate ones.
+    /// Args: (year, month, day, hour, expected)
+    @Test(arguments: [
+        // 2026-05-10 is Sunday; 2026-05-09 is Saturday.
+        (2026, 5, 10, 20, true),   // Sunday 20:00, unseen → show
+        (2026, 5, 10, 19, true),   // Sunday 19:00 boundary → show
+        (2026, 5, 10, 18, false),  // Sunday 18:00 → too early
+        (2026, 5, 9, 20, false),   // Saturday 20:00 → wrong day
+        (2026, 5, 12, 20, false),  // Tuesday 20:00 → wrong day
+    ])
+    func shouldAutoShowMatrix(year: Int, month: Int, day: Int, hour: Int, expected: Bool) {
+        let dog = makeDog()
+        let now = dateAt(year: year, month: month, day: day, hour: hour)
+        #expect(RecapService.shouldAutoShow(for: dog, today: now, calendar: calendar) == expected)
+    }
+
+    @Test("shouldAutoShow returns false when this week has been seen")
+    func shouldAutoShowSuppressedAfterSeen() {
+        let dog = makeDog()
+        let sundayEvening = dateAt(year: 2026, month: 5, day: 10, hour: 20)
+        // First check: should show
+        #expect(RecapService.shouldAutoShow(for: dog, today: sundayEvening, calendar: calendar) == true)
+        // Mark seen → second check should not re-show
+        RecapService.markSeen(for: dog, today: sundayEvening, calendar: calendar)
+        #expect(RecapService.shouldAutoShow(for: dog, today: sundayEvening, calendar: calendar) == false)
+    }
+
+    @Test("markSeen for last week does NOT suppress this week")
+    func markSeenIsPerWeek() {
+        let dog = makeDog()
+        let lastSunday = dateAt(year: 2026, month: 5, day: 3, hour: 20)
+        let thisSunday = dateAt(year: 2026, month: 5, day: 10, hour: 20)
+        RecapService.markSeen(for: dog, today: lastSunday, calendar: calendar)
+        #expect(RecapService.shouldAutoShow(for: dog, today: thisSunday, calendar: calendar) == true,
+                "a new week should re-trigger the auto-show")
+    }
 }

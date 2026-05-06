@@ -56,6 +56,46 @@ enum RecapService {
         )
     }
 
+    // MARK: - Auto-show
+
+    /// Sunday-startOfDay of the most recent Sunday in or before `today`.
+    /// Used as the per-week key for "have we shown this week's recap yet?"
+    static func currentWeekKey(today: Date = .now, calendar: Calendar = .current) -> Date {
+        let weekday = calendar.component(.weekday, from: today)  // 1 = Sunday in Gregorian
+        let daysSinceSunday = (weekday - 1 + 7) % 7
+        let sundayDate = calendar.date(byAdding: .day, value: -daysSinceSunday, to: today) ?? today
+        return calendar.startOfDay(for: sundayDate)
+    }
+
+    /// True when the user should be auto-presented with the weekly recap on app open.
+    /// Conditions per `docs/spec.md` → "6. Weekly recap as a fixed ritual" + Sunday 19:00:
+    ///   - Today is Sunday
+    ///   - Local time is 19:00 or later
+    ///   - This week's recap has not yet been marked seen on this dog
+    /// Mon–Sat: never auto-show. The manual entry on Insights remains available.
+    static func shouldAutoShow(
+        for dog: Dog,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) -> Bool {
+        let weekday = calendar.component(.weekday, from: today)
+        guard weekday == 1 else { return false }  // 1 = Sunday
+        let hour = calendar.component(.hour, from: today)
+        guard hour >= 19 else { return false }
+        let weekKey = currentWeekKey(today: today, calendar: calendar)
+        return dog.lastRecapSeenWeekStart != weekKey
+    }
+
+    /// Mutates `dog` to record that this week's recap has been shown.
+    /// Caller is responsible for `modelContext.save()`.
+    static func markSeen(
+        for dog: Dog,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) {
+        dog.lastRecapSeenWeekStart = currentWeekKey(today: today, calendar: calendar)
+    }
+
     // MARK: - Helpers
 
     /// Aggregates minutes walked + percent-of-needs-met across an inclusive day range.

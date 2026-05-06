@@ -17,6 +17,10 @@ final class AppState {
 
     var pendingCelebration: PendingCelebration? { pendingCelebrations.first }
 
+    /// Set to a dog's PersistentIdentifier when the weekly recap should auto-present.
+    /// RootView observes and drives the sheet. Cleared on dismiss.
+    var pendingRecapDogID: PersistentIdentifier?
+
     init(selectedDogID: PersistentIdentifier? = nil) {
         self.selectedDogID = selectedDogID
     }

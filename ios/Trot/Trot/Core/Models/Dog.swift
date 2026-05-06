@@ -32,6 +32,11 @@ final class Dog {
     /// for CloudKit. Service layer (`MilestoneService`) maps to/from the typed enum.
     var firedMilestones: [String] = []
 
+    /// The Sunday-startOfDay of the most recent week whose recap this dog has seen.
+    /// `RecapService` uses this to decide whether to auto-show the recap on a given
+    /// Sunday evening. Per-dog so multi-dog households don't have to share the flag.
+    var lastRecapSeenWeekStart: Date?
+
     @Relationship(deleteRule: .cascade, inverse: \WalkWindow.dog)
     var walkWindows: [WalkWindow]? = []
 
