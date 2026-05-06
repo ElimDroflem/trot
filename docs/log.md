@@ -8,6 +8,46 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-06 (late evening) — Recap loop, streak tiers, breed table to 60, picker UX
+
+**Done this session:**
+- **Weekly recap surface, manual + auto.** `RecapService` is a pure-function namespace returning a `WeeklyRecap` from a dog's walks: trailing 7 days inclusive of today (this week), the 7 days before that (last week), per-day percent-of-needs-met capped at 100% (consistency-weighted, not volume), comparison delta, current streak from `StreakService`, and a featured insight (preferring the part-of-day pattern over the lifetime summary). `RecapView` is a brand-celebration sheet with the dog photo as the hero, stats row, comparison phrasing (up/down/equal), streak status, and the featured insight. Manual entry from the Insights tab via a "This week's recap" button. Auto-show on Sunday evenings: per-dog `Dog.lastRecapSeenWeekStart` (Sunday-startOfDay key) gates the auto-trigger; `RootView` checks on .task and scenePhase = active and presents the sheet via `AppState.pendingRecapDogID`. Milestone celebrations take precedence — auto-show waits if a celebration is queued.
+- **Streak-tier celebrations (7/14/30).** Three new `MilestoneCode` cases (`streak7Days`, `streak14Days`, `streak30Days`) extend the first-week ladder with the long-term streak milestones. Once-per-dog. The 7/14/30 push notifications in `NotificationDecisions` keep firing every time the streak hits those tiers; the in-app celebrations here are the first-time emotional moment.
+- **Insights catalog growth.** Three additive observations in `InsightsService`: weekly trend (≥7 days of data, last week non-empty), weekday/weekend split (≥14 days, ≥30% per-day lift), favorite hour (≥7 walks, ≥40% concentration). Thresholds deliberately conservative — a thin lead from sparse data is noise, not insight.
+- **Breed table expanded from 30 to 60 entries.** Subagent-researched additions covering UK pet population gaps: designer crosses (Goldendoodle, Labradoodle, Maltipoo, Cavachon, Sprocker), companions (Maltese, Pomeranian, Papillon), poodles (all three sizes), terriers (Bull, Cairn, Patterdale, Lakeland, Airedale), sighthounds (Saluki, Italian Greyhound) with sprint-not-marathon cautions, working dogs (Australian Shepherd, Belgian Malinois, GSP, Husky), giants (Newfoundland, Bernese Mountain Dog, Great Dane) with slow-growth and bloat cautions, plus Dalmatian, Flat-Coated Retriever, Welsh Springer Spaniel, Old English Sheepdog, Miniature Schnauzer. Same `last_reviewed: needs verification` flag — pre-launch verification pass covers all 60. Both JSON copies (iOS + web) regenerated and verified byte-identical.
+- **Breed picker on AddDogView + honest unknown-breed messaging.** `BreedPickerView` is a searchable sheet listing all 60 canonical names with a "Type a custom name" path at the top for unlisted breeds and mixes. Selecting a breed sets the form value; preserves the existing value when re-entered. `ExerciseTargetService.templatedRationale` now branches on whether the breed matched: known breed gets the confident "Beagle adult. Around 75 minutes a day reflects standard breed needs." line; unknown breed gets the honest "Around 70 minutes a day for a medium adult dog. We don't have this breed listed yet, so these numbers come from general size-based guidance." Per-stage codas (puppy growth-plates, senior joints) still apply on both branches.
+
+**Test methodology change mid-session.** User pushed back on running the full 100+ test suite after every change. Switched to: targeted `-only-testing:TrotTests/XServiceTests` while iterating, single full-suite run pre-commit. Saved as memory rule (`feedback_targeted_tests_during_iteration.md`). Discipline applied to remaining chunks — material drop in compute and token use without losing safety.
+
+**LLM scope decision.** Decided to skip wiring iOS `LLMService` for v1. Richer hardcoded data (breed table + medical conditions) is a stronger personalisation lever than LLM prose for v1. LLM-personalised milestone copy / walk feedback / weekly-recap narrative is reserved for v1.1+. The Vercel Edge Function stays code-only. Saved as project memory (`project_llm_deferred_to_v1_1.md`).
+
+**Test count: 118 passing**, all serial: 8 AddDogFormState, 7 LogWalkFormState, 13 StreakService, 12 NotificationDecisions, 4 AppState, 21 ExerciseTargetService (including 3 new for the rationale branch + knownBreedNames), 16 MilestoneService (with parameterised streak-tier matrix), 19 InsightsService (with 10 new for trend / split / favorite hour), 20 RecapService (with parameterised auto-show window matrix).
+
+**Committed this session:**
+- `470ffc6` — Add weekly recap surface (manual entry from Insights tab)
+- `87fafce` — Auto-show weekly recap on Sunday evenings
+- `59f6b06` — Extend MilestoneService with streak-tier celebrations (7/14/30)
+- `9ae3c4e` — Grow Insights catalog: weekly trend, weekday/weekend, favorite hour
+- `8102fc5` — Expand breed table from 30 to 60 entries
+- `17ec6d0` — Breed picker + honest unknown-breed rationale
+- All on `main`, pushed to `ElimDroflem/trot`.
+
+**Next session pickup:**
+- **Manual recap entry on Home.** Currently the recap is only reachable from the Insights tab or via the Sunday-evening auto-trigger. A small recap tile or "view this week" button on Home raises discoverability without crowding the Today surface.
+- **App icon production version + Luna placeholder photo.** Both flagged earlier in the log as deferred. The current `app-icon-1024.png` is a Claude Design placeholder; the seeded Luna has no photo so Home renders the empty paw-print placeholder. Neither blocks shipping.
+- **BreedData drift check script.** Small build-time / CI script that diffs `ios/Trot/Trot/Resources/BreedData.json` against `web/api/breed-data.json` to catch divergence. Currently maintained manually (subagent regenerated both this session). Low urgency; small chunk.
+- **Notification deep-link to recap.** The Sunday 19:00 `trot.recap` notification fires but tapping it just opens the app to wherever the user last was. Wiring the notification's userInfo to set `AppState.pendingRecapDogID` on tap completes the loop. Small chunk; iOS notification-handler plumbing.
+- **Mixed-breed UX (v1.1 candidate).** Two-breed weighted average for `breedPrimary` + secondary. Currently single-breed only.
+- **End-of-build chunks (held intentionally):** Sign in with Apple, CloudKit turn-on, HealthKitService + walk detection algorithm, Apple Developer Program $99 spend.
+
+**Open from this session that may surface later:**
+- Auto-show recap requires the user to be on the selected dog at the moment of trigger. Multi-dog households with active dog set to Dog A, but Dog B's last-seen-week not updated, will see Dog A's recap on first open and Dog B's on subsequent open (after switching). Acceptable but worth noting.
+- The current breed-rationale branch unconditionally treats free-text input as a potential breed lookup. After the picker change, free-text only happens on "custom name" path — but rationale logic doesn't distinguish "user explicitly chose custom" from "user typed something we don't recognise." Both end up with the disclosure copy, which is correct anyway.
+- No notification handler is wired yet for the recap deep-link case. iOS notification taps currently just open the app.
+- All 60 breed entries still flagged `needs verification`. Pre-launch task per `decisions.md`.
+
+---
+
 ## 2026-05-06 (evening) — Front-load delight: first-week loop shipped
 
 **Done this session:**
