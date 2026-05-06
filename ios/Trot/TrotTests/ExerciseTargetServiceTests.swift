@@ -212,4 +212,84 @@ struct ExerciseTargetServiceTests {
         // tiny senior min = 20, × 0.7 = 14 → 15
         #expect(target >= 5)
     }
+
+    // MARK: - Templated rationale
+
+    @Test("rationale: adult known breed mentions breed and target")
+    func rationaleAdultKnownBreed() {
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Beagle",
+            dateOfBirth: dob(yearsAgo: 4), weightKg: 12,
+            hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: false,
+            today: today, calendar: calendar
+        )
+        #expect(line.contains("Beagle"))
+        #expect(line.contains("adult"))
+        #expect(line.contains("minutes a day"))
+        #expect(!line.contains("—"), "no em dashes per brand.md")
+        #expect(!line.contains("!"), "no exclamation marks in regular flows")
+    }
+
+    @Test("rationale: puppy includes growth-plate guidance")
+    func rationalePuppyCoda() {
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Labrador Retriever",
+            dateOfBirth: dob(yearsAgo: 0, monthsAgo: 4), weightKg: 8,
+            hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: false,
+            today: today, calendar: calendar
+        )
+        #expect(line.contains("puppy"))
+        #expect(line.lowercased().contains("growth plates"))
+    }
+
+    @Test("rationale: senior includes joint guidance")
+    func rationaleSeniorCoda() {
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Labrador Retriever",
+            dateOfBirth: dob(yearsAgo: 10), weightKg: 30,
+            hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: false,
+            today: today, calendar: calendar
+        )
+        #expect(line.contains("senior"))
+        #expect(line.lowercased().contains("joints"))
+    }
+
+    @Test("rationale: brachycephalic flag mentions breathing")
+    func rationaleBrachycephalic() {
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Pug",
+            dateOfBirth: dob(yearsAgo: 4), weightKg: 8,
+            hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: true,
+            today: today, calendar: calendar
+        )
+        #expect(line.lowercased().contains("breathing"))
+        #expect(line.contains("reduced"))
+    }
+
+    @Test("rationale: combined flags pick the largest reduction (arthritis over hip)")
+    func rationaleLargestReductionPhrase() {
+        // arthritis 30%, hipDysplasia 20% — line should mention arthritis
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Labrador Retriever",
+            dateOfBirth: dob(yearsAgo: 5), weightKg: 30,
+            hasArthritis: true, hasHipDysplasia: true, isBrachycephalic: false,
+            today: today, calendar: calendar
+        )
+        #expect(line.lowercased().contains("arthritis"))
+        #expect(!line.lowercased().contains("hip dysplasia"),
+                "phrase shows the dominant flag only, not both")
+    }
+
+    @Test("rationale: unknown breed falls back to size descriptor")
+    func rationaleUnknownBreedSize() {
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Made Up Breed",
+            dateOfBirth: dob(yearsAgo: 4), weightKg: 15, // medium
+            hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: false,
+            today: today, calendar: calendar
+        )
+        #expect(line.contains("Medium dog") || line.contains("Medium"),
+                "size word stands in for missing breed name")
+        #expect(!line.contains("Made Up Breed"))
+    }
 }

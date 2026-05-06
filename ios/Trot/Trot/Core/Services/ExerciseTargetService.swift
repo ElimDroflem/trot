@@ -73,6 +73,101 @@ enum ExerciseTargetService {
         return roundToNearestFive(reduced)
     }
 
+    /// Templated one-line rationale for the daily target. Used as a sensible default
+    /// before the LLM proxy fills `dog.llmRationale` with something more personal,
+    /// and as a permanent fallback when the LLM call fails or is offline.
+    /// Per `brand.md`: plain English, no em dashes, no exclamation marks.
+    static func templatedRationale(
+        breedPrimary: String,
+        dateOfBirth: Date,
+        weightKg: Double,
+        hasArthritis: Bool,
+        hasHipDysplasia: Bool,
+        isBrachycephalic: Bool,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) -> String {
+        let data = Self.data
+        let entry = match(breed: breedPrimary, in: data.breeds)
+        let size: Size = entry?.size ?? sizeForWeight(weightKg)
+        let stage = lifeStage(
+            dateOfBirth: dateOfBirth,
+            size: size,
+            today: today,
+            calendar: calendar,
+            seniorAgeYearsBySize: data.seniorAgeYearsBySize
+        )
+        let target = dailyTargetMinutes(
+            breedPrimary: breedPrimary,
+            dateOfBirth: dateOfBirth,
+            weightKg: weightKg,
+            hasArthritis: hasArthritis,
+            hasHipDysplasia: hasHipDysplasia,
+            isBrachycephalic: isBrachycephalic,
+            today: today,
+            calendar: calendar
+        )
+
+        let subject = entry?.breed ?? "\(size.rawValue.capitalized) dog"
+        let stageLabel: String
+        switch stage {
+        case .puppy: stageLabel = "puppy"
+        case .adult: stageLabel = "adult"
+        case .senior: stageLabel = "senior"
+        }
+
+        let flagPhrase = primaryConditionPhrase(
+            hasArthritis: hasArthritis,
+            hasHipDysplasia: hasHipDysplasia,
+            isBrachycephalic: isBrachycephalic
+        )
+
+        let header = "\(subject) \(stageLabel). Around \(target) minutes a day"
+        let middle: String
+        if let flagPhrase {
+            middle = "\(header), reduced for \(flagPhrase)."
+        } else {
+            middle = "\(header) reflects standard breed needs."
+        }
+
+        let coda: String?
+        switch stage {
+        case .puppy:
+            coda = "Keep walks short while growth plates close."
+        case .senior:
+            coda = "Joints matter more than distance."
+        case .adult:
+            coda = nil
+        }
+
+        if let coda {
+            return "\(middle) \(coda)"
+        }
+        return middle
+    }
+
+    /// The condition driving the largest reduction, in user-facing copy.
+    /// Returns nil if no flag is set. Mirrors the largest-reduction tie-breaking
+    /// rule used in `dailyTargetMinutes`.
+    private static func primaryConditionPhrase(
+        hasArthritis: Bool,
+        hasHipDysplasia: Bool,
+        isBrachycephalic: Bool
+    ) -> String? {
+        let conditions = Self.data.conditions
+        var ranked: [(percent: Double, phrase: String)] = []
+        if hasArthritis {
+            ranked.append((conditions.arthritis.reductionPercent, "arthritis"))
+        }
+        if hasHipDysplasia {
+            ranked.append((conditions.hipDysplasia.reductionPercent, "hip dysplasia"))
+        }
+        if isBrachycephalic {
+            ranked.append((conditions.brachycephalic.reductionPercent, "their breathing"))
+        }
+        return ranked.max(by: { $0.percent < $1.percent })?.phrase
+    }
+
     // MARK: - Helpers
 
     enum LifeStage {

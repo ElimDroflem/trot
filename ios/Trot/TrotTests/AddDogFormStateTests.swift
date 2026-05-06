@@ -136,6 +136,8 @@ struct AddDogFormStateTests {
         #expect(original.dailyTargetMinutes == state.computedDailyTargetMinutes,
                 "apply recomputes the target from breed-table inputs that may have changed")
         #expect(original.dailyTargetMinutes != 75, "the original 75 was overwritten")
-        #expect(original.llmRationale == "Beagles benefit from...", "apply doesn't touch llmRationale")
+        #expect(original.llmRationale == state.computedRationale,
+                "apply writes the templated rationale; LLM personalisation overwrites later")
+        #expect(original.llmRationale != "Beagles benefit from...", "the original rationale was overwritten")
     }
 }

@@ -42,6 +42,20 @@ struct AddDogFormState {
         )
     }
 
+    /// One-line templated rationale for the daily target. Stored on `dog.llmRationale`
+    /// so it surfaces from day 1 even before the LLM proxy is wired (or when it fails).
+    /// LLM personalisation, when it lands, overwrites this string.
+    var computedRationale: String {
+        ExerciseTargetService.templatedRationale(
+            breedPrimary: trimmedBreed,
+            dateOfBirth: dateOfBirth,
+            weightKg: weightKg,
+            hasArthritis: hasArthritis,
+            hasHipDysplasia: hasHipDysplasia,
+            isBrachycephalic: isBrachycephalic
+        )
+    }
+
     func makeDog() -> Dog {
         let dog = Dog(
             name: trimmedName,
@@ -58,6 +72,7 @@ struct AddDogFormState {
         dog.hasHipDysplasia = hasHipDysplasia
         dog.isBrachycephalic = isBrachycephalic
         dog.photo = photoData
+        dog.llmRationale = computedRationale
         return dog
     }
 
@@ -78,6 +93,7 @@ struct AddDogFormState {
         dog.isBrachycephalic = isBrachycephalic
         dog.photo = photoData
         dog.dailyTargetMinutes = computedDailyTargetMinutes
+        dog.llmRationale = computedRationale
     }
 
     /// Pre-populates form state from an existing Dog for editing.

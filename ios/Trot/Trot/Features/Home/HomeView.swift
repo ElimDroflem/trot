@@ -77,10 +77,10 @@ struct HomeView: View {
                             partOfDay: Self.partOfDay(for: .now),
                             minutesDone: minutesDone(for: dog),
                             targetMinutes: dog.dailyTargetMinutes,
-                            rationale: dog.llmRationale,
                             percent: percent(for: dog),
                             minutesToGo: minutesToGo(for: dog)
                         )
+                        RationaleCard(rationale: dog.llmRationale)
                         WalksSection(
                             sectionTitle: Self.walksSectionTitle(for: .now),
                             walks: walksToday(for: dog),
@@ -282,7 +282,6 @@ private struct TodayProgressCard: View {
     let partOfDay: String
     let minutesDone: Int
     let targetMinutes: Int
-    let rationale: String
     let percent: Double
     let minutesToGo: Int
 
@@ -292,7 +291,7 @@ private struct TodayProgressCard: View {
                 .font(.displayMedium)
                 .foregroundStyle(Color.brandSecondary)
 
-            Text(progressLine)
+            Text("\(minutesDone) of \(targetMinutes) minutes done.")
                 .font(.bodyLarge)
                 .foregroundStyle(Color.brandTextPrimary)
 
@@ -310,11 +309,34 @@ private struct TodayProgressCard: View {
             }
         }
     }
+}
 
-    private var progressLine: String {
-        let base = "\(minutesDone) of \(targetMinutes) minutes done."
+/// Evergreen breed-rationale tile per `docs/spec.md` → "First-week loop":
+/// surfaces the personalised "why this target" line daily, not gated behind a
+/// settings drill-in. Hides itself if the rationale is empty (defensive — a
+/// pre-existing dog with no rationale recorded shouldn't render an empty card).
+private struct RationaleCard: View {
+    let rationale: String
+
+    var body: some View {
         let trimmed = rationale.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? base : "\(base) \(trimmed)"
+        if !trimmed.isEmpty {
+            HStack(alignment: .top, spacing: Space.sm) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandSecondary)
+                    .padding(.top, 2)
+                Text(trimmed)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(Space.md)
+            .background(Color.brandSecondaryTint)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Why this target. \(trimmed)")
+        }
     }
 }
 
