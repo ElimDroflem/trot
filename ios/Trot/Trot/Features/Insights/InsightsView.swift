@@ -10,6 +10,7 @@ struct InsightsView: View {
     private var activeDogs: [Dog]
 
     @Environment(AppState.self) private var appState
+    @State private var showingRecap = false
 
     private var activeDog: Dog? { appState.selectedDog(from: activeDogs) }
 
@@ -22,6 +23,7 @@ struct InsightsView: View {
                 ScrollView {
                     VStack(spacing: Space.lg) {
                         header(for: dog)
+                        weeklyRecapButton(for: dog)
                         if let learning = state.learning {
                             LearningCard(progress: learning, dogName: dog.name)
                         }
@@ -60,6 +62,37 @@ struct InsightsView: View {
                 .foregroundStyle(Color.brandTextSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func weeklyRecapButton(for dog: Dog) -> some View {
+        Button(action: { showingRecap = true }) {
+            HStack(spacing: Space.sm) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("This week's recap")
+                        .font(.bodyLarge.weight(.semibold))
+                        .foregroundStyle(Color.brandTextPrimary)
+                    Text("Last 7 days at a glance.")
+                        .font(.caption)
+                        .foregroundStyle(Color.brandTextSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandTextTertiary)
+            }
+            .padding(Space.md)
+            .background(Color.brandSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingRecap) {
+            RecapView(recap: RecapService.weekly(for: dog)) {
+                showingRecap = false
+            }
+        }
     }
 }
 
