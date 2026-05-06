@@ -8,6 +8,40 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-06 (evening) — Front-load delight: first-week loop shipped
+
+**Done this session:**
+- **Vercel Edge Function for the LLM proxy** at `web/api/exercise-plan.ts`. TypeScript, Anthropic Haiku 4.5, 8s timeout, defensive clamp if the model picks outside the safe range, anonymous-install-token validation. The handler computes the safe range LOCALLY (mirrors `ExerciseTargetService.swift`) before asking the LLM to pick within it — the LLM never invents numbers. `web/api/breed-data.json` is a copy of the iOS bundle's `BreedData.json`; both derive from `docs/breed-table.md`. TODO recorded for a build-time drift check. Code-only, no deploy, no API key set, no iOS LLMService yet. Typechecks cleanly.
+- **Front-load-delight scope locked into docs.** Pressure-tested whether the v1 daily loops give a new user enough reason to come back in week 1 (answer: no — every loop pays off in week 4+). Locked the design principle into `spec.md` ("front-load delight, back-load discipline") and `decisions.md`. Added a numbered "0. First-week loop" section to spec.md with a six-beat named-milestone ladder, an Insights-tab "learning Luna's patterns" anticipation hook, and an evergreen breed-rationale Home tile. Recorded the rejected Finch-style virtual-pet alternative in decisions.md so the question doesn't get re-litigated.
+- **MilestoneService + first-week celebration overlay.** Six beats — firstWalk, firstHalfTargetDay, firstFullTargetDay, first100LifetimeMinutes, first3DayStreak, firstWeek — fired once per dog, stored as raw values on `Dog.firedMilestones: [String]`. Service is pure-function in the same shape as `StreakService`. `LogWalkSheet.save()` and `RootView.task`/`scenePhase = active` are the producer points; `AppState.pendingCelebrations` is the FIFO queue; `CelebrationOverlay` renders Bricolage Grotesque on the secondary brand surface with the brand celebration spring and a Reduce Motion fallback. Tap to dismiss.
+- **Evergreen breed-rationale Home tile.** `ExerciseTargetService.templatedRationale(...)` produces a one-line rationale from the same breed/lifestage/condition logic as the target. AddDogFormState writes it to `dog.llmRationale` on save and edit. Home gains a small `RationaleCard` between the progress card and the walks section, on `brandSecondaryTint` with a sparkle icon. The previous inline concatenation ("X of Y minutes done. Beagles do best with...") is removed — the rationale now has its own surface, daily.
+- **InsightsService + InsightsView.** Replaces the placeholder Insights tab. Pure-function service returning an `InsightsState` with a `LearningProgress` (days-of-data over 7) plus a list of computable observations. Day 1 ships with two observation shapes: lifetime walks summary (≥1 walk, singular/plural copy) and part-of-day pattern (≥3 walks AND one bucket ≥50%, "Most walks happen in the morning"). View shows the learning card on top while it applies, then either the observation cards or an anticipating empty state ("Your first walk unlocks the first observation."). Catalog is structured to grow additively — weekly trend, weekday/weekend, favorite hour are obvious next observations.
+- **Schema bump aside.** Tried bumping V1 → V2 with a lightweight migration stage to add `firedMilestones`. SwiftData rejected with "Duplicate version checksums detected" because both versions reference the same live model classes. Properly handling that requires snapshotting V1's Dog as a separate historical class — too much ceremony pre-launch with no users. Added the property to V1 directly; we'll exercise real V2 the first time we have a schema change worth preserving old data through.
+
+**Test count: 85 passing, all serial:** 8 AddDogFormState, 7 LogWalkFormState, 13 StreakService, 12 NotificationDecisions, 4 AppState, 18 ExerciseTargetService (12 target + 6 rationale), 15 MilestoneService, 9 InsightsService.
+
+**Committed this session:**
+- `ed26f24` — Add Vercel Edge Function for LLM exercise-plan proxy (no deploy yet)
+- `73eaff5` — Bake "front-load delight" first-week loop into v1 scope
+- `ea569f0` — Add MilestoneService + first-week celebration overlay
+- `f455986` — Add evergreen breed-rationale Home tile (templated until LLM ships)
+- `c9459a1` — Add InsightsService + InsightsView with day-1 learning state
+- All on `main`, pushed to `ElimDroflem/trot`.
+
+**Next session pickup:**
+- **Weekly recap UI.** The `trot.recap` notification already fires Sunday 19:00. Tapping it should land the user on a recap surface that doesn't yet exist. Per spec.md → "6. Weekly recap as a fixed ritual": total minutes, percentage of needs met, comparison to last week, streak status, one personalised insight, a featured dog photo. Pure local computation over walk history; no LLM needed for v1.
+- **Streak milestone in-app celebration.** Currently 7/14/30-day streak milestones fire as push notifications but there's no in-app moment when the user opens the app at that streak. Could extend MilestoneService to also produce streak-milestone celebrations (firstWeek already covers day 7). Or surface them in the Today tab as a small pulse. Smaller chunk than weekly recap.
+- **iOS LLMService.** Wires the Vercel proxy into AddDogView's save flow to overlay LLM personalisation on top of `ExerciseTargetService`. Has a spending decision attached — depends on whether we deploy the proxy and pay for Anthropic API access during pre-launch development.
+- **BreedData drift check.** Small CI/build-time script that diffs the iOS and web copies of BreedData.json. Nice cleanliness move, no urgency.
+
+**Open from this session that may surface later:**
+- DEBUG-seeded Luna's `llmRationale` was the old hardcoded "Beagles do best with a second walk before sundown." After this session, anyone editing Luna will have it overwritten by the templated form. Existing seeded Luna without an edit still shows the old rationale until an edit happens. Acceptable in DEBUG.
+- The Insights view doesn't yet reflect AppState's selected dog if it changes while the view is on screen. The `@Query` re-evaluates and `selectedDog` is a computed property over it, so SwiftUI should update on dog switch. Worth eyeballing once on a real device.
+- `firedMilestones` is `[String]` for CloudKit primitive-storage discipline. The service maps to/from `MilestoneCode`. Migrating to `[MilestoneCode]` directly is a v1.1 cleanup if Apple's CloudKit support for raw-representable arrays is solid by then.
+- Vercel Edge Function bundles a copy of `BreedData.json`. If the iOS file changes and the web copy doesn't (or vice versa), they drift. TODO recorded in the file header. Pre-launch checkbox.
+
+---
+
 ## 2026-05-06 — Multi-dog UX + breed-table-driven targets
 
 **Done this session:**
