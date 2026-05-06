@@ -31,11 +31,7 @@ struct HomeView: View {
 
             DogProfileView()
                 .tabItem {
-                    Label {
-                        Text(selectedDog?.name ?? "Dog")
-                    } icon: {
-                        ProfileTabIcon(dog: selectedDog)
-                    }
+                    Label(selectedDog?.name ?? "Dog", systemImage: "dog.fill")
                 }
         }
         .tint(.brandPrimary)
@@ -230,26 +226,6 @@ private struct HomeHeader: View {
                     .clipShape(Circle())
             }
             .accessibilityLabel("Log a walk")
-        }
-    }
-}
-
-/// Renders a small circular crop of the dog's photo for the Profile tab icon
-/// when a photo exists, otherwise falls back to `dog.fill` (iOS 18). Real photos
-/// don't template-render as inactive grey, but that's intentional — the photo
-/// IS the brand moment for that tab.
-private struct ProfileTabIcon: View {
-    let dog: Dog?
-
-    var body: some View {
-        if let dog, let data = dog.photo, let image = UIImage(data: data) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 24, height: 24)
-                .clipShape(Circle())
-        } else {
-            Image(systemName: "dog.fill")
         }
     }
 }
