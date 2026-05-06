@@ -1,19 +1,23 @@
 import Foundation
 
 /// First-week milestone ladder per `docs/spec.md` → "0. First-week loop"
-/// and `docs/decisions.md` → "First-week milestone ladder — locked".
+/// and `docs/decisions.md` → "First-week milestone ladder — locked", plus
+/// streak-tier celebrations matching the 7/14/30-day notification milestones.
 ///
-/// Six named beats, fired once per dog:
+/// Beats, fired ONCE per dog (ladder + streak tiers):
 ///   1. firstWalk
 ///   2. firstHalfTargetDay        — any past day with ≥50% of target walked
 ///   3. firstFullTargetDay        — any past day with ≥100% of target walked
 ///   4. first100LifetimeMinutes   — total walk minutes across the dog's life ≥ 100
 ///   5. first3DayStreak           — StreakService says current streak ≥ 3
 ///   6. firstWeek                 — today ≥ dog.createdAt + 7 calendar days
+///   7. streak7Days               — StreakService says current streak ≥ 7
+///   8. streak14Days              — current streak ≥ 14
+///   9. streak30Days              — current streak ≥ 30
 ///
 /// In-app moments only — no push notifications. The 7/14/30 streak-milestone
-/// notifications (in `NotificationDecisions`) sit on top of this ladder, not in
-/// place of it.
+/// push notifications (in `NotificationDecisions`) fire EVERY time those
+/// streaks are hit; the in-app celebrations here fire only the first time per dog.
 enum MilestoneCode: String, CaseIterable, Sendable {
     case firstWalk
     case firstHalfTargetDay
@@ -21,6 +25,9 @@ enum MilestoneCode: String, CaseIterable, Sendable {
     case first100LifetimeMinutes
     case first3DayStreak
     case firstWeek
+    case streak7Days
+    case streak14Days
+    case streak30Days
 
     /// Display order when multiple beats fire in the same check — narrative-first
     /// (the walk happened, then it hit half-target, then full-target, etc.)
@@ -32,6 +39,9 @@ enum MilestoneCode: String, CaseIterable, Sendable {
         case .first100LifetimeMinutes: return 3
         case .first3DayStreak: return 4
         case .firstWeek: return 5
+        case .streak7Days: return 6
+        case .streak14Days: return 7
+        case .streak30Days: return 8
         }
     }
 }
@@ -78,9 +88,11 @@ enum MilestoneService {
             }
         }
 
-        if StreakService.currentStreak(for: dog, today: today, calendar: calendar) >= 3 {
-            result.insert(.first3DayStreak)
-        }
+        let streak = StreakService.currentStreak(for: dog, today: today, calendar: calendar)
+        if streak >= 3 { result.insert(.first3DayStreak) }
+        if streak >= 7 { result.insert(.streak7Days) }
+        if streak >= 14 { result.insert(.streak14Days) }
+        if streak >= 30 { result.insert(.streak30Days) }
 
         let dayDelta = calendar.dateComponents(
             [.day],
@@ -134,6 +146,12 @@ extension MilestoneCode {
             return "Three days in a row."
         case .firstWeek:
             return "A week with Trot."
+        case .streak7Days:
+            return "Seven days in a row."
+        case .streak14Days:
+            return "Two weeks straight."
+        case .streak30Days:
+            return "A month of consistency."
         }
     }
 
@@ -152,6 +170,12 @@ extension MilestoneCode {
             return "Three days, three walks. The habit is forming."
         case .firstWeek:
             return "One week on Trot. \(dogName)'s first weekly recap is on the way."
+        case .streak7Days:
+            return "A whole week of walks logged. \(dogName)'s rhythm is showing."
+        case .streak14Days:
+            return "Fourteen days. The habit is holding."
+        case .streak30Days:
+            return "Thirty days. \(dogName) has earned every one."
         }
     }
 }

@@ -137,6 +137,33 @@ struct MilestoneServiceTests {
         #expect(!eligible.contains(.first3DayStreak))
     }
 
+    /// Streak tier matrix — each consecutive-day count fires the right tier and no higher.
+    /// Folded into one parameterised test per the new "targeted tests during iteration" rule.
+    @Test(arguments: [
+        // (consecutiveHitDays, expectedTiers, unexpectedTiers)
+        (3,  [MilestoneCode.first3DayStreak], [MilestoneCode.streak7Days, .streak14Days, .streak30Days]),
+        (7,  [MilestoneCode.first3DayStreak, .streak7Days], [MilestoneCode.streak14Days, .streak30Days]),
+        (14, [MilestoneCode.first3DayStreak, .streak7Days, .streak14Days], [MilestoneCode.streak30Days]),
+        (30, [MilestoneCode.first3DayStreak, .streak7Days, .streak14Days, .streak30Days], []),
+    ])
+    func streakTierMatrix(
+        consecutiveDays: Int,
+        expected: [MilestoneCode],
+        unexpected: [MilestoneCode]
+    ) {
+        let dog = makeDog(targetMinutes: 60, createdDaysAgo: consecutiveDays + 1)
+        for offset in 0..<consecutiveDays {
+            addWalk(daysAgo: offset, minutes: 60, to: dog)
+        }
+        let eligible = MilestoneService.eligible(for: dog, today: referenceToday, calendar: calendar)
+        for tier in expected {
+            #expect(eligible.contains(tier), "\(consecutiveDays)-day streak should fire \(tier.rawValue)")
+        }
+        for tier in unexpected {
+            #expect(!eligible.contains(tier), "\(consecutiveDays)-day streak should NOT fire \(tier.rawValue)")
+        }
+    }
+
     @Test("firstWeek does not fire before day 7")
     func firstWeekNotYet() {
         let dog = makeDog(createdDaysAgo: 6)
