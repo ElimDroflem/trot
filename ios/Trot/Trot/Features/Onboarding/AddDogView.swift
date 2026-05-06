@@ -13,6 +13,7 @@ struct AddDogView: View {
     @State private var form: AddDogFormState
     @State private var photoItem: PhotosPickerItem?
     @State private var saveError: String?
+    @State private var showingBreedPicker = false
 
     init(editingDog: Dog? = nil, showsCancelButton: Bool = false) {
         self.editingDog = editingDog
@@ -62,6 +63,11 @@ struct AddDogView: View {
             Button("OK") { saveError = nil }
         } message: {
             Text(saveError ?? "")
+        }
+        .sheet(isPresented: $showingBreedPicker) {
+            BreedPickerView(selection: $form.breedPrimary) {
+                showingBreedPicker = false
+            }
         }
     }
 
@@ -137,9 +143,22 @@ struct AddDogView: View {
             }
             FormDivider()
             FormRow(label: "Breed") {
-                TextField("Beagle", text: $form.breedPrimary)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
+                Button(action: { showingBreedPicker = true }) {
+                    HStack(spacing: Space.xs) {
+                        Text(form.breedPrimary.isEmpty ? "Choose breed" : form.breedPrimary)
+                            .foregroundStyle(form.breedPrimary.isEmpty
+                                ? Color.brandTextTertiary
+                                : Color.brandTextPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.brandTextTertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(form.breedPrimary.isEmpty
+                    ? "Choose breed"
+                    : "Breed: \(form.breedPrimary). Tap to change.")
             }
             FormDivider()
             FormRow(label: "Date of birth") {

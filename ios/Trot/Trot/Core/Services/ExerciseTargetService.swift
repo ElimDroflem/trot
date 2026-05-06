@@ -108,7 +108,6 @@ enum ExerciseTargetService {
             calendar: calendar
         )
 
-        let subject = entry?.breed ?? "\(size.rawValue.capitalized) dog"
         let stageLabel: String
         switch stage {
         case .puppy: stageLabel = "puppy"
@@ -122,12 +121,26 @@ enum ExerciseTargetService {
             isBrachycephalic: isBrachycephalic
         )
 
-        let header = "\(subject) \(stageLabel). Around \(target) minutes a day"
         let middle: String
-        if let flagPhrase {
-            middle = "\(header), reduced for \(flagPhrase)."
+        let disclosure: String?
+        if let entry {
+            // Known breed — confident framing.
+            let header = "\(entry.breed) \(stageLabel). Around \(target) minutes a day"
+            if let flagPhrase {
+                middle = "\(header), reduced for \(flagPhrase)."
+            } else {
+                middle = "\(header) reflects standard breed needs."
+            }
+            disclosure = nil
         } else {
-            middle = "\(header) reflects standard breed needs."
+            // Unknown breed → fallback to size table. Be honest about it.
+            let sizeWord = size.rawValue
+            if let flagPhrase {
+                middle = "Around \(target) minutes a day for a \(sizeWord) \(stageLabel) dog, reduced for \(flagPhrase)."
+            } else {
+                middle = "Around \(target) minutes a day for a \(sizeWord) \(stageLabel) dog."
+            }
+            disclosure = "We don't have this breed listed yet, so these numbers come from general size-based guidance."
         }
 
         let coda: String?
@@ -140,10 +153,15 @@ enum ExerciseTargetService {
             coda = nil
         }
 
-        if let coda {
-            return "\(middle) \(coda)"
-        }
-        return middle
+        return [middle, coda, disclosure]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+
+    /// Canonical breed names from the bundled table, sorted alphabetically.
+    /// Used by `BreedPickerView` to present a searchable list.
+    static var knownBreedNames: [String] {
+        Self.data.breeds.map(\.breed).sorted()
     }
 
     /// The condition driving the largest reduction, in user-facing copy.

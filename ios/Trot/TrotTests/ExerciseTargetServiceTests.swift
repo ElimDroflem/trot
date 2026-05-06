@@ -280,7 +280,7 @@ struct ExerciseTargetServiceTests {
                 "phrase shows the dominant flag only, not both")
     }
 
-    @Test("rationale: unknown breed falls back to size descriptor")
+    @Test("rationale: unknown breed falls back to size descriptor and discloses honestly")
     func rationaleUnknownBreedSize() {
         let line = ExerciseTargetService.templatedRationale(
             breedPrimary: "Made Up Breed",
@@ -288,8 +288,36 @@ struct ExerciseTargetServiceTests {
             hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: false,
             today: today, calendar: calendar
         )
-        #expect(line.contains("Medium dog") || line.contains("Medium"),
-                "size word stands in for missing breed name")
+        #expect(line.contains("medium adult dog"),
+                "fallback uses size + life-stage descriptor in plain language")
+        #expect(line.contains("don't have this breed listed yet"),
+                "honest disclosure that the user's breed isn't in the table")
         #expect(!line.contains("Made Up Breed"))
+        #expect(!line.contains("standard breed needs"),
+                "do not claim breed knowledge for a fallback case")
+    }
+
+    @Test("rationale: known breed says 'reflects standard breed needs' (no disclosure)")
+    func rationaleKnownBreedNoDisclosure() {
+        let line = ExerciseTargetService.templatedRationale(
+            breedPrimary: "Beagle",
+            dateOfBirth: dob(yearsAgo: 4), weightKg: 12,
+            hasArthritis: false, hasHipDysplasia: false, isBrachycephalic: false,
+            today: today, calendar: calendar
+        )
+        #expect(line.contains("Beagle"))
+        #expect(line.contains("reflects standard breed needs"))
+        #expect(!line.contains("don't have this breed"),
+                "known breed gets a confident line, no fallback disclosure")
+    }
+
+    @Test("knownBreedNames returns the full sorted breed list")
+    func knownBreedNamesIsSortedAndComplete() {
+        let names = ExerciseTargetService.knownBreedNames
+        #expect(names.count >= 60, "expanded breed table includes all known breeds")
+        #expect(names == names.sorted(), "list is alphabetically sorted")
+        #expect(names.contains("Beagle"))
+        #expect(names.contains("Labrador Retriever"))
+        #expect(names.contains("Siberian Husky"))
     }
 }
