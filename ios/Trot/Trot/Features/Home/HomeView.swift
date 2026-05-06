@@ -85,15 +85,15 @@ struct HomeView: View {
                             streakDays: StreakService.currentStreak(for: dog),
                             dateLabel: Self.dateLabel(for: .now)
                         )
-                        HeroPhoto(dog: dog)
-                        TodayProgressCard(
-                            dogName: dog.name,
+                        DogPresenceCard(
+                            dog: dog,
                             partOfDay: Self.partOfDay(for: .now),
                             minutesDone: minutesDone(for: dog),
                             targetMinutes: dog.dailyTargetMinutes,
                             percent: percent(for: dog),
                             minutesToGo: minutesToGo(for: dog)
                         )
+                        TrotSaysLine(line: DogVoiceService.currentLine(for: dog))
                         RationaleCard(rationale: dog.llmRationale)
                         WalksSection(
                             sectionTitle: Self.walksSectionTitle(for: .now),
@@ -354,90 +354,138 @@ private struct StreakAndDateRow: View {
     }
 }
 
-private struct HeroPhoto: View {
+/// Single hero element for Home: the dog photo (or a calm placeholder) cropped
+/// to a circle, with a coral progress arc tracing the outer edge. Replaces the
+/// stacked HeroPhoto + TodayProgressCard pair — saves vertical space and ties
+/// the photo (visual identity) and the ring (status) into one element instead
+/// of two unrelated cards. Tapping opens the PhotosPicker so users can add or
+/// change the photo from Home directly.
+private struct DogPresenceCard: View {
     let dog: Dog
+    let partOfDay: String
+    let minutesDone: Int
+    let targetMinutes: Int
+    let percent: Double
+    let minutesToGo: Int
 
     @Environment(\.modelContext) private var modelContext
     @State private var photoItem: PhotosPickerItem?
+    @State private var animatedPercent: Double = 0
+
+    private let circleSize: CGFloat = 220
+    private let strokeWidth: CGFloat = 10
+    private let photoInset: CGFloat = 8
 
     var body: some View {
-        Group {
-            if let data = dog.photo, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 280)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-                    .brandCardShadow()
-            } else {
-                emptyState
+        VStack(spacing: Space.md) {
+            Text("\(dog.name)'s \(partOfDay).")
+                .font(.displayMedium)
+                .foregroundStyle(Color.brandSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                ringWithPhoto
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityLabel)
+
+            captionRow
+        }
+        .onAppear {
+            withAnimation(.brandDefault) { animatedPercent = percent }
+        }
+        .onChange(of: percent) { _, newValue in
+            withAnimation(.brandDefault) { animatedPercent = newValue }
         }
         .onChange(of: photoItem) { _, newItem in
             Task { await loadPhoto(from: newItem) }
         }
     }
 
-    private var emptyState: some View {
-        PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
-            ZStack {
-                // Warm radial wash inside the card — slightly brighter at the
-                // centre, settling into brandSecondaryTint at the edges. Gives
-                // the empty state atmospheric depth instead of flat colour.
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color.brandSurfaceElevated,
-                                Color.brandSecondaryTint
-                            ],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 220
-                        )
-                    )
+    private var ringWithPhoto: some View {
+        ZStack {
+            // Track ring
+            Circle()
+                .stroke(Color.brandDivider, lineWidth: strokeWidth)
 
-                // Watermark — the dog's name in Bricolage at very low opacity,
-                // sitting behind everything else. The empty card is undeniably
-                // FOR this dog without needing imagery.
-                Text(dog.name)
-                    .font(.system(size: 96, weight: .bold))
-                    .foregroundStyle(Color.brandSecondary.opacity(0.10))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
-                    .padding(.horizontal, Space.lg)
-                    .allowsHitTesting(false)
+            // Progress arc (animated)
+            Circle()
+                .trim(from: 0, to: max(0, min(1, animatedPercent)))
+                .stroke(
+                    Color.brandPrimary,
+                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
 
-                VStack(spacing: Space.sm) {
-                    Text(dog.name)
-                        .font(.displayMedium)
-                        .foregroundStyle(Color.brandSecondary)
-                    Text("Trot is built around \(dog.name).")
-                        .font(.bodyMedium)
-                        .foregroundStyle(Color.brandTextSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, Space.lg)
-                    HStack(spacing: Space.xs) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                        Text("Add photo")
-                            .font(.bodyLarge.weight(.semibold))
-                    }
-                    .foregroundStyle(Color.brandTextOnPrimary)
-                    .padding(.horizontal, Space.md)
-                    .padding(.vertical, Space.sm)
-                    .background(Color.brandPrimary)
-                    .clipShape(Capsule())
-                    .padding(.top, Space.xs)
-                }
-                .padding(.vertical, Space.md)
-            }
-            .frame(height: 280)
+            // Photo or placeholder, inset slightly so the ring breathes
+            photoFill
+                .frame(width: circleSize - strokeWidth - photoInset * 2,
+                       height: circleSize - strokeWidth - photoInset * 2)
+                .clipShape(Circle())
         }
-        .buttonStyle(.plain)
+        .frame(width: circleSize, height: circleSize)
         .brandCardShadow()
-        .accessibilityLabel("Add a photo of \(dog.name)")
+    }
+
+    @ViewBuilder
+    private var photoFill: some View {
+        if let data = dog.photo, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            placeholderFill
+        }
+    }
+
+    private var placeholderFill: some View {
+        ZStack {
+            // Warm radial wash so the placeholder reads as a designed surface
+            // rather than a missing asset.
+            RadialGradient(
+                colors: [Color.brandSurfaceElevated, Color.brandSecondaryTint],
+                center: .center,
+                startRadius: 20,
+                endRadius: 140
+            )
+            VStack(spacing: Space.xs) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(Color.brandSecondary.opacity(0.6))
+                Text("Add \(dog.name)'s photo")
+                    .font(.bodyMedium.weight(.semibold))
+                    .foregroundStyle(Color.brandSecondary)
+            }
+        }
+    }
+
+    private var captionRow: some View {
+        HStack(spacing: Space.xs) {
+            Text("\(Int(min(1, percent) * 100))%")
+                .font(.bodyLarge.weight(.semibold))
+                .foregroundStyle(Color.brandPrimary)
+            Text("·")
+                .foregroundStyle(Color.brandTextTertiary)
+            Text("\(minutesDone) of \(targetMinutes) min")
+                .font(.bodyMedium)
+                .foregroundStyle(Color.brandTextSecondary)
+            Spacer()
+            if percent < 1.0 {
+                Text("\(minutesToGo) min to go")
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+            } else {
+                Text("today done")
+                    .font(.bodyMedium.weight(.semibold))
+                    .foregroundStyle(Color.brandSuccess)
+            }
+        }
+    }
+
+    private var accessibilityLabel: String {
+        let photoState = dog.photo == nil ? "Add a photo of \(dog.name)" : "Change \(dog.name)'s photo"
+        let progress = "Today: \(Int(min(1, percent) * 100)) percent."
+        return "\(photoState). \(progress)"
     }
 
     private func loadPhoto(from item: PhotosPickerItem?) async {
@@ -452,80 +500,25 @@ private struct HeroPhoto: View {
     }
 }
 
-private struct TodayProgressCard: View {
-    let dogName: String
-    let partOfDay: String
-    let minutesDone: Int
-    let targetMinutes: Int
-    let percent: Double
-    let minutesToGo: Int
-
-    @State private var animatedPercent: Double = 0
+/// Contextual one-line nudge in Trot's voice (about Luna, implicitly from her).
+/// Driven by `DogVoiceService`. Visual treatment is deliberately understated — a
+/// small leading dot + body text — so it reads as a voice rather than a card.
+private struct TrotSaysLine: View {
+    let line: String
 
     var body: some View {
-        VStack(spacing: Space.md) {
-            Text("\(dogName)'s \(partOfDay).")
-                .font(.displayMedium)
-                .foregroundStyle(Color.brandSecondary)
+        HStack(alignment: .top, spacing: Space.sm) {
+            Circle()
+                .fill(Color.brandPrimary)
+                .frame(width: 6, height: 6)
+                .padding(.top, 8)
+            Text(line)
+                .font(.bodyLarge)
+                .foregroundStyle(Color.brandTextPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-            TargetRing(percent: animatedPercent)
-                .frame(width: 160, height: 160)
-                .padding(.vertical, Space.sm)
-
-            HStack {
-                Text("\(minutesDone) of \(targetMinutes) minutes done")
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
-                Spacer()
-                if percent < 1.0 {
-                    Text("\(minutesToGo) min to go")
-                        .font(.bodyMedium)
-                        .foregroundStyle(Color.brandTextSecondary)
-                }
-            }
         }
-        .onAppear {
-            withAnimation(.brandDefault) { animatedPercent = percent }
-        }
-        .onChange(of: percent) { _, newValue in
-            withAnimation(.brandDefault) { animatedPercent = newValue }
-        }
-    }
-}
-
-/// Trot's signature visual element. Single coral ring, percent in display type
-/// at the centre. Distinct from Apple Fitness (which has 3 rings, no centre
-/// content, gradient strokes).
-private struct TargetRing: View {
-    let percent: Double
-
-    private let strokeWidth: CGFloat = 14
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.brandDivider, lineWidth: strokeWidth)
-            Circle()
-                .trim(from: 0, to: max(0, min(1, percent)))
-                .stroke(
-                    Color.brandPrimary,
-                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 2) {
-                Text("\(Int(min(1, percent) * 100))%")
-                    .font(.displayMedium)
-                    .foregroundStyle(Color.brandTextPrimary)
-                Text("today")
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.brandTextTertiary)
-                    .textCase(.uppercase)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Today's target: \(Int(min(1, percent) * 100)) percent complete.")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(line)
     }
 }
 
