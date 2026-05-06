@@ -7,6 +7,7 @@ struct LogWalkSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
 
     @State private var form: LogWalkFormState
     @State private var saveError: String?
@@ -187,6 +188,7 @@ struct LogWalkSheet: View {
             }
             try modelContext.save()
             rescheduleNotifications()
+            checkMilestones()
             dismiss()
         } catch {
             saveError = error.localizedDescription
@@ -199,10 +201,25 @@ struct LogWalkSheet: View {
         do {
             try modelContext.save()
             rescheduleNotifications()
+            // No milestone check on delete — beats are forward-only.
             dismiss()
         } catch {
             saveError = error.localizedDescription
         }
+    }
+
+    /// First-week loop: any walk save can fire one or more milestone beats.
+    /// Saves the fired-set onto each affected dog and enqueues celebrations on AppState.
+    private func checkMilestones() {
+        for dog in dogs {
+            let new = MilestoneService.newMilestones(for: dog)
+            guard !new.isEmpty else { continue }
+            MilestoneService.markFired(new, on: dog)
+            appState.enqueueCelebrations(new, for: dog)
+        }
+        // Persist firedMilestones changes — failure here only loses a refire suppression,
+        // not user data, so we swallow rather than re-surface.
+        try? modelContext.save()
     }
 
     private func rescheduleNotifications() {

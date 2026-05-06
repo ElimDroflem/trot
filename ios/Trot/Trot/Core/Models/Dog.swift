@@ -27,6 +27,11 @@ final class Dog {
     var archivedAt: Date?
     var createdAt: Date = Date()
 
+    /// Codes for first-week-loop milestones already celebrated for this dog.
+    /// Stored as `MilestoneCode` raw values (Strings) so the column stays primitive
+    /// for CloudKit. Service layer (`MilestoneService`) maps to/from the typed enum.
+    var firedMilestones: [String] = []
+
     @Relationship(deleteRule: .cascade, inverse: \WalkWindow.dog)
     var walkWindows: [WalkWindow]? = []
 
