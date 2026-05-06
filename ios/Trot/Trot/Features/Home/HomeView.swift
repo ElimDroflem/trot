@@ -94,10 +94,10 @@ struct HomeView: View {
                             minutesToGo: minutesToGo(for: dog)
                         )
                         TrotSaysLine(line: DogVoiceService.currentLine(for: dog))
-                        RationaleCard(rationale: dog.llmRationale)
-                        WalksSection(
-                            sectionTitle: Self.walksSectionTitle(for: .now),
+                        TodayTimeline(
                             walks: walksToday(for: dog),
+                            walkWindows: dog.walkWindows ?? [],
+                            now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
                         WeeklyRecapTile(onTap: { showingHomeRecap = true })
@@ -522,35 +522,6 @@ private struct TrotSaysLine: View {
     }
 }
 
-/// Evergreen breed-rationale tile per `docs/spec.md` → "First-week loop":
-/// surfaces the personalised "why this target" line daily, not gated behind a
-/// settings drill-in. Hides itself if the rationale is empty (defensive — a
-/// pre-existing dog with no rationale recorded shouldn't render an empty card).
-private struct RationaleCard: View {
-    let rationale: String
-
-    var body: some View {
-        let trimmed = rationale.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            HStack(alignment: .top, spacing: Space.sm) {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.brandSecondary)
-                    .padding(.top, 2)
-                Text(trimmed)
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(Space.md)
-            .background(Color.brandSecondaryTint)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Why this target. \(trimmed)")
-        }
-    }
-}
-
 /// Discoverable entry point for the weekly recap from the Today tab.
 /// Subtle by design — the recap is a Sunday-evening ritual, not a constant
 /// nag. This row keeps the surface aware of the recap year-round without
@@ -597,90 +568,149 @@ private struct ProgressTrack: View {
     }
 }
 
-private struct WalksSection: View {
-    let sectionTitle: String
+/// Visual day-strip showing today's walks against the dog's enabled walk windows.
+/// Replaces the text walk list — the user feels the day at a glance: where they
+/// said they'd walk (window tints), what actually happened (coral segments),
+/// and where "now" sits. Tapping a segment opens the existing edit sheet.
+///
+/// Range: 5am to 11pm (18 hours). Walks outside that range are clamped visually
+/// (rare in practice). Today is the only day shown — historical days live in
+/// the Activity tab.
+private struct TodayTimeline: View {
     let walks: [Walk]
+    let walkWindows: [WalkWindow]
+    let now: Date
     let onTapWalk: (Walk) -> Void
 
+    private let startHour: Double = 5
+    private let endHour: Double = 23
+    private let trackHeight: CGFloat = 28
+
+    private var hoursSpan: Double { endHour - startHour }
+
     var body: some View {
-        if walks.isEmpty {
-            EmptyView()
-        } else {
-            VStack(alignment: .leading, spacing: Space.sm) {
-                Text(sectionTitle)
-                    .font(.captionBold)
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack {
+                Text("TODAY")
+                    .font(.caption.weight(.semibold))
                     .tracking(0.5)
                     .foregroundStyle(Color.brandTextSecondary)
+                Spacer()
+                Text(summary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.brandTextTertiary)
+            }
 
-                ForEach(walks) { walk in
-                    Button(action: { onTapWalk(walk) }) {
-                        WalkRow(walk: walk)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    // Track baseline
+                    Capsule()
+                        .fill(Color.brandDivider.opacity(0.6))
+                        .frame(height: 4)
+
+                    // Walk-window tints (where you planned to walk)
+                    ForEach(enabledWindows, id: \.persistentModelID) { window in
+                        let bounds = windowBounds(for: window.slot, in: geo.size.width)
+                        Capsule()
+                            .fill(Color.brandSecondaryTint)
+                            .frame(width: max(bounds.width, 6), height: trackHeight - 8)
+                            .offset(x: bounds.x)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Tap to edit or delete this walk.")
-                    .transition(.move(edge: .top).combined(with: .opacity))
+
+                    // Walks (what actually happened)
+                    ForEach(walks) { walk in
+                        let bounds = walkBounds(for: walk, in: geo.size.width)
+                        Button(action: { onTapWalk(walk) }) {
+                            Capsule()
+                                .fill(Color.brandPrimary)
+                                .frame(width: max(bounds.width, 8), height: trackHeight)
+                                .offset(x: bounds.x)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(walk.durationMinutes)-minute walk. Tap to edit.")
+                    }
+
+                    // Now marker
+                    let nowX = nowOffset(in: geo.size.width)
+                    if nowX >= 0 && nowX <= geo.size.width {
+                        Capsule()
+                            .fill(Color.brandTextPrimary.opacity(0.45))
+                            .frame(width: 2, height: trackHeight + 8)
+                            .offset(x: nowX - 1, y: -4)
+                    }
+                }
+                .frame(height: trackHeight, alignment: .center)
+            }
+            .frame(height: trackHeight + 8)
+
+            HStack {
+                ForEach(hourLabels, id: \.self) { label in
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(Color.brandTextTertiary)
+                    if label != hourLabels.last { Spacer() }
                 }
             }
-            .animation(.brandDefault, value: walks.count)
+        }
+        .padding(Space.md)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+    }
+
+    private var enabledWindows: [WalkWindow] {
+        walkWindows.filter(\.enabled)
+    }
+
+    private var hourLabels: [String] {
+        ["6a", "10a", "2p", "6p", "10p"]
+    }
+
+    private var summary: String {
+        if walks.isEmpty {
+            return "no walks yet"
+        }
+        let total = walks.reduce(0) { $0 + $1.durationMinutes }
+        return "\(walks.count.pluralised("walk")) · \(total) min"
+    }
+
+    // MARK: - Position math
+
+    private func windowBounds(for slot: WalkSlot, in width: CGFloat) -> (x: CGFloat, width: CGFloat) {
+        let (start, end) = hourRange(for: slot)
+        let xFraction = (start - startHour) / hoursSpan
+        let widthFraction = (end - start) / hoursSpan
+        return (CGFloat(xFraction) * width, CGFloat(widthFraction) * width)
+    }
+
+    private func hourRange(for slot: WalkSlot) -> (Double, Double) {
+        switch slot {
+        case .earlyMorning: return (5, 9)
+        case .lunch: return (11, 14)
+        case .afternoon: return (14, 18)
+        case .evening: return (18, 22)
         }
     }
-}
 
-private struct WalkRow: View {
-    let walk: Walk
-
-    var body: some View {
-        HStack(spacing: Space.md) {
-            Image(systemName: glyphName)
-                .font(.system(size: 18))
-                .foregroundStyle(Color.brandPrimary)
-                .frame(width: 40, height: 40)
-                .background(Color.brandPrimaryTint)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(walk.durationMinutes)-minute walk")
-                    .font(.bodyLarge.weight(.semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-                Text(subtitle)
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
-            }
-
-            Spacer()
-
-            Text(statusText)
-                .font(.bodyMedium.weight(.semibold))
-                .foregroundStyle(statusColor)
-        }
+    private func walkBounds(for walk: Walk, in width: CGFloat) -> (x: CGFloat, width: CGFloat) {
+        let cal = Calendar.current
+        let hour = Double(cal.component(.hour, from: walk.startedAt))
+        let minute = Double(cal.component(.minute, from: walk.startedAt))
+        let startTime = hour + minute / 60
+        let xFraction = max(0, min(1, (startTime - startHour) / hoursSpan))
+        let widthFraction = Double(walk.durationMinutes) / 60.0 / hoursSpan
+        let cappedWidth = min(widthFraction, 1 - xFraction)
+        return (CGFloat(xFraction) * width, CGFloat(cappedWidth) * width)
     }
 
-    private var glyphName: String {
-        // Passive walks were detected by HealthKit (the dog walked itself in iOS's eyes);
-        // manual walks were a deliberate tap from the user.
-        walk.source == .passive ? "figure.walk" : "hand.tap.fill"
+    private func nowOffset(in width: CGFloat) -> CGFloat {
+        let cal = Calendar.current
+        let hour = Double(cal.component(.hour, from: now))
+        let minute = Double(cal.component(.minute, from: now))
+        let nowTime = hour + minute / 60
+        let xFraction = (nowTime - startHour) / hoursSpan
+        return CGFloat(xFraction) * width
     }
-
-    private var subtitle: String {
-        let timeText = Self.timeFormatter.string(from: walk.startedAt).lowercased()
-        let sourceText = walk.source == .passive ? "Passive" : "Manual"
-        return "\(timeText) · \(sourceText)"
-    }
-
-    private var statusText: String {
-        walk.source == .passive ? "Confirmed" : "Logged"
-    }
-
-    private var statusColor: Color {
-        .brandSuccess
-    }
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_GB")
-        formatter.dateFormat = "h:mm a"
-        return formatter
-    }()
 }
 
 private struct EmptyDogPlaceholder: View {

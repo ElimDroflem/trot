@@ -29,6 +29,7 @@ struct DogProfileView: View {
                         photoHeader(dog: dog)
                         basicsCard(dog: dog)
                         activityCard(dog: dog)
+                        rationaleCard(dog: dog)
                         healthCard(dog: dog)
                         WalkWindowsCard(dog: dog)
                         addAnotherDogButton
@@ -149,6 +150,23 @@ struct DogProfileView: View {
             FormDivider()
             FormRow(label: "Activity level") {
                 Text(activityLabel(dog.activityLevel))
+            }
+        }
+    }
+
+    /// "Why this target" — the breed-table-derived (or LLM-personalised, when wired)
+    /// rationale string. Lives on Profile rather than Home so the daily surface stays
+    /// glanceable; users who want to know WHY can find it here.
+    @ViewBuilder
+    private func rationaleCard(dog: Dog) -> some View {
+        let trimmed = dog.llmRationale.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            FormCard(title: "Why this target") {
+                Text(trimmed)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, Space.sm)
             }
         }
     }
