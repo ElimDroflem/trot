@@ -68,7 +68,12 @@ struct HomeView: View {
     @ViewBuilder
     private var todayTab: some View {
         ZStack {
-            Color.brandSurface.ignoresSafeArea()
+            LinearGradient(
+                colors: [Color.brandSurface, Color.brandSurfaceSunken],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
             if let dog = selectedDog {
                 ScrollView {
@@ -401,8 +406,33 @@ private struct HeroPhoto: View {
     private var emptyState: some View {
         PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
             ZStack {
+                // Warm radial wash inside the card — slightly brighter at the
+                // centre, settling into brandSecondaryTint at the edges. Gives
+                // the empty state atmospheric depth instead of flat colour.
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(Color.brandSecondaryTint)
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.brandSurfaceElevated,
+                                Color.brandSecondaryTint
+                            ],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 220
+                        )
+                    )
+
+                // Watermark — the dog's name in Bricolage at very low opacity,
+                // sitting behind everything else. The empty card is undeniably
+                // FOR this dog without needing imagery.
+                Text(dog.name)
+                    .font(.system(size: 96, weight: .bold))
+                    .foregroundStyle(Color.brandSecondary.opacity(0.10))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .padding(.horizontal, Space.lg)
+                    .allowsHitTesting(false)
+
                 VStack(spacing: Space.sm) {
                     Text(dog.name)
                         .font(.displayMedium)
@@ -457,26 +487,26 @@ private struct TodayProgressCard: View {
     @State private var animatedPercent: Double = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.md) {
+        VStack(spacing: Space.md) {
             Text("\(dogName)'s \(partOfDay).")
                 .font(.displayMedium)
                 .foregroundStyle(Color.brandSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text("\(minutesDone) of \(targetMinutes) minutes done.")
-                .font(.bodyLarge)
-                .foregroundStyle(Color.brandTextPrimary)
-
-            ProgressTrack(percent: animatedPercent)
-                .frame(height: 10)
+            TargetRing(percent: animatedPercent)
+                .frame(width: 160, height: 160)
+                .padding(.vertical, Space.sm)
 
             HStack {
-                Text("\(Int(percent * 100))% of today's needs")
+                Text("\(minutesDone) of \(targetMinutes) minutes done")
                     .font(.bodyMedium)
                     .foregroundStyle(Color.brandTextSecondary)
                 Spacer()
-                Text("\(minutesToGo) min to go")
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
+                if percent < 1.0 {
+                    Text("\(minutesToGo) min to go")
+                        .font(.bodyMedium)
+                        .foregroundStyle(Color.brandTextSecondary)
+                }
             }
         }
         .onAppear {
@@ -485,6 +515,41 @@ private struct TodayProgressCard: View {
         .onChange(of: percent) { _, newValue in
             withAnimation(.brandDefault) { animatedPercent = newValue }
         }
+    }
+}
+
+/// Trot's signature visual element. Single coral ring, percent in display type
+/// at the centre. Distinct from Apple Fitness (which has 3 rings, no centre
+/// content, gradient strokes).
+private struct TargetRing: View {
+    let percent: Double
+
+    private let strokeWidth: CGFloat = 14
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.brandDivider, lineWidth: strokeWidth)
+            Circle()
+                .trim(from: 0, to: max(0, min(1, percent)))
+                .stroke(
+                    Color.brandPrimary,
+                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 2) {
+                Text("\(Int(min(1, percent) * 100))%")
+                    .font(.displayMedium)
+                    .foregroundStyle(Color.brandTextPrimary)
+                Text("today")
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.brandTextTertiary)
+                    .textCase(.uppercase)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Today's target: \(Int(min(1, percent) * 100)) percent complete.")
     }
 }
 
