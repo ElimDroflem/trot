@@ -8,6 +8,29 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-06 — Multi-dog UX + breed-table-driven targets
+
+**Done this session:**
+- **Multi-dog UX.** New `AppState` (`@Observable` class) holds the selected `PersistentIdentifier` and is injected via `.environment(appState)`. Home, Activity, and Profile all read the selected dog from AppState, so switching propagates everywhere. Header gained a dropdown switcher menu (with checkmarks + "Add another dog" entry). DogProfileView gained an "Add another dog" button presenting AddDogView as a sheet. AddDogView gained `showsCancelButton: Bool = false` for the sheet case and now writes the saved dog into AppState on new-dog flows. Archive clears `selectedDogID` so AppState falls back to the next active dog (or routes to AddDogView if none). 4 new `AppStateTests`.
+- **ExerciseTargetService + BreedData.json.** Subagent extracted 30 breed YAML blocks from `docs/breed-table.md` into `ios/Trot/Trot/Resources/BreedData.json` (canonical schema: breed, aliases, size, defaultIntensity, lifeStages, plus size-fallback table, senior-age-by-size thresholds, and three condition adjustments). New `ExerciseTargetService` is a pure-function namespace that picks a daily target from breed + DOB + weight + health flags. Strategy: breed lookup by name or alias (case- and punctuation-insensitive), size fallback for unknown breeds (weight bins), life-stage selection (puppy <1yr, senior at size-specific threshold), conservative-low for puppy/senior + midpoint for adult per breed-table rules, then largest-single-reduction for combined health conditions (no multiplicative stacking — too aggressive), rounded to nearest 5 min. AddDogFormState now writes this on both new-dog save and edit, replacing the hardcoded `60`. 12 new `ExerciseTargetServiceTests`. Existing AddDogFormState tests updated to assert wire-up via `state.computedDailyTargetMinutes` rather than hardcoded numbers — JSON values can evolve without churning these tests.
+- **Test count: 55 passing, all serial** (`-parallel-testing-enabled NO`): 8 AddDogFormState, 7 LogWalkFormState, 13 StreakService, 12 NotificationDecisions, 4 AppState, 12 ExerciseTargetService.
+
+**Committed this session:**
+- `0c1d9e1` — Add multi-dog selection with switcher menu and add-another-dog flow
+- `dca2805` — Add ExerciseTargetService backed by 30-breed BreedData.json
+- Both pushed to `ElimDroflem/trot`.
+
+**Next session pickup:**
+- **Vercel Edge Function for the LLM proxy.** Write `web/api/exercise-plan.ts` (TypeScript, Anthropic Haiku 4.5, 8s timeout, anonymous-install-token rate limiting). No deploy until Corey decides — code-only, validated locally. iOS LLMService wires later to overlay personalisation on top of ExerciseTargetService.
+- After that: missing-screens polish (Insights, weekly recap UI, streak milestone celebration), then end-of-build (paid program, real auth, CloudKit turn-on, HealthKitService + walk detection).
+
+**Open from this session that may surface later:**
+- DEBUG-seeded Luna's `dailyTargetMinutes` is still the hardcoded 60 from when she was first inserted. Existing dogs aren't recomputed on relaunch (deliberate — edits trigger recomputation, seed data is DEBUG-only). If the seeded value bothers anyone in dev, edit Luna once via DogProfileView to recompute. Not a real-user concern.
+- Recompute-on-edit is unconditional. If a future "manual override target" UI lands, the apply() flow will need to skip recomputation when the user has explicitly overridden. Not a v1 concern.
+- Mixed-breed UI still single-breed only — `BreedData.json` has aliases but no two-breed weighted average. v1.1 candidate per `decisions.md`.
+
+---
+
 ## 2026-05-05 (late evening) — Daily loop functional end-to-end
 
 **Done this session:**
