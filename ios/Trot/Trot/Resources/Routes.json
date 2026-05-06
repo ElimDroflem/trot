@@ -1,0 +1,757 @@
+{
+  "routes": [
+    {
+      "id": "trot-first-walk",
+      "name": "Trot's First Walk",
+      "subtitle": "An 8km loop through a quiet town.",
+      "theme": "townLane",
+      "totalKm": 8.0,
+      "landmarks": [
+        {
+          "id": "the-front-gate",
+          "name": "The Front Gate",
+          "description": "Latch sticks in the cold.",
+          "kmFromStart": 0.05,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "postbox-corner",
+          "name": "The Postbox Corner",
+          "description": "Last collection at four.",
+          "kmFromStart": 0.18,
+          "symbolName": "mappin.and.ellipse"
+        },
+        {
+          "id": "crooked-lamppost",
+          "name": "The Crooked Lamppost",
+          "description": "Leans a little more each year.",
+          "kmFromStart": 0.32,
+          "symbolName": "signpost.right.fill"
+        },
+        {
+          "id": "duck-pond",
+          "name": "The Duck Pond",
+          "description": "Six ducks. Always six.",
+          "kmFromStart": 0.45,
+          "symbolName": "drop.fill"
+        },
+        {
+          "id": "willow-bench",
+          "name": "The Bench by the Willow",
+          "description": "Damp by morning. Warm by noon.",
+          "kmFromStart": 0.65,
+          "symbolName": "armchair.fill"
+        },
+        {
+          "id": "wooden-bridge",
+          "name": "The Wooden Bridge",
+          "description": "Three planks creak. The fourth doesn't.",
+          "kmFromStart": 0.85,
+          "symbolName": "water.waves"
+        },
+        {
+          "id": "millers-cottage",
+          "name": "Miller's Cottage",
+          "description": "Smoke from the chimney most mornings.",
+          "kmFromStart": 1.05,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "old-oak",
+          "name": "The Old Oak",
+          "description": "Half-rotten. Older than the road.",
+          "kmFromStart": 1.25,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "patel-garden",
+          "name": "Mrs Patel's Garden",
+          "description": "Roses in summer. Empty in winter.",
+          "kmFromStart": 1.45,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "tea-hut",
+          "name": "The Tea Hut",
+          "description": "Open weekends. Honesty box.",
+          "kmFromStart": 1.65,
+          "symbolName": "sun.max.fill"
+        },
+        {
+          "id": "stone-stile",
+          "name": "The Stone Stile",
+          "description": "Worn smooth in two places.",
+          "kmFromStart": 1.85,
+          "symbolName": "figure.walk"
+        },
+        {
+          "id": "scout-hut",
+          "name": "The Scout Hut",
+          "description": "Quiet on weekdays.",
+          "kmFromStart": 2.0,
+          "symbolName": "flag.fill"
+        },
+        {
+          "id": "low-meadow",
+          "name": "The Low Meadow",
+          "description": "Floods most Februaries.",
+          "kmFromStart": 2.4,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "blackbird-thicket",
+          "name": "Blackbird Thicket",
+          "description": "Full of song at dusk.",
+          "kmFromStart": 2.8,
+          "symbolName": "bird.fill"
+        },
+        {
+          "id": "church-spire-view",
+          "name": "Church Spire View",
+          "description": "Visible only from this bend.",
+          "kmFromStart": 3.2,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "the-sleeping-fox",
+          "name": "The Sleeping Fox",
+          "description": "Pub closed Mondays.",
+          "kmFromStart": 3.6,
+          "symbolName": "moon.fill"
+        },
+        {
+          "id": "broken-fingerpost",
+          "name": "The Broken Fingerpost",
+          "description": "Points two ways at once.",
+          "kmFromStart": 4.0,
+          "symbolName": "signpost.right.fill"
+        },
+        {
+          "id": "rookery-field",
+          "name": "Rookery Field",
+          "description": "The rooks know you're there.",
+          "kmFromStart": 4.4,
+          "symbolName": "bird.fill"
+        },
+        {
+          "id": "stream-crossing",
+          "name": "The Stream Crossing",
+          "description": "Stepping stones in summer only.",
+          "kmFromStart": 4.8,
+          "symbolName": "water.waves"
+        },
+        {
+          "id": "high-paddock",
+          "name": "The High Paddock",
+          "description": "Two bay horses. Sometimes three.",
+          "kmFromStart": 5.2,
+          "symbolName": "tortoise.fill"
+        },
+        {
+          "id": "windbreak-pines",
+          "name": "The Windbreak Pines",
+          "description": "Plantation row. Always shaded.",
+          "kmFromStart": 5.8,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "old-kiln",
+          "name": "The Old Kiln",
+          "description": "Brick. Half collapsed. Ivy claiming it.",
+          "kmFromStart": 6.3,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "village-green",
+          "name": "The Village Green",
+          "description": "Cricket here on Saturdays.",
+          "kmFromStart": 6.9,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "school-railings",
+          "name": "The School Railings",
+          "description": "Painted black. Always cold.",
+          "kmFromStart": 7.5,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "home-again",
+          "name": "Home Again",
+          "description": "Latch still sticks.",
+          "kmFromStart": 8.0,
+          "symbolName": "house.fill"
+        }
+      ],
+      "pathPoints": [
+        { "x": 0.5, "y": 0.85 },
+        { "x": 0.2, "y": 0.7 },
+        { "x": 0.1, "y": 0.4 },
+        { "x": 0.35, "y": 0.15 },
+        { "x": 0.7, "y": 0.18 },
+        { "x": 0.92, "y": 0.45 },
+        { "x": 0.78, "y": 0.78 },
+        { "x": 0.5, "y": 0.85 }
+      ]
+    },
+    {
+      "id": "london-brighton",
+      "name": "London to Brighton",
+      "subtitle": "A southward walk to the sea.",
+      "theme": "coastal",
+      "totalKm": 80.0,
+      "landmarks": [
+        {
+          "id": "streatham-common",
+          "name": "Streatham Common",
+          "description": "South London's first big green.",
+          "kmFromStart": 2.5,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "crystal-palace-park",
+          "name": "Crystal Palace Park",
+          "description": "Stone dinosaurs still in the lake.",
+          "kmFromStart": 7.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "sanderstead",
+          "name": "Sanderstead",
+          "description": "The suburbs begin to thin.",
+          "kmFromStart": 13.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "coulsdon-common",
+          "name": "Coulsdon Common",
+          "description": "Heath and gorse.",
+          "kmFromStart": 17.0,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "smitham-bottom",
+          "name": "Smitham Bottom",
+          "description": "Down into the dry valley.",
+          "kmFromStart": 20.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "caterham",
+          "name": "Caterham",
+          "description": "Tea and a sit-down.",
+          "kmFromStart": 24.0,
+          "symbolName": "mappin.and.ellipse"
+        },
+        {
+          "id": "merstham",
+          "name": "Merstham",
+          "description": "Under the M25.",
+          "kmFromStart": 29.0,
+          "symbolName": "road.lanes"
+        },
+        {
+          "id": "redhill",
+          "name": "Redhill",
+          "description": "Halfway-ish to the coast.",
+          "kmFromStart": 33.0,
+          "symbolName": "signpost.right.fill"
+        },
+        {
+          "id": "earlswood-lakes",
+          "name": "Earlswood Lakes",
+          "description": "Three lakes. Many swans.",
+          "kmFromStart": 36.0,
+          "symbolName": "water.waves"
+        },
+        {
+          "id": "horley",
+          "name": "Horley",
+          "description": "Planes overhead from Gatwick.",
+          "kmFromStart": 41.0,
+          "symbolName": "cloud.fill"
+        },
+        {
+          "id": "crawley",
+          "name": "Crawley",
+          "description": "The new town ring road.",
+          "kmFromStart": 46.0,
+          "symbolName": "road.lanes"
+        },
+        {
+          "id": "three-bridges",
+          "name": "Three Bridges",
+          "description": "The railway forks here.",
+          "kmFromStart": 49.0,
+          "symbolName": "mappin.and.ellipse"
+        },
+        {
+          "id": "balcombe-viaduct",
+          "name": "Balcombe Viaduct",
+          "description": "Thirty-seven brick arches.",
+          "kmFromStart": 54.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "cuckfield",
+          "name": "Cuckfield",
+          "description": "Old high street. Slow morning.",
+          "kmFromStart": 58.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "burgess-hill",
+          "name": "Burgess Hill",
+          "description": "Through the back lanes.",
+          "kmFromStart": 62.0,
+          "symbolName": "signpost.right.fill"
+        },
+        {
+          "id": "hassocks",
+          "name": "Hassocks",
+          "description": "The Downs ahead now.",
+          "kmFromStart": 65.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "pyecombe",
+          "name": "Pyecombe",
+          "description": "The old shepherd's church.",
+          "kmFromStart": 68.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "ditchling-beacon",
+          "name": "Ditchling Beacon",
+          "description": "248 metres. The sea on a clear day.",
+          "kmFromStart": 71.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "patcham",
+          "name": "Patcham",
+          "description": "First rooftops of Brighton.",
+          "kmFromStart": 74.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "preston-park",
+          "name": "Preston Park",
+          "description": "Brighton's largest park.",
+          "kmFromStart": 76.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "the-clock-tower",
+          "name": "The Clock Tower",
+          "description": "Brighton's centre. The sea is close.",
+          "kmFromStart": 78.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "royal-pavilion",
+          "name": "The Royal Pavilion",
+          "description": "Onion domes against the grey.",
+          "kmFromStart": 78.8,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "palace-pier",
+          "name": "The Palace Pier",
+          "description": "Salt air. Slot machines.",
+          "kmFromStart": 79.5,
+          "symbolName": "lighthouse.fill"
+        },
+        {
+          "id": "brighton-pebble-beach",
+          "name": "Brighton's Pebble Beach",
+          "description": "Eighty kilometres. The sea.",
+          "kmFromStart": 80.0,
+          "symbolName": "water.waves"
+        }
+      ],
+      "pathPoints": [
+        { "x": 0.08, "y": 0.05 },
+        { "x": 0.22, "y": 0.18 },
+        { "x": 0.35, "y": 0.32 },
+        { "x": 0.5, "y": 0.5 },
+        { "x": 0.65, "y": 0.65 },
+        { "x": 0.8, "y": 0.82 },
+        { "x": 0.94, "y": 0.95 }
+      ]
+    },
+    {
+      "id": "hadrians-wall",
+      "name": "Hadrian's Wall",
+      "subtitle": "Coast to coast along the Roman line.",
+      "theme": "roman",
+      "totalKm": 135.0,
+      "landmarks": [
+        {
+          "id": "segedunum",
+          "name": "Segedunum, Wallsend",
+          "description": "The eastern end. Where the Wall began.",
+          "kmFromStart": 0.5,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "newcastle-quayside",
+          "name": "Newcastle Quayside",
+          "description": "Bridges over the Tyne.",
+          "kmFromStart": 7.0,
+          "symbolName": "water.waves"
+        },
+        {
+          "id": "denton-turret",
+          "name": "Denton Turret",
+          "description": "First visible Wall stone.",
+          "kmFromStart": 11.0,
+          "symbolName": "mappin.and.ellipse"
+        },
+        {
+          "id": "heddon-on-the-wall",
+          "name": "Heddon-on-the-Wall",
+          "description": "A long stretch of original Wall.",
+          "kmFromStart": 16.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "milecastle-19",
+          "name": "Milecastle 19",
+          "description": "Foundations only. Sheep grazing.",
+          "kmFromStart": 22.0,
+          "symbolName": "mappin.and.ellipse"
+        },
+        {
+          "id": "brunton-turret",
+          "name": "Brunton Turret",
+          "description": "Three courses of Roman stone.",
+          "kmFromStart": 32.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "chesters-roman-fort",
+          "name": "Chesters Roman Fort",
+          "description": "The cavalry fort. Bath house intact.",
+          "kmFromStart": 35.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "carrawburgh",
+          "name": "Carrawburgh",
+          "description": "Mithras temple in the field below.",
+          "kmFromStart": 42.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "sewingshields-crags",
+          "name": "Sewingshields Crags",
+          "description": "The Wall climbs onto the rock.",
+          "kmFromStart": 48.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "housesteads",
+          "name": "Housesteads (Vercovicium)",
+          "description": "The most complete Roman fort in Britain.",
+          "kmFromStart": 52.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "crag-lough",
+          "name": "Crag Lough",
+          "description": "Black water below the cliff.",
+          "kmFromStart": 56.0,
+          "symbolName": "drop.fill"
+        },
+        {
+          "id": "sycamore-gap",
+          "name": "Sycamore Gap",
+          "description": "The tree is gone. The dip remains.",
+          "kmFromStart": 58.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "steel-rigg",
+          "name": "Steel Rigg",
+          "description": "Wind from every direction.",
+          "kmFromStart": 60.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "vindolanda",
+          "name": "Vindolanda",
+          "description": "Where the writing tablets were found.",
+          "kmFromStart": 64.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "twice-brewed",
+          "name": "Twice Brewed",
+          "description": "Pub. Beds. A very long shower.",
+          "kmFromStart": 66.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "cawfields-quarry",
+          "name": "Cawfields Quarry",
+          "description": "Half a milecastle. Half a quarry.",
+          "kmFromStart": 70.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "walltown-crags",
+          "name": "Walltown Crags",
+          "description": "The last of the high ground.",
+          "kmFromStart": 76.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "birdoswald",
+          "name": "Birdoswald (Banna)",
+          "description": "The farmhouse sits inside the fort.",
+          "kmFromStart": 84.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "lanercost-priory",
+          "name": "Lanercost Priory",
+          "description": "Built from Wall stone.",
+          "kmFromStart": 90.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "walton",
+          "name": "Walton",
+          "description": "A village. A green. A pub.",
+          "kmFromStart": 100.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "carlisle",
+          "name": "Carlisle",
+          "description": "The Eden through the city.",
+          "kmFromStart": 115.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "burgh-by-sands",
+          "name": "Burgh by Sands",
+          "description": "Edward I died on the marsh here.",
+          "kmFromStart": 125.0,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "bowness-on-solway",
+          "name": "Bowness-on-Solway",
+          "description": "The west end. The estuary opens.",
+          "kmFromStart": 135.0,
+          "symbolName": "water.waves"
+        }
+      ],
+      "pathPoints": [
+        { "x": 0.96, "y": 0.5 },
+        { "x": 0.82, "y": 0.55 },
+        { "x": 0.65, "y": 0.42 },
+        { "x": 0.5, "y": 0.38 },
+        { "x": 0.35, "y": 0.55 },
+        { "x": 0.18, "y": 0.48 },
+        { "x": 0.04, "y": 0.55 }
+      ]
+    },
+    {
+      "id": "south-downs-way",
+      "name": "South Downs Way",
+      "subtitle": "Winchester to Eastbourne over the chalk.",
+      "theme": "downs",
+      "totalKm": 160.0,
+      "landmarks": [
+        {
+          "id": "king-alfred-statue",
+          "name": "King Alfred's Statue",
+          "description": "Winchester. The official start.",
+          "kmFromStart": 0.5,
+          "symbolName": "flag.fill"
+        },
+        {
+          "id": "cheriton",
+          "name": "Cheriton",
+          "description": "Source of the Itchen.",
+          "kmFromStart": 14.0,
+          "symbolName": "drop.fill"
+        },
+        {
+          "id": "exton",
+          "name": "Exton",
+          "description": "Through the Meon Valley.",
+          "kmFromStart": 22.0,
+          "symbolName": "leaf.fill"
+        },
+        {
+          "id": "old-winchester-hill",
+          "name": "Old Winchester Hill",
+          "description": "An iron age fort. Long views.",
+          "kmFromStart": 26.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "east-meon",
+          "name": "East Meon",
+          "description": "Stream through the village.",
+          "kmFromStart": 31.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "buriton",
+          "name": "Buriton",
+          "description": "Pond. Church. Pub.",
+          "kmFromStart": 39.0,
+          "symbolName": "drop.fill"
+        },
+        {
+          "id": "queen-elizabeth-park",
+          "name": "Queen Elizabeth Country Park",
+          "description": "Beech woods. Steep climb out.",
+          "kmFromStart": 43.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "harting-down",
+          "name": "Harting Down",
+          "description": "First proper open downland.",
+          "kmFromStart": 50.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "cocking",
+          "name": "Cocking",
+          "description": "The road dips. The path rises.",
+          "kmFromStart": 60.0,
+          "symbolName": "signpost.right.fill"
+        },
+        {
+          "id": "heyshott-down",
+          "name": "Heyshott Down",
+          "description": "Yew trees on the scarp.",
+          "kmFromStart": 65.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "amberley-mount",
+          "name": "Amberley Mount",
+          "description": "Down to the Arun valley.",
+          "kmFromStart": 78.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "storrington",
+          "name": "Storrington",
+          "description": "Below the ridge for a while.",
+          "kmFromStart": 86.0,
+          "symbolName": "house.fill"
+        },
+        {
+          "id": "washington",
+          "name": "Washington",
+          "description": "Under the A24.",
+          "kmFromStart": 92.0,
+          "symbolName": "road.lanes"
+        },
+        {
+          "id": "chanctonbury-ring",
+          "name": "Chanctonbury Ring",
+          "description": "Beeches on an iron age fort.",
+          "kmFromStart": 96.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "steyning-bowl",
+          "name": "Steyning Bowl",
+          "description": "Paragliders on a good day.",
+          "kmFromStart": 102.0,
+          "symbolName": "cloud.fill"
+        },
+        {
+          "id": "devils-dyke",
+          "name": "Devil's Dyke",
+          "description": "The deepest dry valley in Britain.",
+          "kmFromStart": 110.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "ditchling-beacon-sdw",
+          "name": "Ditchling Beacon",
+          "description": "248 metres. Same hill, different path.",
+          "kmFromStart": 118.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "black-cap",
+          "name": "Black Cap",
+          "description": "Beech clump on the summit.",
+          "kmFromStart": 124.0,
+          "symbolName": "tree.fill"
+        },
+        {
+          "id": "lewes",
+          "name": "Lewes",
+          "description": "Off the ridge into the town.",
+          "kmFromStart": 130.0,
+          "symbolName": "building.columns.fill"
+        },
+        {
+          "id": "firle-beacon",
+          "name": "Firle Beacon",
+          "description": "Long barrow on the summit.",
+          "kmFromStart": 138.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "alfriston",
+          "name": "Alfriston",
+          "description": "The Cuckmere meanders below.",
+          "kmFromStart": 144.0,
+          "symbolName": "water.waves"
+        },
+        {
+          "id": "cuckmere-haven",
+          "name": "Cuckmere Haven",
+          "description": "The river meets the sea.",
+          "kmFromStart": 149.0,
+          "symbolName": "water.waves"
+        },
+        {
+          "id": "seven-sisters",
+          "name": "The Seven Sisters",
+          "description": "Up. Down. Up. Down. Seven times.",
+          "kmFromStart": 153.0,
+          "symbolName": "mountain.2.fill"
+        },
+        {
+          "id": "beachy-head",
+          "name": "Beachy Head",
+          "description": "162 metres of chalk. The lighthouse below.",
+          "kmFromStart": 157.0,
+          "symbolName": "lighthouse.fill"
+        },
+        {
+          "id": "eastbourne-pier",
+          "name": "Eastbourne Pier",
+          "description": "The end. The sea at last.",
+          "kmFromStart": 160.0,
+          "symbolName": "lighthouse.fill"
+        }
+      ],
+      "pathPoints": [
+        { "x": 0.05, "y": 0.55 },
+        { "x": 0.18, "y": 0.42 },
+        { "x": 0.32, "y": 0.6 },
+        { "x": 0.45, "y": 0.38 },
+        { "x": 0.58, "y": 0.58 },
+        { "x": 0.72, "y": 0.4 },
+        { "x": 0.85, "y": 0.62 },
+        { "x": 0.96, "y": 0.5 }
+      ]
+    }
+  ]
+}

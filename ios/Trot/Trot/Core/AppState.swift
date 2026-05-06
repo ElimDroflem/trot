@@ -21,6 +21,14 @@ final class AppState {
     /// RootView observes and drives the sheet. Cleared on dismiss.
     var pendingRecapDogID: PersistentIdentifier?
 
+    /// FIFO queue of walk-complete celebrations. Every walk save (manual log
+    /// or expedition mode) enqueues one; `WalkCompleteOverlay` reads the head
+    /// and dismisses via `consumeWalkComplete()`. Surfaced ABOVE milestones in
+    /// `RootView` so the immediate "you just walked" moment lands first.
+    var pendingWalkCompletes: [PendingWalkComplete] = []
+
+    var pendingWalkComplete: PendingWalkComplete? { pendingWalkCompletes.first }
+
     init(selectedDogID: PersistentIdentifier? = nil) {
         self.selectedDogID = selectedDogID
     }
@@ -56,6 +64,38 @@ final class AppState {
         guard !pendingCelebrations.isEmpty else { return }
         pendingCelebrations.removeFirst()
     }
+
+    /// Append a walk-complete event for the given walk save. Built from the
+    /// `WalkApplication` returned by `JourneyService.applyWalk(...)` so the
+    /// overlay can render route advance + landmark stamps.
+    func enqueueWalkComplete(
+        dogName: String,
+        minutes: Int,
+        application: WalkApplication,
+        oldProgressKm: Double,
+        newProgressKm: Double,
+        routeName: String,
+        routeTotalKm: Double
+    ) {
+        let event = PendingWalkComplete(
+            dogName: dogName.isEmpty ? "Your dog" : dogName,
+            minutes: minutes,
+            kmAdded: application.kmAdded,
+            oldProgressKm: oldProgressKm,
+            newProgressKm: newProgressKm,
+            routeName: routeName,
+            routeTotalKm: routeTotalKm,
+            landmarksCrossed: application.landmarksCrossed,
+            routeCompleted: application.routeCompleted?.name
+        )
+        pendingWalkCompletes.append(event)
+    }
+
+    /// Pops the head of the walk-complete queue.
+    func consumeWalkComplete() {
+        guard !pendingWalkCompletes.isEmpty else { return }
+        pendingWalkCompletes.removeFirst()
+    }
 }
 
 /// A queued celebration waiting to be surfaced. Captures `dogName` at enqueue
@@ -68,4 +108,36 @@ struct PendingCelebration: Identifiable, Equatable, Sendable {
 
     var title: String { code.title(dogName: dogName) }
     var body: String { code.body(dogName: dogName) }
+}
+
+/// A walk has just been saved. Carries the data the `WalkCompleteOverlay`
+/// needs to render: dopamine headline + route bar advance + (optional)
+/// landmark stamps + (rare) route-completion line.
+struct PendingWalkComplete: Identifiable, Sendable {
+    let id = UUID()
+    let dogName: String
+    let minutes: Int
+    let kmAdded: Double
+    let oldProgressKm: Double
+    let newProgressKm: Double
+    let routeName: String
+    let routeTotalKm: Double
+    let landmarksCrossed: [Landmark]
+    /// Non-nil if this walk closed out a route. The overlay swaps in a special
+    /// "route finished" treatment in that case.
+    let routeCompleted: String?
+
+    var headline: String {
+        "\(minutes) \(minutes == 1 ? "minute" : "minutes") with \(dogName)."
+    }
+
+    /// 0...1 progress on the active route AT THE MOMENT the walk landed.
+    /// Used by the overlay to animate the route bar from old to new.
+    var oldFraction: Double {
+        routeTotalKm > 0 ? min(1, max(0, oldProgressKm / routeTotalKm)) : 0
+    }
+
+    var newFraction: Double {
+        routeTotalKm > 0 ? min(1, max(0, newProgressKm / routeTotalKm)) : 0
+    }
 }

@@ -37,6 +37,23 @@ final class Dog {
     /// Sunday evening. Per-dog so multi-dog households don't have to share the flag.
     var lastRecapSeenWeekStart: Date?
 
+    // MARK: - Journey state (per-dog progression along bundled routes)
+
+    /// ID of the route the dog is currently traversing. Defaults to the starter
+    /// route. Auto-advances through `JourneyService.routeSequence` when the
+    /// active route's `routeProgressKm` reaches `totalKm`.
+    var activeRouteID: String = "trot-first-walk"
+
+    /// Cumulative km on the active route. Resets to 0 (with overflow carrying
+    /// over) when a route completes. Driven by `JourneyService.applyWalk` after
+    /// every walk save.
+    var routeProgressKm: Double = 0
+
+    /// IDs of routes the dog has fully completed, in chronological order. Used
+    /// for the long-tail "you walked Hadrian's Wall this year" emotional artifact
+    /// and as a sanity check that auto-advance happened.
+    var completedRouteIDs: [String] = []
+
     @Relationship(deleteRule: .cascade, inverse: \WalkWindow.dog)
     var walkWindows: [WalkWindow]? = []
 

@@ -179,6 +179,7 @@ struct LogWalkSheet: View {
     private func save() {
         guard form.isValid else { return }
         do {
+            let isNewWalk = editingWalk == nil
             if let editingWalk {
                 form.apply(to: editingWalk)
             } else {
@@ -189,10 +190,41 @@ struct LogWalkSheet: View {
             try modelContext.save()
             rescheduleNotifications()
             checkMilestones()
+            // Journey progression + walk-complete celebration ONLY for new walks.
+            // Editing an existing walk doesn't add new minutes — we'd otherwise
+            // double-advance and double-celebrate.
+            if isNewWalk {
+                applyJourneyProgress(minutes: form.durationMinutes)
+            }
             dismiss()
         } catch {
             saveError = error.localizedDescription
         }
+    }
+
+    /// Advances each affected dog along their active route by the walk's duration
+    /// and enqueues a walk-complete celebration on AppState. Mirrors the
+    /// expedition-mode finish flow so both entry points produce the same
+    /// post-walk dopamine.
+    private func applyJourneyProgress(minutes: Int) {
+        guard minutes > 0 else { return }
+        for dog in dogs {
+            guard let route = JourneyService.currentRoute(for: dog) else { continue }
+            let oldKm = dog.routeProgressKm
+            let application = JourneyService.applyWalk(minutes: minutes, to: dog)
+            // After applyWalk, dog.activeRouteID may have advanced; the route the
+            // walk-complete UI shows is the one that was IN PROGRESS for this walk.
+            appState.enqueueWalkComplete(
+                dogName: dog.name,
+                minutes: minutes,
+                application: application,
+                oldProgressKm: oldKm,
+                newProgressKm: application.routeCompleted == nil ? dog.routeProgressKm : route.totalKm,
+                routeName: route.name,
+                routeTotalKm: route.totalKm
+            )
+        }
+        try? modelContext.save()
     }
 
     private func deleteWalk() {

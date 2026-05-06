@@ -12,6 +12,7 @@ struct HomeView: View {
 
     @Environment(AppState.self) private var appState
     @State private var showingLogWalk = false
+    @State private var showingExpedition = false
     @State private var editingWalk: Walk?
     @State private var showingAddAnotherDog = false
     @State private var showingHomeRecap = false
@@ -38,6 +39,11 @@ struct HomeView: View {
         .sheet(isPresented: $showingLogWalk) {
             if let dog = selectedDog {
                 LogWalkSheet(dogs: [dog])
+            }
+        }
+        .sheet(isPresented: $showingExpedition) {
+            if let dog = selectedDog {
+                ExpeditionView(dog: dog)
             }
         }
         .sheet(item: $editingWalk) { walk in
@@ -79,7 +85,8 @@ struct HomeView: View {
                             selectedDog: dog,
                             onSelectDog: { appState.select($0) },
                             onAddAnotherDog: { showingAddAnotherDog = true },
-                            onAddWalk: { showingLogWalk = true }
+                            onStartWalk: { showingExpedition = true },
+                            onLogPastWalk: { showingLogWalk = true }
                         )
                         StreakAndDateRow(
                             streakDays: StreakService.currentStreak(for: dog),
@@ -100,6 +107,7 @@ struct HomeView: View {
                             now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
+                        JourneyCard(dog: dog)
                         WeeklyRecapTile(onTap: { showingHomeRecap = true })
                         Color.clear.frame(height: Space.lg)
                     }
@@ -176,7 +184,8 @@ private struct HomeHeader: View {
     let selectedDog: Dog
     let onSelectDog: (Dog) -> Void
     let onAddAnotherDog: () -> Void
-    let onAddWalk: () -> Void
+    let onStartWalk: () -> Void
+    let onLogPastWalk: () -> Void
 
     var body: some View {
         HStack {
@@ -217,7 +226,14 @@ private struct HomeHeader: View {
 
             Spacer()
 
-            Button(action: onAddWalk) {
+            Menu {
+                Button(action: onStartWalk) {
+                    Label("Start a walk", systemImage: "figure.walk")
+                }
+                Button(action: onLogPastWalk) {
+                    Label("Log a past walk", systemImage: "clock.arrow.circlepath")
+                }
+            } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.brandTextOnPrimary)
@@ -225,7 +241,7 @@ private struct HomeHeader: View {
                     .background(Color.brandPrimary)
                     .clipShape(Circle())
             }
-            .accessibilityLabel("Log a walk")
+            .accessibilityLabel("Add a walk")
         }
     }
 }

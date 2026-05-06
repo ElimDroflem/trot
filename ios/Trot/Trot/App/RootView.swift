@@ -26,7 +26,20 @@ struct RootView: View {
             }
         }
         .overlay {
-            if let celebration = appState.pendingCelebration {
+            // Walk-complete dopamine fires FIRST so the immediate "you just walked"
+            // moment lands before any milestone celebration that the same save may
+            // have triggered.
+            if let event = appState.pendingWalkComplete {
+                WalkCompleteOverlay(
+                    event: event,
+                    dogPhoto: appState.selectedDog(from: activeDogs)?.photo
+                ) {
+                    withAnimation(.brandDefault) {
+                        appState.consumeWalkComplete()
+                    }
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else if let celebration = appState.pendingCelebration {
                 CelebrationOverlay(celebration: celebration) {
                     withAnimation(.brandDefault) {
                         appState.consumeCelebration()
@@ -35,6 +48,7 @@ struct RootView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
+        .animation(.brandDefault, value: appState.pendingWalkComplete?.id)
         .animation(.brandDefault, value: appState.pendingCelebration?.id)
         .sheet(item: Binding(
             get: { recapDog.map { RecapDogID(id: $0.persistentModelID) } },
