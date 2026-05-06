@@ -114,6 +114,7 @@ struct RecapView: View {
         .padding(.vertical, Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 
     private func statColumn(value: String, label: String) -> some View {
@@ -142,6 +143,7 @@ struct RecapView: View {
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .brandCardShadow()
     }
 
     private struct ComparisonDescriptor {
@@ -210,14 +212,14 @@ struct RecapView: View {
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .brandCardShadow()
     }
 
     private var streakDetail: String {
-        switch recap.streakDays {
-        case 0: return "No active streak. Today's a good day to start."
-        case 1: return "1 day."
-        default: return "\(recap.streakDays) days."
+        if recap.streakDays == 0 {
+            return "No active streak. Today's a good day to start."
         }
+        return "\(recap.streakDays.pluralised("day"))."
     }
 }
 

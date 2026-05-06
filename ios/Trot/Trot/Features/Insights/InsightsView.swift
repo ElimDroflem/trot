@@ -30,7 +30,16 @@ struct InsightsView: View {
                         if state.observations.isEmpty {
                             EmptyObservationsCard(hasLearning: state.learning != nil, dogName: dog.name)
                         } else {
-                            ForEach(state.observations) { observation in
+                            // The "Lifetime walks" entry gets a magazine-style stat
+                            // block instead of a generic observation card. The rest
+                            // render through ObservationCard as before.
+                            if hasLifetimeObservation(state.observations) {
+                                LifetimeStatsCard(
+                                    walkCount: lifetimeWalkCount(for: dog),
+                                    minutesTotal: lifetimeMinutes(for: dog)
+                                )
+                            }
+                            ForEach(state.observations.filter { $0.title != "Lifetime walks" }) { observation in
                                 ObservationCard(insight: observation)
                             }
                         }
@@ -50,6 +59,18 @@ struct InsightsView: View {
                 }
             }
         }
+    }
+
+    private func hasLifetimeObservation(_ observations: [Insight]) -> Bool {
+        observations.contains(where: { $0.title == "Lifetime walks" })
+    }
+
+    private func lifetimeWalkCount(for dog: Dog) -> Int {
+        (dog.walks ?? []).count
+    }
+
+    private func lifetimeMinutes(for dog: Dog) -> Int {
+        (dog.walks ?? []).reduce(0) { $0 + $1.durationMinutes }
     }
 
     private func header(for dog: Dog) -> some View {
@@ -86,6 +107,7 @@ struct InsightsView: View {
             .padding(Space.md)
             .background(Color.brandSurfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .brandCardShadow()
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingRecap) {
@@ -127,14 +149,48 @@ private struct LearningCard: View {
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 
     private var remainingLabel: String {
-        switch progress.remainingDays {
-        case 0: return "Ready"
-        case 1: return "1 day to go"
-        default: return "\(progress.remainingDays) days to go"
+        if progress.remainingDays == 0 { return "Ready" }
+        return "\(progress.remainingDays.pluralised("day")) to go"
+    }
+}
+
+/// Magazine-style two-column stat block for the lifetime walks summary.
+/// Promoted from a generic observation card because the numbers themselves
+/// are the moment — the user feels them accumulate.
+private struct LifetimeStatsCard: View {
+    let walkCount: Int
+    let minutesTotal: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            statColumn(value: "\(walkCount)", label: walkCount == 1 ? "walk" : "walks")
+            statColumn(value: "\(minutesTotal)", label: "minutes")
         }
+        .padding(.vertical, Space.lg)
+        .padding(.horizontal, Space.md)
+        .frame(maxWidth: .infinity)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Lifetime: \(walkCount.pluralised("walk")), \(minutesTotal) minutes total")
+    }
+
+    private func statColumn(value: String, label: String) -> some View {
+        VStack(spacing: Space.xs) {
+            Text(value)
+                .font(.displayMedium)
+                .foregroundStyle(Color.brandSecondary)
+            Text(label.uppercased())
+                .font(.caption.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(Color.brandTextTertiary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -154,6 +210,7 @@ private struct ObservationCard: View {
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 }
 
@@ -177,6 +234,7 @@ private struct EmptyObservationsCard: View {
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 
     private var headline: String {

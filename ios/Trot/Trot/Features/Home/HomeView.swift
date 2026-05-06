@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct HomeView: View {
     @Query(
@@ -30,7 +31,11 @@ struct HomeView: View {
 
             DogProfileView()
                 .tabItem {
-                    Label(selectedDog?.name ?? "Dog", systemImage: "person.crop.circle")
+                    Label {
+                        Text(selectedDog?.name ?? "Dog")
+                    } icon: {
+                        ProfileTabIcon(dog: selectedDog)
+                    }
                 }
         }
         .tint(.brandPrimary)
@@ -205,6 +210,7 @@ private struct HomeHeader: View {
                 .frame(height: 44)
                 .background(Color.brandSurfaceElevated)
                 .clipShape(Capsule())
+                .brandCardShadow()
             }
             .accessibilityLabel("Switch dog")
 
@@ -223,16 +229,127 @@ private struct HomeHeader: View {
     }
 }
 
+/// Renders a small circular crop of the dog's photo for the Profile tab icon
+/// when a photo exists, otherwise falls back to `dog.fill` (iOS 18). Real photos
+/// don't template-render as inactive grey, but that's intentional — the photo
+/// IS the brand moment for that tab.
+private struct ProfileTabIcon: View {
+    let dog: Dog?
+
+    var body: some View {
+        if let dog, let data = dog.photo, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 24, height: 24)
+                .clipShape(Circle())
+        } else {
+            Image(systemName: "dog.fill")
+        }
+    }
+}
+
+/// Two layouts in one component:
+///   - Promoted (streak in 1...6): vertical stack with the date as a small caption
+///     and a wider, coral-tinted streak card below. Streak is the focus, since these
+///     are the fragile early days where dropping a walk would hurt.
+///   - Standard (streak == 0 or ≥7): side-by-side pills as before. At 0, the streak
+///     pill becomes a calm "Today's the day" placeholder.
 private struct StreakAndDateRow: View {
     let streakDays: Int
     let dateLabel: String
 
+    @State private var scale: CGFloat = 1.0
+
+    private var isPromoted: Bool { (1...6).contains(streakDays) }
+
     var body: some View {
-        HStack {
+        Group {
+            if isPromoted {
+                VStack(alignment: .leading, spacing: Space.sm) {
+                    Text(dateLabel)
+                        .font(.caption.weight(.semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(Color.brandTextSecondary)
+                        .textCase(.uppercase)
+                    promotedStreakCard
+                }
+            } else {
+                HStack {
+                    standardStreakPill
+                    Spacer()
+                    datePill
+                }
+            }
+        }
+        .scaleEffect(scale)
+        .onChange(of: streakDays) { oldValue, newValue in
+            // Increment-only pulse — burning-down doesn't deserve a celebration.
+            guard newValue > oldValue else { return }
+            withAnimation(.brandCelebration) { scale = 1.06 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+                withAnimation(.brandCelebration) { scale = 1.0 }
+            }
+        }
+    }
+
+    private var promotedStreakCard: some View {
+        HStack(spacing: Space.md) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(Color.brandPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(streakDays.pluralised("day"))
+                    .font(.displayMedium)
+                    .foregroundStyle(Color.brandTextPrimary)
+                Text(promotedSubtitle)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, Space.md)
+        .padding(.vertical, Space.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandPrimaryTint)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Streak: \(streakDays.pluralised("day")). \(promotedSubtitle)")
+    }
+
+    private var promotedSubtitle: String {
+        switch streakDays {
+        case 1: return "Day one. Build it from here."
+        case 2: return "Two in a row."
+        case 3: return "Three days. The habit is forming."
+        case 4: return "Four days. Keep going."
+        case 5: return "Five days. Almost a week."
+        case 6: return "Six days. One more for the week."
+        default: return ""
+        }
+    }
+
+    @ViewBuilder
+    private var standardStreakPill: some View {
+        if streakDays == 0 {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "flame")
+                    .foregroundStyle(Color.brandTextSecondary)
+                Text("Today's the day")
+                    .font(.bodyMedium.weight(.semibold))
+                    .foregroundStyle(Color.brandTextSecondary)
+            }
+            .padding(.horizontal, Space.md)
+            .padding(.vertical, Space.sm)
+            .background(Color.brandSurfaceElevated)
+            .clipShape(Capsule())
+            .brandCardShadow()
+        } else {
             HStack(spacing: Space.xs) {
                 Image(systemName: "flame.fill")
                     .foregroundStyle(Color.brandPrimary)
-                Text("\(streakDays) days")
+                Text(streakDays.pluralised("day"))
                     .font(.bodyMedium.weight(.semibold))
                     .foregroundStyle(Color.brandTextPrimary)
             }
@@ -240,49 +357,92 @@ private struct StreakAndDateRow: View {
             .padding(.vertical, Space.sm)
             .background(Color.brandSurfaceElevated)
             .clipShape(Capsule())
-
-            Spacer()
-
-            Text(dateLabel)
-                .font(.bodyMedium.weight(.semibold))
-                .foregroundStyle(Color.brandTextPrimary)
-                .padding(.horizontal, Space.md)
-                .padding(.vertical, Space.sm)
-                .background(Color.brandSurfaceElevated)
-                .clipShape(Capsule())
+            .brandCardShadow()
         }
+    }
+
+    private var datePill: some View {
+        Text(dateLabel)
+            .font(.bodyMedium.weight(.semibold))
+            .foregroundStyle(Color.brandTextPrimary)
+            .padding(.horizontal, Space.md)
+            .padding(.vertical, Space.sm)
+            .background(Color.brandSurfaceElevated)
+            .clipShape(Capsule())
+            .brandCardShadow()
     }
 }
 
 private struct HeroPhoto: View {
     let dog: Dog
 
+    @Environment(\.modelContext) private var modelContext
+    @State private var photoItem: PhotosPickerItem?
+
     var body: some View {
-        RoundedRectangle(cornerRadius: Radius.lg)
-            .fill(Color.brandSecondaryTint)
-            .frame(height: 280)
-            .overlay {
-                if let data = dog.photo, let image = uiImage(from: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-                } else {
-                    VStack(spacing: Space.sm) {
-                        Image(systemName: "pawprint.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(Color.brandSecondary.opacity(0.5))
-                        Text(dog.name)
-                            .font(.titleMedium)
-                            .foregroundStyle(Color.brandSecondary.opacity(0.7))
-                    }
-                }
+        Group {
+            if let data = dog.photo, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 280)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                    .brandCardShadow()
+            } else {
+                emptyState
             }
+        }
+        .onChange(of: photoItem) { _, newItem in
+            Task { await loadPhoto(from: newItem) }
+        }
     }
 
-    private func uiImage(from data: Data) -> UIImage? {
-        UIImage(data: data)
+    private var emptyState: some View {
+        PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Color.brandSecondaryTint)
+                VStack(spacing: Space.sm) {
+                    Text(dog.name)
+                        .font(.displayMedium)
+                        .foregroundStyle(Color.brandSecondary)
+                    Text("Trot is built around \(dog.name).")
+                        .font(.bodyMedium)
+                        .foregroundStyle(Color.brandTextSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Space.lg)
+                    HStack(spacing: Space.xs) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Add photo")
+                            .font(.bodyLarge.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.brandTextOnPrimary)
+                    .padding(.horizontal, Space.md)
+                    .padding(.vertical, Space.sm)
+                    .background(Color.brandPrimary)
+                    .clipShape(Capsule())
+                    .padding(.top, Space.xs)
+                }
+                .padding(.vertical, Space.md)
+            }
+            .frame(height: 280)
+        }
+        .buttonStyle(.plain)
+        .brandCardShadow()
+        .accessibilityLabel("Add a photo of \(dog.name)")
+    }
+
+    private func loadPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        guard let raw = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: raw) else { return }
+        let downscaled = image.downscaledJPEGData()
+        await MainActor.run {
+            dog.photo = downscaled
+            try? modelContext.save()
+        }
     }
 }
 
@@ -294,6 +454,8 @@ private struct TodayProgressCard: View {
     let percent: Double
     let minutesToGo: Int
 
+    @State private var animatedPercent: Double = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.md) {
             Text("\(dogName)'s \(partOfDay).")
@@ -304,7 +466,7 @@ private struct TodayProgressCard: View {
                 .font(.bodyLarge)
                 .foregroundStyle(Color.brandTextPrimary)
 
-            ProgressTrack(percent: percent)
+            ProgressTrack(percent: animatedPercent)
                 .frame(height: 10)
 
             HStack {
@@ -316,6 +478,12 @@ private struct TodayProgressCard: View {
                     .font(.bodyMedium)
                     .foregroundStyle(Color.brandTextSecondary)
             }
+        }
+        .onAppear {
+            withAnimation(.brandDefault) { animatedPercent = percent }
+        }
+        .onChange(of: percent) { _, newValue in
+            withAnimation(.brandDefault) { animatedPercent = newValue }
         }
     }
 }
@@ -374,6 +542,7 @@ private struct WeeklyRecapTile: View {
             .padding(.horizontal, Space.md)
             .background(Color.brandSurfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .brandCardShadow()
         }
         .buttonStyle(.plain)
     }
@@ -415,8 +584,10 @@ private struct WalksSection: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("Tap to edit or delete this walk.")
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
+            .animation(.brandDefault, value: walks.count)
         }
     }
 }
@@ -426,7 +597,7 @@ private struct WalkRow: View {
 
     var body: some View {
         HStack(spacing: Space.md) {
-            Image(systemName: "pawprint.fill")
+            Image(systemName: glyphName)
                 .font(.system(size: 18))
                 .foregroundStyle(Color.brandPrimary)
                 .frame(width: 40, height: 40)
@@ -448,6 +619,12 @@ private struct WalkRow: View {
                 .font(.bodyMedium.weight(.semibold))
                 .foregroundStyle(statusColor)
         }
+    }
+
+    private var glyphName: String {
+        // Passive walks were detected by HealthKit (the dog walked itself in iOS's eyes);
+        // manual walks were a deliberate tap from the user.
+        walk.source == .passive ? "figure.walk" : "hand.tap.fill"
     }
 
     private var subtitle: String {

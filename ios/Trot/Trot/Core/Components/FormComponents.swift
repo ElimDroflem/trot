@@ -19,6 +19,7 @@ struct FormCard<Content: View>: View {
             .padding(.vertical, Space.sm)
             .background(Color.brandSurfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+            .brandCardShadow()
         }
     }
 }

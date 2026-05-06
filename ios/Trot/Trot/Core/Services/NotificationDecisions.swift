@@ -74,7 +74,7 @@ enum NotificationDecisions {
         case 7: return "A full week of walks. \(dogName)'s on it."
         case 14: return "14 days. \(dogName)'s longest streak so far."
         case 30: return "30 days. That's the kind of routine \(dogName) thrives on."
-        default: return "\(streak) days."
+        default: return "\(streak.pluralised("day"))."
         }
     }
 

@@ -125,6 +125,7 @@ struct DayWalksSheet: View {
         .padding(.vertical, Space.sm)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .brandCardShadow()
     }
 
     private var logWalkButton: some View {

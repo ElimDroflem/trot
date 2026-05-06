@@ -60,6 +60,7 @@ struct ActivityView: View {
                     .frame(width: 44, height: 44)
                     .background(Color.brandSurfaceElevated)
                     .clipShape(Circle())
+                    .brandCardShadow()
             }
             .accessibilityLabel("Previous month")
 
@@ -78,6 +79,7 @@ struct ActivityView: View {
                     .frame(width: 44, height: 44)
                     .background(Color.brandSurfaceElevated)
                     .clipShape(Circle())
+                    .brandCardShadow()
             }
             .accessibilityLabel("Next month")
         }
@@ -130,25 +132,26 @@ struct ActivityView: View {
     private func summaryCard(for dog: Dog) -> some View {
         let stats = monthlyStats(for: dog)
         return HStack(spacing: 0) {
-            statColumn(value: "\(stats.walks)", label: "Walks")
-            Divider().frame(height: 32).overlay(Color.brandDivider)
-            statColumn(value: "\(stats.minutes)", label: "Minutes")
-            Divider().frame(height: 32).overlay(Color.brandDivider)
-            statColumn(value: "\(stats.hitDays)", label: "Hit days")
+            statColumn(value: "\(stats.walks)", label: stats.walks == 1 ? "walk" : "walks")
+            statColumn(value: "\(stats.minutes)", label: "minutes")
+            statColumn(value: "\(stats.hitDays)", label: stats.hitDays == 1 ? "hit day" : "hit days")
         }
-        .padding(.vertical, Space.md)
+        .padding(.vertical, Space.lg)
+        .padding(.horizontal, Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 
     private func statColumn(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: Space.xs) {
             Text(value)
-                .font(.titleLarge)
+                .font(.displayMedium)
                 .foregroundStyle(Color.brandSecondary)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(Color.brandTextSecondary)
+            Text(label.uppercased())
+                .font(.caption.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(Color.brandTextTertiary)
         }
         .frame(maxWidth: .infinity)
     }

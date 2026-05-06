@@ -53,12 +53,11 @@ enum InsightsService {
         // Lifetime summary — defensible from 1 walk, builds emotional weight as it grows.
         let totalMinutes = walks.reduce(0) { $0 + $1.durationMinutes }
         let walkCount = walks.count
+        let totalLabel = walkCount == 1 ? "" : " total"
         insights.append(
             Insight(
                 title: "Lifetime walks",
-                body: walkCount == 1
-                    ? "1 walk logged, \(totalMinutes) minutes."
-                    : "\(walkCount) walks logged, \(totalMinutes) minutes total."
+                body: "\(walkCount.pluralised("walk")) logged, \(totalMinutes) minutes\(totalLabel)."
             )
         )
 
