@@ -4,7 +4,9 @@
     "private": true,
     "description": "Landing page + LLM proxy for Trot. Deployed as a single Vercel project.",
     "scripts": {
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "check-drift": "../scripts/check-breed-drift.sh",
+        "check": "npm run check-drift && npm run typecheck"
     },
     "devDependencies": {
         "typescript": "^5.6.3",
