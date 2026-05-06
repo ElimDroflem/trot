@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var showingLogWalk = false
     @State private var editingWalk: Walk?
     @State private var showingAddAnotherDog = false
+    @State private var showingHomeRecap = false
 
     private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
@@ -48,6 +49,13 @@ struct HomeView: View {
                 AddDogView(showsCancelButton: true)
                     .navigationTitle("Add a dog")
                     .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .sheet(isPresented: $showingHomeRecap) {
+            if let dog = selectedDog {
+                RecapView(recap: RecapService.weekly(for: dog)) {
+                    showingHomeRecap = false
+                }
             }
         }
     }
@@ -86,6 +94,7 @@ struct HomeView: View {
                             walks: walksToday(for: dog),
                             onTapWalk: { walk in editingWalk = walk }
                         )
+                        WeeklyRecapTile(onTap: { showingHomeRecap = true })
                         Color.clear.frame(height: Space.lg)
                     }
                     .padding(.horizontal, Space.md)
@@ -337,6 +346,36 @@ private struct RationaleCard: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Why this target. \(trimmed)")
         }
+    }
+}
+
+/// Discoverable entry point for the weekly recap from the Today tab.
+/// Subtle by design — the recap is a Sunday-evening ritual, not a constant
+/// nag. This row keeps the surface aware of the recap year-round without
+/// crowding the daily view.
+private struct WeeklyRecapTile: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: Space.sm) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+                Text("This week's recap")
+                    .font(.bodyMedium.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.brandTextTertiary)
+            }
+            .padding(.vertical, Space.sm)
+            .padding(.horizontal, Space.md)
+            .background(Color.brandSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        }
+        .buttonStyle(.plain)
     }
 }
 
