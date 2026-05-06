@@ -1,0 +1,353 @@
+{
+  "breeds": [
+    {
+      "breed": "Labrador Retriever",
+      "aliases": ["Lab", "Labrador", "Black Lab", "Yellow Lab", "Chocolate Lab"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 30 },
+        "adult": { "min": 80, "max": 120 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "French Bulldog",
+      "aliases": ["Frenchie", "French Bull"],
+      "size": "small",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 30, "max": 60 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    },
+    {
+      "breed": "Cocker Spaniel",
+      "aliases": ["English Cocker", "Cocker", "Working Cocker", "Show Cocker"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Cockapoo",
+      "aliases": ["Cocker Poodle", "Spoodle"],
+      "size": "small",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 50 }
+      }
+    },
+    {
+      "breed": "English Springer Spaniel",
+      "aliases": ["Springer", "Springer Spaniel", "ESS"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Border Collie",
+      "aliases": ["Collie", "BC", "Border"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "German Shepherd Dog",
+      "aliases": ["GSD", "German Shepherd", "Alsatian"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 30 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Staffordshire Bull Terrier",
+      "aliases": ["Staffy", "Staffie", "Stafford", "SBT"],
+      "size": "medium",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Cavalier King Charles Spaniel",
+      "aliases": ["Cavalier", "CKCS", "King Charles", "Cav"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 60 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    },
+    {
+      "breed": "Golden Retriever",
+      "aliases": ["Golden", "Goldie", "Golden Retriever"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 30 },
+        "adult": { "min": 80, "max": 120 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Beagle",
+      "aliases": ["Beagle Hound"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Miniature Smooth-Haired Dachshund",
+      "aliases": ["Mini Dachshund", "Miniature Dachshund", "Dachshund", "Sausage Dog", "Doxie", "Dackel"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 60 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    },
+    {
+      "breed": "Bulldog",
+      "aliases": ["English Bulldog", "British Bulldog", "Bully"],
+      "size": "medium",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 20, "max": 45 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Pug",
+      "aliases": ["Pug Dog", "Mops"],
+      "size": "small",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 20, "max": 40 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Boxer",
+      "aliases": ["Deutscher Boxer"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Whippet",
+      "aliases": ["Whippet Hound"],
+      "size": "medium",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 75 },
+        "senior": { "min": 30, "max": 50 }
+      }
+    },
+    {
+      "breed": "West Highland White Terrier",
+      "aliases": ["Westie", "WHWT"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 60 },
+        "senior": { "min": 20, "max": 45 }
+      }
+    },
+    {
+      "breed": "Border Terrier",
+      "aliases": ["Border", "BT"],
+      "size": "small",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Shih Tzu",
+      "aliases": ["Shihtzu", "Shi Tzu"],
+      "size": "small",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 20, "max": 40 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Yorkshire Terrier",
+      "aliases": ["Yorkie", "Yorky", "Yorkshire"],
+      "size": "tiny",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 30, "max": 45 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Hungarian Vizsla",
+      "aliases": ["Vizsla", "Magyar Vizsla", "Smooth-Haired Vizsla"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Rottweiler",
+      "aliases": ["Rottie", "Rott"],
+      "size": "large",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 30 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Lhasa Apso",
+      "aliases": ["Lhasa", "Apso"],
+      "size": "small",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 30, "max": 45 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Weimaraner",
+      "aliases": ["Weim", "Grey Ghost"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 30 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Bichon Frise",
+      "aliases": ["Bichon"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 30, "max": 45 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Lurcher",
+      "aliases": ["Sighthound Cross"],
+      "size": "large",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 45, "max": 75 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Greyhound",
+      "aliases": ["Retired Racing Greyhound", "Pet Greyhound"],
+      "size": "large",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 45, "max": 60 },
+        "senior": { "min": 30, "max": 45 }
+      }
+    },
+    {
+      "breed": "Chihuahua (Smooth Coat)",
+      "aliases": ["Chihuahua", "Chi", "Smooth Coat Chihuahua", "Short-Haired Chihuahua"],
+      "size": "tiny",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 20, "max": 40 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Jack Russell Terrier",
+      "aliases": ["JRT", "Jack Russell", "Russell Terrier", "Parson Russell"],
+      "size": "small",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Cavapoo",
+      "aliases": ["Cavoodle", "Cavalier Poodle"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 60 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    }
+  ],
+  "fallback": {
+    "tiny":   { "puppy": {"min": 10, "max": 20}, "adult": {"min": 30, "max": 45},  "senior": {"min": 20, "max": 30} },
+    "small":  { "puppy": {"min": 15, "max": 25}, "adult": {"min": 30, "max": 60},  "senior": {"min": 20, "max": 40} },
+    "medium": { "puppy": {"min": 20, "max": 30}, "adult": {"min": 45, "max": 90},  "senior": {"min": 30, "max": 60} },
+    "large":  { "puppy": {"min": 20, "max": 35}, "adult": {"min": 60, "max": 120}, "senior": {"min": 30, "max": 60} },
+    "giant":  { "puppy": {"min": 15, "max": 25}, "adult": {"min": 45, "max": 90},  "senior": {"min": 20, "max": 45} }
+  },
+  "seniorAgeYearsBySize": {
+    "tiny": 10,
+    "small": 10,
+    "medium": 8,
+    "large": 7,
+    "giant": 6
+  },
+  "conditions": {
+    "brachycephalic": { "reductionPercent": 30, "intensityCap": null },
+    "hipDysplasia":   { "reductionPercent": 20, "intensityCap": "moderate" },
+    "arthritis":      { "reductionPercent": 30, "intensityCap": "low" }
+  }
+}
