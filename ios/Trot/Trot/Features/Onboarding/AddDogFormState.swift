@@ -29,6 +29,19 @@ struct AddDogFormState {
         breedPrimary.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Daily target derived from the breed table + size fallback + health adjustments.
+    /// Called on every save; LLM personalisation (when wired) will overlay this value.
+    var computedDailyTargetMinutes: Int {
+        ExerciseTargetService.dailyTargetMinutes(
+            breedPrimary: trimmedBreed,
+            dateOfBirth: dateOfBirth,
+            weightKg: weightKg,
+            hasArthritis: hasArthritis,
+            hasHipDysplasia: hasHipDysplasia,
+            isBrachycephalic: isBrachycephalic
+        )
+    }
+
     func makeDog() -> Dog {
         let dog = Dog(
             name: trimmedName,
@@ -37,7 +50,8 @@ struct AddDogFormState {
             weightKg: weightKg,
             sex: sex,
             isNeutered: isNeutered,
-            activityLevel: activityLevel
+            activityLevel: activityLevel,
+            dailyTargetMinutes: computedDailyTargetMinutes
         )
         dog.healthNotes = healthNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         dog.hasArthritis = hasArthritis
@@ -48,8 +62,8 @@ struct AddDogFormState {
     }
 
     /// Mutates `dog` to reflect the form state. Used when editing an existing dog.
-    /// Doesn't change `dog.dailyTargetMinutes` or `dog.llmRationale` — those are
-    /// owned by the LLM/breed-table services, not editable in this form.
+    /// Recomputes `dailyTargetMinutes` from the breed table — edits to breed/age/weight/
+    /// health flip the target; LLM personalisation (when wired) will overlay this value.
     func apply(to dog: Dog) {
         dog.name = trimmedName
         dog.breedPrimary = trimmedBreed
@@ -63,6 +77,7 @@ struct AddDogFormState {
         dog.hasHipDysplasia = hasHipDysplasia
         dog.isBrachycephalic = isBrachycephalic
         dog.photo = photoData
+        dog.dailyTargetMinutes = computedDailyTargetMinutes
     }
 
     /// Pre-populates form state from an existing Dog for editing.

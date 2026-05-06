@@ -83,7 +83,9 @@ struct AddDogFormStateTests {
         #expect(dog.activityLevel == .moderate)
         #expect(dog.healthNotes == "has been good")
         #expect(dog.hasArthritis == true)
-        #expect(dog.dailyTargetMinutes == 60, "default until LLM service overwrites")
+        #expect(dog.dailyTargetMinutes == state.computedDailyTargetMinutes,
+                "makeDog wires the breed-table-derived target onto the dog")
+        #expect(dog.dailyTargetMinutes > 0)
     }
 
     @Test("from(dog) round-trips into apply(to:)")
@@ -131,7 +133,9 @@ struct AddDogFormStateTests {
         #expect(original.healthNotes == "edited", "trimmed whitespace on apply")
         #expect(original.hasHipDysplasia == true)
         #expect(original.hasArthritis == false)
-        #expect(original.dailyTargetMinutes == 75, "apply doesn't touch LLM-owned fields")
+        #expect(original.dailyTargetMinutes == state.computedDailyTargetMinutes,
+                "apply recomputes the target from breed-table inputs that may have changed")
+        #expect(original.dailyTargetMinutes != 75, "the original 75 was overwritten")
         #expect(original.llmRationale == "Beagles benefit from...", "apply doesn't touch llmRationale")
     }
 }
