@@ -69,6 +69,14 @@ struct RootView: View {
                 checkRecapAutoShow()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .trotRecapTapped)) { _ in
+            // User tapped the Sunday recap push. Surface the recap for the currently-
+            // selected dog. Auto-show conditions don't apply here — the user explicitly
+            // asked for it.
+            if let dog = appState.selectedDog(from: activeDogs) {
+                appState.pendingRecapDogID = dog.persistentModelID
+            }
+        }
     }
 
     private func rescheduleNotificationsIfNeeded() async {

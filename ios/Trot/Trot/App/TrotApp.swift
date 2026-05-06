@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct TrotApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState = AppState()
 
     let modelContainer: ModelContainer = {
