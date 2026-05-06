@@ -329,6 +329,336 @@
         "adult": { "min": 45, "max": 60 },
         "senior": { "min": 20, "max": 40 }
       }
+    },
+    {
+      "breed": "Miniature Schnauzer",
+      "aliases": ["Mini Schnauzer", "Schnauzer", "Zwergschnauzer"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 75 },
+        "senior": { "min": 30, "max": 50 }
+      }
+    },
+    {
+      "breed": "Pomeranian",
+      "aliases": ["Pom", "Zwergspitz", "Dwarf Spitz"],
+      "size": "tiny",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 20, "max": 40 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Cavachon",
+      "aliases": ["Cavalier Bichon", "Bichon Cavalier"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 15 },
+        "adult": { "min": 30, "max": 50 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    },
+    {
+      "breed": "Goldendoodle",
+      "aliases": ["Groodle", "Golden Poodle"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Labradoodle",
+      "aliases": ["Labrapoodle"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Australian Shepherd",
+      "aliases": ["Aussie", "Aussie Shepherd"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Bernese Mountain Dog",
+      "aliases": ["Berner", "Bernese", "BMD"],
+      "size": "giant",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 50 }
+      }
+    },
+    {
+      "breed": "Newfoundland",
+      "aliases": ["Newfie", "Newf"],
+      "size": "giant",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 45, "max": 75 },
+        "senior": { "min": 30, "max": 45 }
+      }
+    },
+    {
+      "breed": "Great Dane",
+      "aliases": ["Dane", "Deutsche Dogge", "German Mastiff"],
+      "size": "giant",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 45, "max": 90 },
+        "senior": { "min": 30, "max": 45 }
+      }
+    },
+    {
+      "breed": "Standard Poodle",
+      "aliases": ["Poodle", "Standard", "Caniche"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Miniature Poodle",
+      "aliases": ["Mini Poodle", "Miniature"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 75 },
+        "senior": { "min": 30, "max": 50 }
+      }
+    },
+    {
+      "breed": "Toy Poodle",
+      "aliases": ["Toy"],
+      "size": "tiny",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 30, "max": 45 },
+        "senior": { "min": 20, "max": 35 }
+      }
+    },
+    {
+      "breed": "Maltese",
+      "aliases": ["Maltese Terrier"],
+      "size": "tiny",
+      "defaultIntensity": "low",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 20, "max": 40 },
+        "senior": { "min": 15, "max": 30 }
+      }
+    },
+    {
+      "breed": "Maltipoo",
+      "aliases": ["Malt-A-Poo", "Maltepoo"],
+      "size": "tiny",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 30, "max": 45 },
+        "senior": { "min": 20, "max": 35 }
+      }
+    },
+    {
+      "breed": "Papillon",
+      "aliases": ["Pap", "Continental Toy Spaniel", "Butterfly Dog"],
+      "size": "tiny",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 30, "max": 50 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    },
+    {
+      "breed": "Sprocker",
+      "aliases": ["Sprocker Spaniel", "Springer Cocker Cross"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Welsh Springer Spaniel",
+      "aliases": ["Welsh Springer", "Welshie", "WSS"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Italian Greyhound",
+      "aliases": ["IG", "Iggy", "Piccolo Levriero Italiano"],
+      "size": "tiny",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 5, "max": 15 },
+        "adult": { "min": 30, "max": 50 },
+        "senior": { "min": 20, "max": 40 }
+      }
+    },
+    {
+      "breed": "Saluki",
+      "aliases": ["Persian Greyhound", "Gazelle Hound"],
+      "size": "large",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Old English Sheepdog",
+      "aliases": ["OES", "Bobtail", "Dulux Dog"],
+      "size": "large",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Belgian Malinois",
+      "aliases": ["Malinois", "Mal", "Belgian Shepherd Malinois"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Bull Terrier",
+      "aliases": ["English Bull Terrier", "EBT", "Bullie"],
+      "size": "medium",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Cairn Terrier",
+      "aliases": ["Cairn"],
+      "size": "small",
+      "defaultIntensity": "moderate",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 45, "max": 75 },
+        "senior": { "min": 30, "max": 50 }
+      }
+    },
+    {
+      "breed": "Patterdale Terrier",
+      "aliases": ["Patterdale", "Black Fell Terrier"],
+      "size": "small",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Lakeland Terrier",
+      "aliases": ["Lakie", "Patterdale Terrier (historic)"],
+      "size": "small",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 10, "max": 20 },
+        "adult": { "min": 60, "max": 90 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Airedale Terrier",
+      "aliases": ["Airedale", "King of Terriers", "Waterside Terrier"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "German Shorthaired Pointer",
+      "aliases": ["GSP", "Deutsch Kurzhaar", "Shorthaired Pointer"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Flat-Coated Retriever",
+      "aliases": ["Flatcoat", "FCR", "Flat-Coat"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 75, "max": 120 },
+        "senior": { "min": 30, "max": 60 }
+      }
+    },
+    {
+      "breed": "Dalmatian",
+      "aliases": ["Dal", "Dally", "Carriage Dog"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
+    },
+    {
+      "breed": "Siberian Husky",
+      "aliases": ["Husky", "Sibe", "Siberian"],
+      "size": "large",
+      "defaultIntensity": "high",
+      "lifeStages": {
+        "puppy": { "min": 15, "max": 25 },
+        "adult": { "min": 90, "max": 120 },
+        "senior": { "min": 45, "max": 75 }
+      }
     }
   ],
   "fallback": {

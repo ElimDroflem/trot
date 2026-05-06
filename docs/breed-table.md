@@ -6,7 +6,7 @@ The LLM **never invents the numbers** — it picks within the ranges this file d
 
 ## Status
 
-**Schema locked. Data drafting in progress.** v1 ships when ~30–40 most common UK breeds are covered plus the size-based fallback table. Data sources cited per row.
+**Schema locked. Data drafting in progress.** v1 ships when ~60 most common UK breeds are covered plus the size-based fallback table. Data sources cited per row.
 
 ## Sources (authoritative tier, in priority order)
 
@@ -117,7 +117,7 @@ If the primary breed isn't in the table, fall back to the size + life-stage tabl
 
 ## Breed data
 
-Coverage of the top 30 UK breeds by rough Kennel Club registration / pet population prevalence. ~80% of UK pet dogs fall under one of these entries (or default to the size-based fallback table for mixes / less common breeds).
+Coverage of ~60 of the most common UK breeds by rough Kennel Club registration / pet population prevalence, plus the major designer crosses. The bulk of UK pet dogs fall under one of these entries (or default to the size-based fallback table for mixes / less common breeds).
 
 **Verification status for this draft:** Network access to source domains (pdsa.org.uk, thekennelclub.org.uk, rspca.org.uk, breed clubs) was unavailable during this research session. Per the workflow rules in this file, all entries below are flagged `last_reviewed: "needs verification"` and `sources: ["TODO: verify pre-launch — sources unreachable in research session"]`. Numeric ranges use the conservative-floor approach: PDSA "5 minutes per month of age, twice daily" for puppies, Kennel Club exercise-level categories for adults (low / moderate / high), and the size-and-life-stage fallback table at the bottom of this file as the senior floor. Brachycephalic, sighthound, and working-breed cautions are baked in. **Pre-launch task:** open each entry, fetch the cited PDSA / KC / RSPCA / breed-club page, confirm or adjust the figures, replace the TODO source line with the real URL, and set `last_reviewed` to the verification date.
 
@@ -1294,18 +1294,1229 @@ sources:
 last_reviewed: "needs verification"
 ```
 
-## Stretch additions to round out v1 (target 40)
+### 31. Miniature Schnauzer
 
-31. Miniature Schnauzer
-32. Pomeranian
-33. Cavalier Bichon Cross / "Cavachon"
-34. Goldendoodle
-35. Labradoodle
-36. Australian Shepherd
-37. Bernese Mountain Dog
-38. Newfoundland
-39. Great Dane
-40. Standard Poodle
+```yaml
+breed: "Miniature Schnauzer"
+aliases: ["Mini Schnauzer", "Schnauzer", "Zwergschnauzer"]
+size: "small"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 10
+    max_minutes: 20
+    notes: "5 minutes per month of age, twice daily. Sturdy small breed — gentle structured walks plus play."
+  adult:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "Two solid walks daily plus play. More demanding than they look — bred to ratch on farms. Sniff walks, training, and games suit them."
+  senior:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "From age 10. Stay active well into older age. Watch weight and dental health."
+
+cautions:
+  - condition: "obesity_risk"
+    adjustment: "monitor_weight"
+    note: "Mini Schnauzers gain weight easily. Diet matters."
+  - condition: "pancreatitis_risk"
+    adjustment: "monitor"
+    note: "Higher pancreatitis risk than most breeds — avoid fatty treats; vet check if vomiting or lethargy appears."
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Terrier roots — recall training matters for off-lead."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 32. Pomeranian
+
+```yaml
+breed: "Pomeranian"
+aliases: ["Pom", "Zwergspitz", "Dwarf Spitz"]
+size: "tiny"
+default_intensity: "low"
+
+life_stages:
+  puppy:
+    min_minutes: 5
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily. Tiny and fragile — supervise around larger dogs and children. Avoid jumping from height."
+  adult:
+    min_minutes: 20
+    max_minutes: 40
+    notes: "Two short walks daily plus indoor play. Bold and active for their size but their needs are genuinely small."
+  senior:
+    min_minutes: 15
+    max_minutes: 30
+    notes: "From age 10. Short, gentle walks. Many Poms live well into their teens."
+
+cautions:
+  - condition: "tracheal_collapse"
+    adjustment: "monitor"
+    note: "Use a harness, never a collar."
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Common in toy breeds. Avoid jumping from furniture."
+  - condition: "heat_sensitivity"
+    adjustment: "monitor"
+    note: "Thick double coat — avoid heat. Cool times of day in summer."
+  - condition: "dental_disease"
+    adjustment: "monitor"
+    note: "Tooth crowding leads to early dental disease. Brush regularly."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 33. Cavachon
+
+```yaml
+breed: "Cavachon"
+aliases: ["Cavalier Bichon", "Bichon Cavalier"]
+size: "small"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 10
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily."
+  adult:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "Cross of Cavalier King Charles Spaniel and Bichon Frise. Two walks daily plus play. Cheerful, sociable, modest needs."
+  senior:
+    min_minutes: 20
+    max_minutes: 40
+    notes: "From age 10. Gentle walks. Watch heart and eye health (Cavalier inheritance)."
+
+cautions:
+  - condition: "heart_condition"
+    adjustment: "monitor"
+    note: "Inherits mitral valve disease risk from Cavalier parent. Annual cardiac checks from middle age."
+  - condition: "skin_allergies"
+    adjustment: "monitor"
+    note: "Bichon parent contributes atopic dermatitis risk. Wash paws after walks if reactive."
+  - condition: "separation_anxiety"
+    adjustment: "behavioural"
+    note: "Companion-oriented from both parents. Manage alone-time gradually."
+  - condition: "variable_size"
+    adjustment: "monitor"
+    note: "Adult size varies with parental dominance. Adjust if the dog is markedly smaller or larger."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session — note: Cavachons are not Kennel Club recognised; guidance derives from Cavalier King Charles Spaniel and Bichon Frise parents."
+
+last_reviewed: "needs verification"
+```
+
+### 34. Goldendoodle
+
+```yaml
+breed: "Goldendoodle"
+aliases: ["Groodle", "Golden Poodle"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Size varies by Poodle parent (Standard, Miniature, or Toy). Adjust toward the size-based fallback if the dog is markedly smaller."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Cross of Golden Retriever and Standard Poodle (most common). Two solid walks plus play, fetch, and mental work. Both parent breeds are working dogs — minutes alone are not enough."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 8. Slow the pace, keep variety. Watch for joint stiffness and weight gain."
+
+cautions:
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Both parent breeds carry the risk. Check parental hip scores if buying a puppy."
+  - condition: "ear_infections"
+    adjustment: "monitor"
+    note: "Floppy hairy ears. Dry after wet walks."
+  - condition: "variable_size"
+    adjustment: "monitor"
+    note: "Goldendoodles vary widely in size. Adjust ranges if your dog is markedly smaller or larger than the large baseline."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Both parents are working breeds. Add training, retrieving, scent games."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session — note: Goldendoodles are not Kennel Club recognised; guidance derives from Golden Retriever and Standard Poodle parents."
+
+last_reviewed: "needs verification"
+```
+
+### 35. Labradoodle
+
+```yaml
+breed: "Labradoodle"
+aliases: ["Labrapoodle"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Size varies by Poodle parent. Adjust toward the size-based fallback if the dog is markedly smaller."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Cross of Labrador Retriever and Standard Poodle. Two solid walks plus play, fetch, swimming, and mental work. Both parent breeds are working dogs."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 8. Two shorter walks beat one long. Watch joints and weight."
+
+cautions:
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Both parent breeds carry the risk. Check parental hip scores if buying a puppy."
+  - condition: "obesity_risk"
+    adjustment: "monitor_weight"
+    note: "Labrador inheritance brings strong food drive. Diet matters."
+  - condition: "ear_infections"
+    adjustment: "monitor"
+    note: "Floppy hairy ears. Dry after wet walks."
+  - condition: "variable_size"
+    adjustment: "monitor"
+    note: "Mini and Medium Labradoodles exist. Adjust ranges if your dog is markedly smaller."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session — note: Labradoodles are not Kennel Club recognised; guidance derives from Labrador Retriever and Standard Poodle parents."
+
+last_reviewed: "needs verification"
+```
+
+### 36. Australian Shepherd
+
+```yaml
+breed: "Australian Shepherd"
+aliases: ["Aussie", "Aussie Shepherd"]
+size: "medium"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Resist the urge to over-exercise — they will keep going past safe limits."
+  adult:
+    min_minutes: 90
+    max_minutes: 120
+    notes: "Working herding breed bred to run all day. 2 hours minimum, with substantial mental work — agility, herding-style games, training, scent. Under-exercised Aussies become destructive and anxious."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Mental work stays valuable as physical capacity drops. Watch hips and eyes."
+
+cautions:
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Walking minutes alone don't satisfy this breed. Without mental work, even 3 hours of walking won't be enough."
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Avoid repetitive jumping in young dogs."
+  - condition: "mdr1_gene"
+    adjustment: "monitor"
+    note: "Not exercise-related but worth flagging — many Aussies carry MDR1 mutation affecting drug metabolism. Inform any new vet."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 37. Bernese Mountain Dog
+
+```yaml
+breed: "Bernese Mountain Dog"
+aliases: ["Berner", "Bernese", "BMD"]
+size: "giant"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Giant breed — growth plates close late (~18-24 months). No forced running, no stairs, no jumping in/out of cars. Over-exercise of giant puppies causes lasting joint damage."
+  adult:
+    min_minutes: 60
+    max_minutes: 90
+    notes: "Two moderate walks daily on softer surfaces. Cool times of day — thick double coat means heat is dangerous. Swimming and gentle hiking suit them."
+  senior:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "From age 6. Berners sadly age fast — short, gentle walks. Watch for cancer signs and joint pain."
+
+cautions:
+  - condition: "hip_dysplasia"
+    adjustment: "reduce_max"
+    note: "High-risk breed. Hip scores essential. Favour grass and soft ground over hard surfaces."
+  - condition: "heat_sensitivity"
+    adjustment: "intensity_cap"
+    note: "Thick double coat. Avoid heat above ~20C; carry water; cool surfaces only."
+  - condition: "cancer_risk"
+    adjustment: "monitor"
+    note: "Tragically high cancer rates including histiocytic sarcoma. Watch for lumps, limping, lethargy."
+  - condition: "short_lifespan"
+    adjustment: "monitor"
+    note: "Average lifespan 7-8 years. Senior care starts earlier than most breeds."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 38. Newfoundland
+
+```yaml
+breed: "Newfoundland"
+aliases: ["Newfie", "Newf"]
+size: "giant"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Giant breed — growth plates close late (~18-24 months). No forced running, no stairs, no jumping. Slow growth is healthy growth."
+  adult:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "Gentle giants. Two moderate walks daily, ideally including swimming where possible — they are bred for water and it suits their joints. Cool times of day only."
+  senior:
+    min_minutes: 30
+    max_minutes: 45
+    notes: "From age 6-7. Short, gentle walks. Newfies tire faster than smaller breeds at the same age."
+
+cautions:
+  - condition: "hip_dysplasia"
+    adjustment: "reduce_max"
+    note: "High-risk breed. Hip scores essential. Swimming is ideal exercise."
+  - condition: "heat_sensitivity"
+    adjustment: "intensity_cap"
+    note: "Thick double coat. Avoid heat above ~18C. Heatstroke risk is serious."
+  - condition: "bloat_risk"
+    adjustment: "monitor"
+    note: "Deep-chested. Avoid vigorous exercise immediately before or after meals (1-hour buffer)."
+  - condition: "short_lifespan"
+    adjustment: "monitor"
+    note: "Average lifespan 8-10 years. Senior care starts earlier."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 39. Great Dane
+
+```yaml
+breed: "Great Dane"
+aliases: ["Dane", "Deutsche Dogge", "German Mastiff"]
+size: "giant"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Giant breed — growth plates close late (~18-24 months). No forced running, no stairs, no jumping in/out of cars. Over-exercise is one of the biggest causes of permanent joint damage."
+  adult:
+    min_minutes: 45
+    max_minutes: 90
+    notes: "Two moderate walks daily on softer surfaces. Surprisingly low energy at home — gentle giants. Cool times of day; their long stride covers ground fast even at a walk."
+  senior:
+    min_minutes: 30
+    max_minutes: 45
+    notes: "From age 6. Short, gentle walks. Danes tire fast at this age."
+
+cautions:
+  - condition: "bloat_risk"
+    adjustment: "monitor"
+    note: "Highest GDV (bloat) risk of any breed. Avoid vigorous exercise within 1 hour of meals. Know the symptoms — bloat is a vet emergency."
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Common in giants. Soft surfaces, no forced repetitive impact."
+  - condition: "cardiac_issues"
+    adjustment: "monitor"
+    note: "Dilated cardiomyopathy is common. Annual cardiac checks from middle age."
+  - condition: "short_lifespan"
+    adjustment: "monitor"
+    note: "Average lifespan 7-10 years. Senior care starts at 6."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 40. Standard Poodle
+
+```yaml
+breed: "Standard Poodle"
+aliases: ["Poodle", "Standard", "Caniche"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Large athletic breed — protect growth plates until ~12-15 months."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Original water-retrieving working dog. Two solid walks plus swimming, retrieving, and substantial mental work. Highly intelligent — under-stimulated Poodles become destructive."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Stay active later than most large breeds. Mental work stays valuable."
+
+cautions:
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Check parental hip scores."
+  - condition: "bloat_risk"
+    adjustment: "monitor"
+    note: "Deep-chested. Avoid vigorous exercise within 1 hour of meals."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Among the most intelligent breeds. Walking minutes alone are not enough — add training, retrieving, scent work, agility."
+  - condition: "addisons_risk"
+    adjustment: "monitor"
+    note: "Higher Addison's disease risk than most breeds. Watch for lethargy, vomiting, weight loss."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 41. Miniature Poodle
+
+```yaml
+breed: "Miniature Poodle"
+aliases: ["Mini Poodle", "Miniature"]
+size: "small"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 10
+    max_minutes: 20
+    notes: "5 minutes per month of age, twice daily. Athletic small breed — gentle structured walks plus play and training."
+  adult:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "Two walks daily plus mental work. Highly intelligent — training, scent games, and trick work suit them as much as walking."
+  senior:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "From age 10. Stay active well into older age. Mental work stays valuable."
+
+cautions:
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Some incidence. Avoid jumping from height in young dogs."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Highly intelligent — needs training and mental work, not just walks."
+  - condition: "eye_conditions"
+    adjustment: "monitor"
+    note: "Progressive retinal atrophy recognised. Annual eye checks from middle age."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 42. Toy Poodle
+
+```yaml
+breed: "Toy Poodle"
+aliases: ["Toy"]
+size: "tiny"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 5
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily. Tiny and delicate — supervise around larger dogs and children."
+  adult:
+    min_minutes: 30
+    max_minutes: 45
+    notes: "Two short walks plus indoor play and training. Highly intelligent — mental work matters as much as walking."
+  senior:
+    min_minutes: 20
+    max_minutes: 35
+    notes: "From age 10. Short, gentle walks. Many Toy Poodles live well into their teens."
+
+cautions:
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Common in toy breeds. Avoid jumping from furniture; ramps help."
+  - condition: "tracheal_collapse"
+    adjustment: "monitor"
+    note: "Use a harness, never a collar."
+  - condition: "dental_disease"
+    adjustment: "monitor"
+    note: "Tooth crowding leads to early dental disease. Brush regularly."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Sharp minds in tiny bodies. Add training and trick work."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 43. Maltese
+
+```yaml
+breed: "Maltese"
+aliases: ["Maltese Terrier"]
+size: "tiny"
+default_intensity: "low"
+
+life_stages:
+  puppy:
+    min_minutes: 5
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily. Tiny and fragile — supervise around larger dogs and children."
+  adult:
+    min_minutes: 20
+    max_minutes: 40
+    notes: "Two short walks plus indoor play. Companion breed — modest needs but enjoys gentle activity."
+  senior:
+    min_minutes: 15
+    max_minutes: 30
+    notes: "From age 10. Short, gentle walks. Watch teeth and joints."
+
+cautions:
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Common in toy breeds. Avoid jumping from furniture."
+  - condition: "dental_disease"
+    adjustment: "monitor"
+    note: "Tooth crowding leads to early dental disease. Brush regularly."
+  - condition: "tracheal_collapse"
+    adjustment: "monitor"
+    note: "Use a harness, never a collar."
+  - condition: "cold_sensitivity"
+    adjustment: "monitor"
+    note: "Tiny body, fine coat. Use a coat in winter."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 44. Maltipoo
+
+```yaml
+breed: "Maltipoo"
+aliases: ["Malt-A-Poo", "Maltepoo"]
+size: "tiny"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 5
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily."
+  adult:
+    min_minutes: 30
+    max_minutes: 45
+    notes: "Cross of Maltese and Toy or Miniature Poodle. Two short walks plus play and training. Modest needs but quite trainable thanks to Poodle parent."
+  senior:
+    min_minutes: 20
+    max_minutes: 35
+    notes: "From age 10. Short, gentle walks. Watch teeth and joints."
+
+cautions:
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Common in toy breeds. Avoid jumping from furniture."
+  - condition: "dental_disease"
+    adjustment: "monitor"
+    note: "Tooth crowding inherited from both parents. Brush regularly."
+  - condition: "tracheal_collapse"
+    adjustment: "monitor"
+    note: "Use a harness, never a collar."
+  - condition: "variable_size"
+    adjustment: "monitor"
+    note: "Adult size varies with parental dominance. Adjust if the dog is larger than the tiny baseline."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session — note: Maltipoos are not Kennel Club recognised; guidance derives from Maltese and Toy/Miniature Poodle parents."
+
+last_reviewed: "needs verification"
+```
+
+### 45. Papillon
+
+```yaml
+breed: "Papillon"
+aliases: ["Pap", "Continental Toy Spaniel", "Butterfly Dog"]
+size: "tiny"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 5
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily. Tiny but sturdy — gentle structured walks."
+  adult:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "Two short walks plus play and training. Surprisingly athletic for a toy breed — Papillons excel at agility and benefit from mental work."
+  senior:
+    min_minutes: 20
+    max_minutes: 40
+    notes: "From age 10. Stay active well into older age. Many live into mid-teens."
+
+cautions:
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Common in toy breeds. Avoid jumping from height."
+  - condition: "dental_disease"
+    adjustment: "monitor"
+    note: "Brush regularly."
+  - condition: "cold_sensitivity"
+    adjustment: "monitor"
+    note: "Tiny body, fine coat. Use a coat in winter."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Smart and trainable — add training and trick work."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 46. Sprocker
+
+```yaml
+breed: "Sprocker"
+aliases: ["Sprocker Spaniel", "Springer Cocker Cross"]
+size: "medium"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. High drive even as puppies — channel it into short structured sessions."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Cross of Springer Spaniel and Cocker Spaniel — both working gun-dog breeds. Two solid walks plus off-lead time, sniff work, retrieving, and recall training. As demanding as either parent."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Energy stays high — let them tell you when to slow."
+
+cautions:
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Walking minutes alone are not enough. Add scent games, retrieving, recall work."
+  - condition: "ear_infections"
+    adjustment: "monitor"
+    note: "Long, hairy ears from both parents. Dry after wet walks; check weekly."
+  - condition: "variable_size"
+    adjustment: "monitor"
+    note: "Sprockers vary depending on which parent dominates. Adjust ranges if your dog is markedly smaller or larger."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session — note: Sprockers are not Kennel Club recognised; guidance derives from English Springer Spaniel and English Cocker Spaniel parents."
+
+last_reviewed: "needs verification"
+```
+
+### 47. Welsh Springer Spaniel
+
+```yaml
+breed: "Welsh Springer Spaniel"
+aliases: ["Welsh Springer", "Welshie", "WSS"]
+size: "medium"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Working gun-dog breed. Two solid walks plus off-lead time, sniff work, and retrieving. Slightly less demanding than an English Springer but still high-energy."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Energy stays high. Watch hips and ears."
+
+cautions:
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Add scent games, retrieving, recall work."
+  - condition: "ear_infections"
+    adjustment: "monitor"
+    note: "Long hairy ears. Dry after water; check weekly."
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Check parental hip scores."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 48. Italian Greyhound
+
+```yaml
+breed: "Italian Greyhound"
+aliases: ["IG", "Iggy", "Piccolo Levriero Italiano"]
+size: "tiny"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 5
+    max_minutes: 15
+    notes: "5 minutes per month of age, twice daily. Lean, light-boned, and surprisingly fragile — leg fractures are a real risk in young IGs. No jumping from height, no rough play."
+  adult:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "Sighthound pattern in miniature. Short walks plus the chance to sprint in safe spaces. Surprisingly modest total minutes for the energy on display."
+  senior:
+    min_minutes: 20
+    max_minutes: 40
+    notes: "From age 10. Stay sprightly into old age. Many live into their teens."
+
+cautions:
+  - condition: "fracture_risk"
+    adjustment: "monitor"
+    note: "Italian Greyhounds have famously fragile leg bones. Avoid jumping from furniture; supervise around larger dogs."
+  - condition: "cold_sensitivity"
+    adjustment: "intensity_cap"
+    note: "Almost no body fat, single thin coat. Use a coat below ~12C and in wet weather."
+  - condition: "thin_skin"
+    adjustment: "monitor"
+    note: "Skin tears easily. Avoid brambles and rough surfaces."
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Sighthound chase instinct. Off-lead only in fully enclosed spaces."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 49. Saluki
+
+```yaml
+breed: "Saluki"
+aliases: ["Persian Greyhound", "Gazelle Hound"]
+size: "large"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Lean, light-boned sighthound — gentle is key. Growth plates close at 18+ months in this slow-maturing breed."
+  adult:
+    min_minutes: 60
+    max_minutes: 90
+    notes: "Sighthound pattern: explosive sprints, long rest. Daily walk plus a safe space for off-lead running. Salukis can hit 40mph+ — they need real running room, not just a park."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 8. Stay active later than most large breeds."
+
+cautions:
+  - condition: "thin_skin"
+    adjustment: "monitor"
+    note: "Sighthound skin tears easily. Check after off-lead runs."
+  - condition: "cold_sensitivity"
+    adjustment: "monitor"
+    note: "Low body fat, fine coat. Coat in winter and wet weather."
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Among the strongest chase instincts in any breed. Off-lead only in fully enclosed spaces unless recall is exceptional — and even then, treat as the exception."
+  - condition: "anaesthesia_sensitivity"
+    adjustment: "monitor"
+    note: "Sighthounds metabolise some anaesthetics differently. Inform any new vet."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 50. Old English Sheepdog
+
+```yaml
+breed: "Old English Sheepdog"
+aliases: ["OES", "Bobtail", "Dulux Dog"]
+size: "large"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Large breed — growth plates close at ~15-18 months. No forced running, no stairs as a young puppy."
+  adult:
+    min_minutes: 60
+    max_minutes: 90
+    notes: "Two solid walks daily plus play. Bred to drove sheep — happy with steady activity rather than explosive sprints. Cool times of day in summer; thick coat means heat is dangerous."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 8. Slow the pace. Watch joints and weight."
+
+cautions:
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Check parental hip scores."
+  - condition: "heat_sensitivity"
+    adjustment: "intensity_cap"
+    note: "Thick double coat. Avoid heat above ~20C; cool times of day in summer."
+  - condition: "deafness"
+    adjustment: "monitor"
+    note: "Higher rate of congenital deafness than most breeds. Train hand signals from the start if affected."
+  - condition: "coat_maintenance"
+    adjustment: "monitor"
+    note: "Not exercise-related but worth flagging — heavy daily grooming required to prevent matting."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 51. Belgian Malinois
+
+```yaml
+breed: "Belgian Malinois"
+aliases: ["Malinois", "Mal", "Belgian Shepherd Malinois"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Channel the drive into short structured sessions — Mal puppies are intense from week one."
+  adult:
+    min_minutes: 90
+    max_minutes: 120
+    notes: "Working military and police breed. Among the most demanding pet dogs anywhere — 2 hours minimum daily plus heavy mental work (training, agility, protection sport, scent work). Not a casual pet breed."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Energy stays high — let the dog tell you when to slow."
+
+cautions:
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Highest mental-stimulation need of any common UK breed alongside Border Collie. Without proper outlets, Mals become destructive, anxious, or reactive. Walking minutes alone are nowhere near enough."
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Check parental hip scores."
+  - condition: "ownership_fit"
+    adjustment: "behavioural"
+    note: "Not exercise-related but worth flagging — Malinois ownership requires experienced handling and a genuine outlet for working drive. Consider whether a less demanding breed suits the home."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 52. Bull Terrier
+
+```yaml
+breed: "Bull Terrier"
+aliases: ["English Bull Terrier", "EBT", "Bullie"]
+size: "medium"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Strong, stocky build — protect growth plates."
+  adult:
+    min_minutes: 60
+    max_minutes: 90
+    notes: "Robust, muscular, and playful. Two solid walks plus play. Tug, fetch, and scent games suit them. Strong on the lead — lead training matters."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 8. Tend to slow gradually. Watch joints, skin, and heart."
+
+cautions:
+  - condition: "deafness"
+    adjustment: "monitor"
+    note: "Higher rate of congenital deafness in mostly-white Bull Terriers. Train hand signals from the start if affected."
+  - condition: "skin_allergies"
+    adjustment: "monitor"
+    note: "Common in the breed. Wash paws after grass walks if reactive."
+  - condition: "heart_condition"
+    adjustment: "monitor"
+    note: "Mitral valve disease incidence higher than average. Annual cardiac checks from middle age."
+  - condition: "obsessive_behaviours"
+    adjustment: "behavioural"
+    note: "Tail-chasing and other obsessive behaviours recognised in the breed. Mental stimulation and structured exercise help."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 53. Cairn Terrier
+
+```yaml
+breed: "Cairn Terrier"
+aliases: ["Cairn"]
+size: "small"
+default_intensity: "moderate"
+
+life_stages:
+  puppy:
+    min_minutes: 10
+    max_minutes: 20
+    notes: "5 minutes per month of age, twice daily. Tough, busy little dogs — gentle structured walks plus play."
+  adult:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "Two walks daily plus games. Working terrier roots — sniff and dig opportunities matter. Confident off-lead with training."
+  senior:
+    min_minutes: 30
+    max_minutes: 50
+    notes: "From age 10. Stay active well into older age."
+
+cautions:
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Bred to hunt vermin. Recall training essential for off-lead."
+  - condition: "patella_luxation"
+    adjustment: "monitor"
+    note: "Some incidence. Avoid jumping from height."
+  - condition: "obesity_risk"
+    adjustment: "monitor_weight"
+    note: "Cairns gain weight if exercise drops."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 54. Patterdale Terrier
+
+```yaml
+breed: "Patterdale Terrier"
+aliases: ["Patterdale", "Black Fell Terrier"]
+size: "small"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 10
+    max_minutes: 20
+    notes: "5 minutes per month of age, twice daily. Working terrier — drive is high from week one."
+  adult:
+    min_minutes: 60
+    max_minutes: 90
+    notes: "Working terrier bred to hunt fox and badger. Two solid walks plus games and off-lead time. Mental stimulation matters; bored Patterdales dig and bark. Tougher than they look."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 10. Stay active well into older age."
+
+cautions:
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Among the strongest prey drives in any small breed. Recall training essential; off-lead only in secure spaces unless recall is rock-solid."
+  - condition: "dog_reactivity"
+    adjustment: "behavioural"
+    note: "Some Patterdales are dog-selective. Lead walks and trusted off-lead spaces; not a breed for chaotic dog parks."
+  - condition: "ownership_fit"
+    adjustment: "behavioural"
+    note: "Working drive does not switch off. Suits active homes with structured outlets."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 55. Lakeland Terrier
+
+```yaml
+breed: "Lakeland Terrier"
+aliases: ["Lakie", "Patterdale Terrier (historic)"]
+size: "small"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 10
+    max_minutes: 20
+    notes: "5 minutes per month of age, twice daily."
+  adult:
+    min_minutes: 60
+    max_minutes: 90
+    notes: "Working terrier bred to hunt fox in the Lake District fells. Two solid walks plus games and off-lead time. Stamina belies their size."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 10. Stay active well into older age."
+
+cautions:
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Strong terrier instinct. Recall training essential."
+  - condition: "obesity_risk"
+    adjustment: "monitor_weight"
+    note: "Lakelands gain weight if exercise drops."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 56. Airedale Terrier
+
+```yaml
+breed: "Airedale Terrier"
+aliases: ["Airedale", "King of Terriers", "Waterside Terrier"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Largest of the terriers — protect growth plates until ~12-15 months."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Working terrier with the size of a gun-dog. Two solid walks plus play, swimming, scent work, and training. Stamina and intelligence demand structured outlets."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Stay active later than most large breeds."
+
+cautions:
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Smart and busy — add training, scent games, retrieving."
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Strong terrier instinct. Recall training matters."
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Check parental hip scores."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 57. German Shorthaired Pointer
+
+```yaml
+breed: "German Shorthaired Pointer"
+aliases: ["GSP", "Deutsch Kurzhaar", "Shorthaired Pointer"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Lean athletic build — protect growth plates until ~12-15 months."
+  adult:
+    min_minutes: 90
+    max_minutes: 120
+    notes: "Among the most demanding pet breeds — bred to hunt all day across varied terrain. 2 hours minimum daily with off-lead running, swimming, and substantial mental work. Under-exercised GSPs become destructive and reactive."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Energy stays high — let them tell you when to slow."
+
+cautions:
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Walking minutes alone are not enough. Add gun-dog work, scent games, retrieving, agility."
+  - condition: "separation_anxiety"
+    adjustment: "behavioural"
+    note: "Highly bonded breed. Manage alone-time gradually."
+  - condition: "bloat_risk"
+    adjustment: "monitor"
+    note: "Deep-chested. Avoid vigorous exercise within 1 hour of meals."
+  - condition: "cold_sensitivity"
+    adjustment: "monitor"
+    note: "Single short coat. Use a coat in cold or wet weather."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 58. Flat-Coated Retriever
+
+```yaml
+breed: "Flat-Coated Retriever"
+aliases: ["Flatcoat", "FCR", "Flat-Coat"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Slow-maturing breed — keep exercise gentle and structured until ~12-15 months."
+  adult:
+    min_minutes: 75
+    max_minutes: 120
+    notes: "Working gun-dog with famously enduring puppy energy — Flatcoats stay playful for years. Two solid walks plus retrieving, swimming, and mental work."
+  senior:
+    min_minutes: 30
+    max_minutes: 60
+    notes: "From age 8. Sadly Flatcoats often slow earlier than other retrievers due to cancer risk. Watch for lumps and lethargy."
+
+cautions:
+  - condition: "cancer_risk"
+    adjustment: "monitor"
+    note: "Tragically high cancer rates including histiocytic sarcoma. Watch for lumps, limping, lethargy. Average lifespan is shorter than other retrievers."
+  - condition: "hip_dysplasia"
+    adjustment: "monitor"
+    note: "Some incidence. Check parental hip scores."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Gun-dog brain. Add training, retrieving, scent games."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 59. Dalmatian
+
+```yaml
+breed: "Dalmatian"
+aliases: ["Dal", "Dally", "Carriage Dog"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Lean athletic build — protect growth plates until ~12-15 months."
+  adult:
+    min_minutes: 90
+    max_minutes: 120
+    notes: "Bred to run alongside horse-drawn carriages for hours. Among the highest-stamina pet breeds. Two long walks plus running, off-lead time, and mental work."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Stay active later than most large breeds."
+
+cautions:
+  - condition: "urinary_stones"
+    adjustment: "monitor"
+    note: "Dalmatians have a unique urate metabolism that predisposes to bladder stones. Diet matters — vet-led nutrition plan if affected. Plenty of water on walks."
+  - condition: "deafness"
+    adjustment: "monitor"
+    note: "Higher rate of congenital deafness than most breeds. Train hand signals from the start if affected."
+  - condition: "skin_allergies"
+    adjustment: "monitor"
+    note: "Atopic dermatitis common. Wash paws after grass walks if reactive."
+  - condition: "mental_stimulation_need"
+    adjustment: "supplement"
+    note: "Stamina demands real outlets. Add training and varied terrain."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
+
+### 60. Siberian Husky
+
+```yaml
+breed: "Siberian Husky"
+aliases: ["Husky", "Sibe", "Siberian"]
+size: "large"
+default_intensity: "high"
+
+life_stages:
+  puppy:
+    min_minutes: 15
+    max_minutes: 25
+    notes: "5 minutes per month of age, twice daily. Athletic working breed — protect growth plates until ~12-15 months."
+  adult:
+    min_minutes: 90
+    max_minutes: 120
+    notes: "Bred to pull sleds across Arctic distances. Among the most demanding pet breeds for stamina. 2 hours minimum daily with running and varied terrain. Cool times of day only — heat is dangerous."
+  senior:
+    min_minutes: 45
+    max_minutes: 75
+    notes: "From age 8. Energy stays high. Slow the pace, keep the variety."
+
+cautions:
+  - condition: "heat_sensitivity"
+    adjustment: "intensity_cap"
+    note: "Thick double coat designed for sub-zero. Avoid heat above ~18C; never walk in hot weather; carry water; cool surfaces only. Heatstroke is a leading killer."
+  - condition: "prey_drive"
+    adjustment: "behavioural"
+    note: "Strong chase instinct combined with notoriously poor recall. Off-lead only in fully enclosed spaces — most Huskies should not be off-lead at all in open ground."
+  - condition: "escape_artist"
+    adjustment: "behavioural"
+    note: "Not exercise-related but worth flagging — Huskies dig under, climb over, and chew through fences. Secure containment matters."
+  - condition: "ownership_fit"
+    adjustment: "behavioural"
+    note: "Working sled-dog drive does not switch off. Suits very active homes with structured outlets."
+
+sources:
+  - "TODO: verify pre-launch — sources unreachable in research session"
+
+last_reviewed: "needs verification"
+```
 
 ## Data drafting workflow
 
