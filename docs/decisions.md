@@ -244,6 +244,31 @@ The following decisions came out of a structured pressure-test of the project pl
 
 **Scope discipline:** v1 is about walks. The breed table covers exercise needs only — no nutrition, training, grooming, or general care data. Future features that need more guideline material add source coverage when those features ship, not in anticipation.
 
+### Front-load delight, back-load discipline — May 2026
+**Decision:** v1 is structured around the principle that habit apps which retain front-load reward and back-load discipline. Time-to-first-emotional-moment must be day 1, not day 7. A "first-week loop" of named milestone moments (first walk, first 50%, first 100%, first 100 lifetime minutes, first 3-day streak, first week) sits ahead of the long-term loops in `spec.md`. The Insights tab is populated from day 1 with a "Trot is learning Luna's patterns" progress state and a thin first observation by day 2-3. The breed-tailored rationale is an evergreen Home tile, not a one-shot at onboarding.
+
+**Rationale:** Pressure-test of the v1 loops surfaced that everything (streaks, insights, lifetime milestones, weekly recap) only pays off in week 4+. Day 1 had nothing — log a walk, see "1 day", read a fraction. The discipline-first ordering is a known retention trap. Front-loading is not a "nice to have"; it's the difference between a user who returns on day 2 and one who doesn't.
+
+**What this rules out:** any v1 design that pushes emotional payoff past week 1. Onboarding-only personalisation hits, "insights eventually", or "milestones once you reach them" all fail this rule.
+
+**What this rules in:** the first-week loop in `spec.md`, the Home rationale tile, the Insights "learning" state. These are not stretch features — they are part of v1 scope.
+
+**Rejected nearby option:** a Finch-style virtual chibi-dog companion. Strong retention mechanic in apps where the user has nothing else to project care onto — wrong fit for Trot, where the real dog is already the protagonist by spec. Also violates the brand "no kawaii / confident not chirpy" rules and would be 3-6 months of art + animation work, not a feature. Captured here so the question doesn't get re-litigated.
+
+### First-week milestone ladder — locked — May 2026
+**Decision:** The first-week ladder fires the following milestones, once per dog (not per user — adding a second dog later doesn't re-fire):
+
+- First walk → in-app celebration
+- First day at 50% of target → small home tile
+- First day at 100% of target → in-app celebration
+- First 100 lifetime minutes → small home tile
+- First 3-day streak → in-app celebration
+- First week (7 days from `dog.createdAt`) → in-app celebration, segues into first weekly recap
+
+**Rationale:** Six beats across seven days gives roughly one moment per ~24 hours. Mix of effort-based (walks, target hits) and time-based (lifetime minutes, streak, week) so users on lighter activity still trigger something. "Per dog, not per user" matches the "dog-as-protagonist" framing and prevents multi-dog households from getting a flat experience on later additions.
+
+**Implementation note:** these are surfaced in-app, not as push notifications. The existing 7/14/30-day streak-milestone notification (from `spec.md` notifications section) sits on top of this ladder, not in place of it. A new `MilestoneService` (or extension of `StreakService`) computes which beats have fired and which are still owed, persisted on `Dog` (probably as a `Set<MilestoneCode>` or per-flag Bools — implementation detail).
+
 ---
 
 ## Open

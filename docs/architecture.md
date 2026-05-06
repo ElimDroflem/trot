@@ -108,7 +108,8 @@ Each service is a single point of contact for that external system. Views and vi
 - **LLMService:** calls the Vercel proxy at `/api/exercise-plan`, returns personalised exercise plan. 8s timeout. On failure, falls back to the breed-table value silently and retries on next app open. Caches responses (target + rationale) by hash of the dog profile; only invalidates on profile change.
 - **ExerciseTargetService:** combines `docs/breed-table.md` data + LLM output to produce daily targets within safe ranges. The LLM never invents the numbers — it picks within ranges the table defines.
 - **StreakService:** streak calculation per dog, rolling-7-day rest-day logic, milestone detection at 7/14/30 days. Day boundary is local time. ≥50% of target counts as walked; below burns the rest day; two misses in a 7-day window break the streak.
-- **InsightsService:** personalised observations from walk history.
+- **MilestoneService:** computes which first-week ladder beats have fired and which are still owed, per dog (per `decisions.md` → "First-week milestone ladder"). Pure-function over walk history + dog state. Persisted state lives on `Dog` (e.g. `firedMilestones: Set<MilestoneCode>`); the service decides what to fire on each save and the view celebrates it. In-app moments only — not push notifications.
+- **InsightsService:** personalised observations from walk history. From day 1 returns a "learning" state (progress over the first 7 days) so the Insights tab is never empty; promotes to real observations as walk history accumulates.
 
 ## The walk detection flow
 

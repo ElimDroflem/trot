@@ -89,6 +89,30 @@ Everything is editable. Walk duration, walk time, the dog's daily exercise targe
 
 ## Engagement loops
 
+### Design principle: front-load delight, back-load discipline
+
+Habit apps that retain front-load reward and back-load discipline. Without the loops below, v1 risks the opposite — streak math and target percentages on day 1, with the rich loops (insights, weekly recap, lifetime milestones) only paying off in week 4+. **Time-to-first-emotional-moment must be day 1, not day 7.**
+
+The first-week loop fixes this. The long-term loops carry the user once they're past it.
+
+### 0. First-week loop
+
+A named-milestone ladder pulls new users through the boring streak ramp. Each milestone fires once per dog (adding a second dog later doesn't re-fire them — milestones belong to the dog, not the user):
+
+- **First walk** — celebration moment in-app (Bricolage Grotesque, celebration spring per `brand.md`, named: "Luna's first walk with Trot"). Day 1 means something.
+- **First day at 50% of target.**
+- **First day at 100% of target** — celebration moment.
+- **First 100 lifetime minutes.**
+- **First 3-day streak** — celebration moment.
+- **First week** — celebration moment, leads naturally into the user's first weekly recap.
+
+These are in-app moments, not push notifications. The streak-milestone notification (7/14/30) sits on top of this ladder, not in place of it.
+
+Two anticipation hooks reinforce the ladder:
+
+- **Insights tab is populated from day 1.** A "Trot is learning Luna's patterns" progress bar fills over 7 days. By day 2-3 a thin first observation is shown ("Luna walked 35 minutes today — mornings seem to be her thing") even with sparse data. Anticipation is itself a loop.
+- **The breed-tailored rationale is an evergreen Home tile**, not just a one-shot field at onboarding. Surfacing "Beagles do best with a second walk before sundown" daily reinforces the "Trot knows Luna" feeling that v1's personalisation is built around.
+
 ### 1. Daily target with consistency-weighted scoring
 
 The dog has a daily exercise target in minutes. Trot tracks percentage-of-needs-met, not just total minutes.
@@ -158,11 +182,11 @@ All notifications individually toggleable. The 14-day no-walks deceased-dog safe
 
 ## Key screens
 
-**Home (the dog's screen).** Photo of the dog. Today's progress against target. Current streak. Quick access to log a manual walk.
+**Home (the dog's screen).** Photo of the dog. Today's progress against target. Current streak. Quick access to log a manual walk. Evergreen breed-rationale tile (the personalised "why this target" line, surfaced daily — not gated behind a settings drill-in). Surfaces the active first-week milestone or anticipation hook when one is live.
 
 **Activity.** History of walks. Calendar view showing daily target hit / partially hit / missed. Weekly and monthly aggregates.
 
-**Insights.** Personalised observations, refreshed weekly.
+**Insights.** Personalised observations, refreshed weekly. Populated from day 1: in week 1 it shows a "Trot is learning Luna's patterns" progress state with a thin first observation by day 2-3. Anticipation is part of the loop, not a placeholder.
 
 **Dog profile.** Editable profile, exercise target, walk windows.
 
