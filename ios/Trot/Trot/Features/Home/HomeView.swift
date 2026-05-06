@@ -24,7 +24,7 @@ struct HomeView: View {
             ActivityView()
                 .tabItem { Label("Activity", systemImage: "calendar") }
 
-            placeholderTab(title: "Insights")
+            InsightsView()
                 .tabItem { Label("Insights", systemImage: "lightbulb") }
 
             DogProfileView()
