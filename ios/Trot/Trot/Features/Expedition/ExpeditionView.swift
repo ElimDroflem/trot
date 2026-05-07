@@ -37,15 +37,24 @@ struct ExpeditionView: View {
                     photoMarker
                         .padding(.top, Space.lg)
 
-                    timerBlock
-
-                    landmarkProgress
+                    if state.hasStarted {
+                        timerBlock
+                        landmarkProgress
+                    } else {
+                        readyBlock
+                    }
 
                     Spacer()
 
-                    finishButton
-                        .padding(.horizontal, Space.lg)
-                        .padding(.bottom, Space.xl)
+                    if state.hasStarted {
+                        finishButton
+                            .padding(.horizontal, Space.lg)
+                            .padding(.bottom, Space.xl)
+                    } else {
+                        readyActions
+                            .padding(.horizontal, Space.lg)
+                            .padding(.bottom, Space.xl)
+                    }
                 }
 
                 if let visibleLandmark {
@@ -56,26 +65,19 @@ struct ExpeditionView: View {
                         .zIndex(10)
                 }
             }
-            .navigationTitle("Walking with \(dog.name)")
+            .navigationTitle(state.hasStarted ? "Walking with \(dog.name)" : "Walk with \(dog.name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { showingDiscardConfirm = true }
-                        .tint(.brandPrimary)
-                }
-                // Manual-log escape hatch — same destination as the old
-                // "Log a past walk" menu option, accessible from inside the
-                // live-walk view in case the user actually walked earlier
-                // and just wanted to record it.
-                ToolbarItem(placement: .topBarTrailing) {
-                    if state.elapsedSeconds == 0 {
-                        Button {
-                            showingLogPast = true
-                        } label: {
-                            Label("Log past walk", systemImage: "clock.arrow.circlepath")
+                    Button("Cancel") {
+                        if state.hasStarted {
+                            showingDiscardConfirm = true
+                        } else {
+                            // No timer running, no walk to discard.
+                            dismiss()
                         }
-                        .tint(.brandPrimary)
                     }
+                    .tint(.brandPrimary)
                 }
             }
         }
@@ -86,23 +88,79 @@ struct ExpeditionView: View {
         .onReceive(tick) { _ in
             handleTick()
         }
-        .confirmationDialog(
-            "End this walk?",
-            isPresented: $showingFinishConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Finish walk") { finishWalk() }
-            Button("Keep walking", role: .cancel) {}
+        // Brand-styled bottom sheets replace the iOS-glass confirmation
+        // dialogs. Same intent (Finish / Discard) but rendered on the
+        // brand surface so they don't read as system chrome.
+        .sheet(isPresented: $showingFinishConfirm) {
+            BrandConfirmSheet(
+                title: "End this walk?",
+                message: "Save what \(dog.name) has done so far.",
+                primary: .init(label: "Finish walk", role: .normal) { finishWalk() },
+                secondary: .init(label: "Keep walking")
+            )
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
         }
-        .confirmationDialog(
-            "Discard this walk?",
-            isPresented: $showingDiscardConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Discard", role: .destructive) { dismiss() }
-            Button("Keep walking", role: .cancel) {}
-        } message: {
-            Text("The time so far won't be saved.")
+        .sheet(isPresented: $showingDiscardConfirm) {
+            BrandConfirmSheet(
+                title: "Discard this walk?",
+                message: "The time so far won't be saved.",
+                primary: .init(label: "Discard", role: .destructive) { dismiss() },
+                secondary: .init(label: "Keep walking")
+            )
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    // MARK: - Ready state
+
+    /// Copy block shown before the user taps Start. The pulsing photo
+    /// above + this block + the action buttons below give the page a
+    /// real "ready when you are" beat.
+    private var readyBlock: some View {
+        VStack(spacing: Space.xs) {
+            Text("Ready when you are")
+                .font(.titleSmall)
+                .foregroundStyle(Color.brandTextPrimary)
+            Text("Tap start when you head out the door.")
+                .font(.bodyMedium)
+                .foregroundStyle(Color.brandTextSecondary)
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, Space.lg)
+    }
+
+    /// Bottom of the ready screen — primary Start button + a quiet
+    /// "Log a past walk instead" link beneath. The link is plain text on
+    /// purpose so the eye goes to the coral primary first.
+    private var readyActions: some View {
+        VStack(spacing: Space.md) {
+            Button(action: startWalk) {
+                HStack(spacing: Space.xs) {
+                    Image(systemName: "figure.walk")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("Start walk")
+                        .font(.bodyLarge.weight(.semibold))
+                }
+                .foregroundStyle(Color.brandTextOnPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Space.md)
+                .background(Color.brandPrimary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+            Button(action: { showingLogPast = true }) {
+                Text("Log a past walk instead")
+                    .font(.bodyMedium.weight(.semibold))
+                    .foregroundStyle(Color.brandPrimary)
+                    .padding(.vertical, Space.sm)
+            }
+        }
+    }
+
+    private func startWalk() {
+        withAnimation(.brandDefault) {
+            state.start()
         }
     }
 
@@ -208,6 +266,9 @@ struct ExpeditionView: View {
     // MARK: - Tick handler (live progression + mid-walk landmark fires)
 
     private func handleTick() {
+        // Skip everything until the user has tapped Start. Otherwise we'd
+        // fire landmark toasts during the ready state with no walk logged.
+        guard state.hasStarted else { return }
         state.tick()
 
         // Auto-dismiss landmark toast after ~3s.
@@ -237,9 +298,13 @@ struct ExpeditionView: View {
     // MARK: - Finish
 
     private func finishWalk() {
+        // If somehow the user reaches finish without ever pressing Start
+        // (shouldn't be possible — Finish is gated on `hasStarted`), use
+        // `now` as a reasonable fallback so we save something rather than
+        // crashing.
         let minutes = max(1, state.elapsedMinutes)
         let walk = Walk(
-            startedAt: state.startedAt,
+            startedAt: state.startedAt ?? .now,
             durationMinutes: minutes,
             distanceMeters: nil,
             source: .manual,

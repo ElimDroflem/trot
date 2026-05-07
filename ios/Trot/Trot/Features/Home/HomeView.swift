@@ -220,17 +220,16 @@ struct HomeView: View {
         return formatter
     }()
 
-    /// Pre-tinted UIImage for the Walk tab icon. Using `.alwaysOriginal`
-    /// rendering mode keeps the coral baked into the image regardless of
-    /// the tab's selected/unselected state — without this, the system
-    /// would mute the icon to its standard tab-bar grey when Walk isn't
-    /// the active tab. We want the eye drawn here always.
+    /// Pre-tinted UIImage for the Walk tab icon. `.alwaysOriginal` keeps
+    /// the coral baked into the image regardless of the tab's selected/
+    /// unselected state — without this, the system mutes unselected tabs
+    /// to their default grey. No size override: the system sizes this
+    /// icon the same as Today/Journey/Insights/Luna, so it sits in the
+    /// bar at standard proportions. Just orange, not bigger.
     private static let walkTabIcon: UIImage = {
         let coral = UIColor(Color.brandPrimary)
-        let config = UIImage.SymbolConfiguration(pointSize: 30, weight: .semibold)
-        let base = UIImage(systemName: "plus.circle.fill", withConfiguration: config)
-            ?? UIImage(systemName: "plus.circle.fill")!
-        return base.withTintColor(coral, renderingMode: .alwaysOriginal)
+        return UIImage(systemName: "plus.circle.fill")!
+            .withTintColor(coral, renderingMode: .alwaysOriginal)
     }()
 }
 
