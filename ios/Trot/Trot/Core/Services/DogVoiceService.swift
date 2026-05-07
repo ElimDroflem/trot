@@ -4,11 +4,32 @@ import Foundation
 /// implicitly from) the dog. The point is to make the app feel like the dog
 /// is part of the user's day rather than a passive log of past walks.
 ///
-/// Pure-function, deterministic, no LLM. Composes time-of-day, walks today,
-/// daily target, and the dog's enabled walk windows into a single calm line.
-/// Brand voice rules apply: no exclamation marks, no "pawsome", calm-not-chirpy,
-/// dog-named-as-subject.
+/// Two surfaces:
+/// - `currentLine(for:)` — pure-function, deterministic, no network. The
+///   templated fallback. Always available, always instant.
+/// - `dailyLine(for:)` — async wrapper. Tries `LLMService.dailyLine` first
+///   (cached 24h per dog/day); falls back silently to `currentLine` on miss
+///   or failure.
+///
+/// Templated copy stays calm by design — when the LLM is available, the user
+/// gets dog-voice (loud, specific). When it isn't, they get a respectful
+/// fallback that still names the dog and the moment.
 enum DogVoiceService {
+    /// LLM-first daily line for Home. Cached 24h per dog/day inside
+    /// `LLMService`; this method just sequences "try LLM, otherwise template".
+    /// Safe to call from a SwiftUI `.task` modifier — never throws, never
+    /// blocks UI for more than 8s, never returns empty.
+    static func dailyLine(
+        for dog: Dog,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) async -> String {
+        if let llm = await LLMService.dailyLine(for: dog, now: now, calendar: calendar) {
+            return llm
+        }
+        return currentLine(for: dog, now: now, calendar: calendar)
+    }
+
     static func currentLine(
         for dog: Dog,
         now: Date = .now,

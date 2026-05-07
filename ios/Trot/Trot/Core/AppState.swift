@@ -69,23 +69,28 @@ final class AppState {
     /// `WalkApplication` returned by `JourneyService.applyWalk(...)` so the
     /// overlay can render route advance + landmark stamps.
     func enqueueWalkComplete(
-        dogName: String,
+        dog: Dog,
         minutes: Int,
+        isFirstWalk: Bool,
         application: WalkApplication,
         oldProgressKm: Double,
         newProgressKm: Double,
         routeName: String,
         routeTotalKm: Double
     ) {
+        let nextLandmark = JourneyService.nextLandmark(for: dog)?.landmark.name
         let event = PendingWalkComplete(
-            dogName: dogName.isEmpty ? "Your dog" : dogName,
+            dogID: dog.persistentModelID,
+            dogName: dog.name.isEmpty ? "Your dog" : dog.name,
             minutes: minutes,
+            isFirstWalk: isFirstWalk,
             kmAdded: application.kmAdded,
             oldProgressKm: oldProgressKm,
             newProgressKm: newProgressKm,
             routeName: routeName,
             routeTotalKm: routeTotalKm,
             landmarksCrossed: application.landmarksCrossed,
+            nextLandmarkName: nextLandmark,
             routeCompleted: application.routeCompleted?.name
         )
         pendingWalkCompletes.append(event)
@@ -115,20 +120,31 @@ struct PendingCelebration: Identifiable, Equatable, Sendable {
 /// landmark stamps + (rare) route-completion line.
 struct PendingWalkComplete: Identifiable, Sendable {
     let id = UUID()
+    /// The dog that was walked. Carried through so `WalkCompleteOverlay` can
+    /// fetch a dog-voice line from `LLMService` without re-resolving from a
+    /// query.
+    let dogID: PersistentIdentifier
     let dogName: String
     let minutes: Int
+    /// True when this was the dog's first-ever logged walk. Used to push the
+    /// LLM toward a more cinematic post-walk line. The visual milestone
+    /// celebration for "first walk" rides on top via `MilestoneService`.
+    let isFirstWalk: Bool
     let kmAdded: Double
     let oldProgressKm: Double
     let newProgressKm: Double
     let routeName: String
     let routeTotalKm: Double
     let landmarksCrossed: [Landmark]
+    /// Name of the very next landmark the dog hasn't reached yet, if any.
+    /// Lets the LLM hint at what's coming ("Tea Hut next time?").
+    let nextLandmarkName: String?
     /// Non-nil if this walk closed out a route. The overlay swaps in a special
     /// "route finished" treatment in that case.
     let routeCompleted: String?
 
     var headline: String {
-        "\(minutes) \(minutes == 1 ? "minute" : "minutes") with \(dogName)."
+        "\(minutes) \(minutes == 1 ? "minute" : "minutes") with \(dogName)!"
     }
 
     /// 0...1 progress on the active route AT THE MOMENT the walk landed.

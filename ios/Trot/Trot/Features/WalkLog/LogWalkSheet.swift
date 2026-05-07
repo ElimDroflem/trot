@@ -211,12 +211,16 @@ struct LogWalkSheet: View {
         for dog in dogs {
             guard let route = JourneyService.currentRoute(for: dog) else { continue }
             let oldKm = dog.routeProgressKm
+            // First-walk detection: at this point the new walk has been saved,
+            // so a count of exactly 1 means this is the dog's debut.
+            let isFirstWalk = (dog.walks ?? []).count == 1
             let application = JourneyService.applyWalk(minutes: minutes, to: dog)
             // After applyWalk, dog.activeRouteID may have advanced; the route the
             // walk-complete UI shows is the one that was IN PROGRESS for this walk.
             appState.enqueueWalkComplete(
-                dogName: dog.name,
+                dog: dog,
                 minutes: minutes,
+                isFirstWalk: isFirstWalk,
                 application: application,
                 oldProgressKm: oldKm,
                 newProgressKm: application.routeCompleted == nil ? dog.routeProgressKm : route.totalKm,

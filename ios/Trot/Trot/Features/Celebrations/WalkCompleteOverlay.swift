@@ -1,25 +1,33 @@
 import SwiftUI
+import SwiftData
 
 /// Full-screen post-walk dopamine moment. Fires after EVERY walk save (manual
 /// log or expedition mode finish). The visual story:
 ///   1. Dog photo (or placeholder) inside a coral ring that fills 0→100%.
-///   2. Headline — "X minutes with Luna." in display type.
-///   3. Route progress mini-bar that animates from oldFraction → newFraction.
-///   4. Optional landmark stamps if any landmarks were crossed.
-///   5. Optional "[Route name] complete" line if a route finished.
-///   6. Continue button.
+///   2. Headline — "X minutes with Luna!" in display type.
+///   3. Generated dog-voice line in italics ("Sniffed everything past the
+///      duck pond!") — fetched from `LLMService` on appear; absent on miss.
+///   4. Route progress mini-bar that animates from oldFraction → newFraction.
+///   5. Optional landmark stamps if any landmarks were crossed.
+///   6. Optional "[Route name] complete" line if a route finished.
+///   7. Continue button.
 ///
-/// Brand voice rules apply — no exclamation marks, calm-not-chirpy. The dopamine
-/// comes from the visual progression + spring animations, not from the copy.
+/// New brand voice: celebration carve-out applies. Exclamation marks allowed
+/// and encouraged; the dopamine comes from the visual progression PLUS the
+/// generated dog-voice that names something specific from the walk.
 struct WalkCompleteOverlay: View {
     let event: PendingWalkComplete
-    let dogPhoto: Data?
+    /// Optional — needed for the LLM dog-voice fetch. When nil (rare: dog
+    /// archived between enqueue and display), the overlay still renders, just
+    /// without the dog-voice line.
+    let dog: Dog?
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
     @State private var ringFraction: Double = 0
     @State private var routeFraction: Double = 0
+    @State private var dogVoiceLine: String?
 
     var body: some View {
         ZStack {
@@ -32,6 +40,12 @@ struct WalkCompleteOverlay: View {
                     .frame(width: 180, height: 180)
 
                 headline
+
+                if let line = dogVoiceLine {
+                    dogVoiceQuote(line)
+                        .padding(.horizontal, Space.lg)
+                        .transition(.opacity)
+                }
 
                 routeBar
                     .padding(.horizontal, Space.lg)
@@ -63,23 +77,54 @@ struct WalkCompleteOverlay: View {
             .offset(y: appeared ? 0 : 16)
         }
         .onAppear {
-            if reduceMotion {
-                appeared = true
+            runEntranceAnimation()
+            fetchDogVoice()
+        }
+    }
+
+    // MARK: - Entrance animation
+
+    private func runEntranceAnimation() {
+        if reduceMotion {
+            appeared = true
+            ringFraction = 1
+            routeFraction = event.newFraction
+        } else {
+            withAnimation(.brandDefault) { appeared = true }
+            withAnimation(.brandCelebration.delay(0.15)) {
                 ringFraction = 1
-                routeFraction = event.newFraction
-            } else {
-                withAnimation(.brandDefault) { appeared = true }
-                withAnimation(.brandCelebration.delay(0.15)) {
-                    ringFraction = 1
-                }
-                withAnimation(.brandDefault.delay(0.45)) {
-                    routeFraction = event.newFraction
-                }
             }
             // Initialise routeFraction at the OLD position so the animate-to-new
             // produces a visible bar advance.
-            if !reduceMotion {
-                routeFraction = event.oldFraction
+            routeFraction = event.oldFraction
+            withAnimation(.brandDefault.delay(0.45)) {
+                routeFraction = event.newFraction
+            }
+        }
+    }
+
+    // MARK: - LLM dog-voice line
+
+    /// Fire-and-forget LLM fetch. Animates the line in if it returns; silent
+    /// on failure. The user never blocks on this — the rest of the overlay
+    /// already conveys the win.
+    private func fetchDogVoice() {
+        guard let dog else { return }
+        let event = self.event
+        Task {
+            let landmarkNames = event.landmarksCrossed.map(\.name)
+            let line = await LLMService.walkCompleteLine(
+                for: dog,
+                minutes: event.minutes,
+                isFirstWalk: event.isFirstWalk,
+                landmarksHit: landmarkNames,
+                routeName: event.routeName,
+                nextLandmarkName: event.nextLandmarkName
+            )
+            await MainActor.run {
+                withAnimation(.brandDefault) {
+                    dogVoiceLine = line
+                }
             }
         }
     }
@@ -102,7 +147,7 @@ struct WalkCompleteOverlay: View {
                 .rotationEffect(.degrees(-90))
 
             // Photo / placeholder
-            if let data = dogPhoto, let image = UIImage(data: data) {
+            if let data = dog?.photo, let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -125,6 +170,15 @@ struct WalkCompleteOverlay: View {
             .foregroundStyle(Color.brandTextPrimary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, Space.lg)
+    }
+
+    private func dogVoiceQuote(_ line: String) -> some View {
+        Text("\u{201C}\(line)\u{201D}")
+            .font(.titleSmall)
+            .italic()
+            .foregroundStyle(Color.brandSecondary)
+            .multilineTextAlignment(.center)
+            .accessibilityLabel("\(event.dogName) says: \(line)")
     }
 
     private var routeBar: some View {
@@ -188,7 +242,7 @@ struct WalkCompleteOverlay: View {
         HStack(spacing: Space.xs) {
             Image(systemName: "flag.checkered")
                 .foregroundStyle(Color.brandSecondary)
-            Text("\(routeName) complete.")
+            Text("\(routeName) complete!")
                 .font(.bodyLarge.weight(.semibold))
                 .foregroundStyle(Color.brandSecondary)
         }
@@ -202,23 +256,3 @@ struct WalkCompleteOverlay: View {
     }
 }
 
-#Preview {
-    WalkCompleteOverlay(
-        event: PendingWalkComplete(
-            dogName: "Luna",
-            minutes: 25,
-            kmAdded: 2.08,
-            oldProgressKm: 1.0,
-            newProgressKm: 3.08,
-            routeName: "Trot's First Walk",
-            routeTotalKm: 8.0,
-            landmarksCrossed: [
-                Landmark(id: "a", name: "The Duck Pond", description: "Six ducks. Always six.", kmFromStart: 1.5, symbolName: "drop.fill"),
-                Landmark(id: "b", name: "The Old Oak", description: "Half-rotten. Older than the road.", kmFromStart: 2.5, symbolName: "tree.fill")
-            ],
-            routeCompleted: nil
-        ),
-        dogPhoto: nil,
-        onDismiss: {}
-    )
-}

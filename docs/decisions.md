@@ -6,6 +6,37 @@ This file is the project's memory across sessions. When Claude resolves an open 
 
 ## Resolved
 
+### Brand pivot: dopamine over restraint — May 2026
+**Decision:** Brand.md rewritten to support a retention-first stance. The original "warm but credible / no fake urgency / no cheerleading / no exclamation marks" posture is replaced with "celebrate hard, routine soft". Walking your dog daily is a moral good, so dopamine, variable rewards, loss aversion, streaks, and animation are tools we can use without apologising. Guardrails kept: never shame the user, never weaponise the dog relationship, never fake urgency in routine flows, no dog-pun copy.
+
+Five new principles: Get the walk · Speak for the dog · Celebrate hard, routine soft · Earn the next walk · No shame, no fake urgency.
+
+**Rationale:** Pressure-test of the v1 design surfaced that the original brand posture was anti-engagement — exclamation marks banned in celebration, motion treated as something to ration rather than spend, "calm not demanding" applied uniformly. The retention waterfall analysis (60-second cliff → first-walk cliff → day-2/day-7/day-30/day-90) needs *every surface* contributing to pulling the user back; brand restraint actively worked against that. The rewrite preserves what protects the user (no shaming, no manipulation in routine) and ditches what was anti-dopamine (no celebration volume, motion-as-restraint).
+
+### LLM resurrected — central to v1, not v1.1 — May 2026
+**Decision:** The Vercel LLM proxy is wired into v1 across multiple surfaces, with `LLMService.swift` on iOS as the single client. Six surfaces in v1: onboarding "first card", daily Home dog-voice line (24h cache), walk-complete dog message (no cache), Insights "Luna says…" (7d cache), weekly recap narrative (7d cache), decay messaging (3+ days no walk).
+
+Reverses the earlier "LLM deferred to v1.1" decision. Replaces the templated `DogVoiceService.currentLine` as the *primary* path; templated stays as the fallback for offline / proxy down / first paint.
+
+**Rationale:** The brand pivot's "speak for the dog" / dog-as-translator framing makes LLM-generated dog-voice the central retention mechanic, not a v1.1 bonus. Cost is negligible (~£0.025/dog/month with Haiku 4.5; £10 budget covers ~400 active dogs). User funded a £15 spend cap on Anthropic. API key in Vercel env vars only, never in iOS bundle. Honest framing — "Luna's diary, written by Trot" — leans in rather than hides AI origin.
+
+### Decay lever, deceased-dog rule extended to 4 weeks — May 2026
+**Decision:** The 14-day no-walks safeguard from the original spec extends to 28 days. Visual decay is *active* during use:
+- 2-3 days no walk → photo card subtle warmth fade
+- 4-7 days → stronger fade, photo card desaturates ~30%
+- 8-14 days → greyscale-leaning, "asleep" overlay, dog-voice gets quieter
+- 15-28 days → quiet copy, no dog-voice, no celebration nudges
+- 28+ days → archive prompt ("Has something changed for Luna?"), then silent
+
+8pm push fires only if no walks logged that day AND dog isn't in 15+ day quiet state.
+
+**Rationale:** Loss aversion needs a visible lever — but the lever can't risk firing during grief. 14 days was conservative; the visual decay pattern wasn't designed. Pushing the safeguard to 28 days lets us use the 0-14 day window for genuine loss aversion (warmth fading, dog quieting) without exposing a grieving user to nags. Past 14 days the volume drops to near-zero; past 28 we ask gently rather than nag.
+
+### Journey promoted to a dedicated tab — May 2026
+**Decision:** Journey moves from a card on Home to a dedicated tab in the bottom bar (third of five: Today, Activity, Journey, Insights, Dog). Visual rebuilt: dog photo as breathing centerpiece with anticipation pulse, route name in display type, anticipation panel naming the next landmark, and a STRAIGHT-line landmark timeline at the bottom of the fold (replaces the curved Catmull-Rom path). Pure SwiftUI — commissioned animations are a v1.1 layer.
+
+**Rationale:** The journey/expedition mechanic is the headline retention loop; it deserves a dedicated tab, not a Home card. The user's feedback on the curved JourneyCard was that it looked "gross and grim" — the straight-line treatment reads better at a glance and lets the dog photo (the brand's actual visual identity) carry the hero weight. Center-of-five tab placement reinforces "this is the engagement loop", visually distinctive from Today/Activity routine surfaces.
+
 ### Name — May 2026
 **Decision:** Trot.
 

@@ -103,7 +103,7 @@ struct HomeView: View {
                             percent: percent(for: dog),
                             minutesToGo: minutesToGo(for: dog)
                         )
-                        TrotSaysLine(line: DogVoiceService.currentLine(for: dog))
+                        DailyDogVoiceRow(dog: dog)
                         TodayTimeline(
                             walks: walksToday(for: dog),
                             walkWindows: dog.walkWindows ?? [],
@@ -519,10 +519,15 @@ private struct DogPresenceCard: View {
 }
 
 /// Contextual one-line nudge in Trot's voice (about Luna, implicitly from her).
-/// Driven by `DogVoiceService`. Visual treatment is deliberately understated — a
-/// small leading dot + body text — so it reads as a voice rather than a card.
-private struct TrotSaysLine: View {
-    let line: String
+/// Driven by `DogVoiceService.dailyLine` — LLM-generated when available
+/// (cached 24h via LLMService), templated fallback otherwise. The first paint
+/// uses the templated value so there's no empty state, then async swaps in
+/// the LLM line when it arrives. Visual treatment is deliberately understated
+/// — a small leading dot + body text — so it reads as a voice rather than a
+/// card.
+private struct DailyDogVoiceRow: View {
+    let dog: Dog
+    @State private var line: String = ""
 
     var body: some View {
         HStack(alignment: .top, spacing: Space.sm) {
@@ -530,13 +535,22 @@ private struct TrotSaysLine: View {
                 .fill(Color.brandPrimary)
                 .frame(width: 6, height: 6)
                 .padding(.top, 8)
-            Text(line)
+            Text(displayedLine)
                 .font(.bodyLarge)
                 .foregroundStyle(Color.brandTextPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(line)
+        .accessibilityLabel(displayedLine)
+        .task(id: dog.persistentModelID) {
+            line = await DogVoiceService.dailyLine(for: dog)
+        }
+    }
+
+    /// First-paint fallback before .task completes. Empty state is the
+    /// templated line so users never see a blank row.
+    private var displayedLine: String {
+        line.isEmpty ? DogVoiceService.currentLine(for: dog) : line
     }
 }
 

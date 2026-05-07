@@ -256,10 +256,12 @@ struct ExpeditionView: View {
         // Journey progression + walk-complete celebration
         if let route = JourneyService.currentRoute(for: dog) {
             let oldKm = dog.routeProgressKm
+            let isFirstWalk = (dog.walks ?? []).count == 1
             let application = JourneyService.applyWalk(minutes: minutes, to: dog)
             appState.enqueueWalkComplete(
-                dogName: dog.name,
+                dog: dog,
                 minutes: minutes,
+                isFirstWalk: isFirstWalk,
                 application: application,
                 oldProgressKm: oldKm,
                 newProgressKm: application.routeCompleted == nil ? dog.routeProgressKm : route.totalKm,

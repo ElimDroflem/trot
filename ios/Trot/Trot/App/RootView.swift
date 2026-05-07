@@ -32,7 +32,7 @@ struct RootView: View {
             if let event = appState.pendingWalkComplete {
                 WalkCompleteOverlay(
                     event: event,
-                    dogPhoto: appState.selectedDog(from: activeDogs)?.photo
+                    dog: activeDogs.first(where: { $0.persistentModelID == event.dogID })
                 ) {
                     withAnimation(.brandDefault) {
                         appState.consumeWalkComplete()
