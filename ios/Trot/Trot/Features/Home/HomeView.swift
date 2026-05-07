@@ -86,6 +86,10 @@ struct HomeView: View {
             )
             .ignoresSafeArea()
 
+            // Subtle full-bleed weather animation. Silent when no postcode is
+            // set or while loading, so it never gets in the way.
+            WeatherMoodLayer()
+
             if let dog = selectedDog {
                 ScrollView {
                     VStack(spacing: Space.lg) {
