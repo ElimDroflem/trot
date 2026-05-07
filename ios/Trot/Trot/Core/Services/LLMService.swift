@@ -72,23 +72,10 @@ enum LLMService {
         return await request(kind: .walkComplete, dog: dog, context: context)
     }
 
-    /// Insight tab "Luna says…" row. Refreshed weekly.
-    static func insightLine(
-        for dog: Dog,
-        pattern: String,
-        detail: String,
-        now: Date = .now,
-        calendar: Calendar = .current
-    ) async -> String? {
-        let weekKey = Self.localWeekKey(now, calendar: calendar)
-        let cacheKey = "insight.\(dog.persistentModelID.hashValue).\(weekKey).\(stableHash(pattern + detail))"
-        if let hit = LLMCache.get(key: cacheKey) { return hit }
-
-        let context: [String: any Sendable] = ["pattern": pattern, "detail": detail]
-        guard let text = await request(kind: .insight, dog: dog, context: context) else { return nil }
-        LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24 * 7)
-        return text
-    }
+    // insightLine removed — Insights tab is now driven by DogInsightsService
+    // (templated, deterministic, free). Dog-voice for the user lives on Home
+    // via dogChatLine. The `Kind.insight` case stays in case a future
+    // surface wants to use it; the proxy still understands "insight".
 
     /// Weekly recap narrative paragraph. Refreshed weekly.
     static func recapNarrative(

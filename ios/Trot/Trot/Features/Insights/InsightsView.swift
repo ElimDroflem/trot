@@ -24,7 +24,6 @@ struct InsightsView: View {
 
     @Environment(AppState.self) private var appState
     @State private var showingRecap = false
-    @State private var lunaSaysLine: String?
 
     private var activeDog: Dog? { appState.selectedDog(from: activeDogs) }
 
@@ -55,10 +54,7 @@ struct InsightsView: View {
                             StatGrid(stats: stats)
                         }
 
-                        if let line = lunaSaysLine {
-                            LunaSaysCard(line: line, dogName: dog.name)
-                                .transition(.opacity)
-                        }
+                        DogInsightsListCard(insights: DogInsightsService.insights(for: dog))
 
                         weeklyRecapButton(for: dog)
 
@@ -66,9 +62,9 @@ struct InsightsView: View {
                             LearningCard(progress: learning, dogName: dog.name)
                         }
 
-                        // Long-tail observations (filter out lifetime + the
-                        // pattern that the Luna Says line already covers, so we
-                        // never say the same thing twice on the same screen).
+                        // Long-tail observations (filter out anything the
+                        // stats / written insights already cover so we never
+                        // say the same thing twice on the same screen).
                         let observations = filterLongTail(state.observations)
                         ForEach(observations) { observation in
                             ObservationCard(insight: observation)
@@ -79,9 +75,6 @@ struct InsightsView: View {
                     }
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.md)
-                }
-                .task(id: dog.persistentModelID) {
-                    await refreshLunaSays(for: dog, observations: state.observations)
                 }
             } else {
                 VStack(spacing: Space.md) {
@@ -99,49 +92,16 @@ struct InsightsView: View {
 
     // MARK: - Filtering
 
-    /// Drop the lifetime stats (Stats grid covers it) and the observation that
-    /// fed Luna Says (so the same pattern isn't repeated as a text card right
-    /// underneath the dog-voice line).
+    /// Drop everything the new `DogInsightsListCard` and the stat grid
+    /// already cover (lifetime stats, weekly trend, generic time-of-day) so
+    /// the Insights tab doesn't say the same thing twice.
     private func filterLongTail(_ observations: [Insight]) -> [Insight] {
-        let lunaSaidAbout = lunaSaysLine != nil
-            ? promotedObservation(from: observations)?.title
-            : nil
-        return observations.filter { obs in
+        observations.filter { obs in
             obs.title != "Lifetime walks"
-                && obs.title != "Weekly trend"  // covered by stat-grid "vs last week"
-                && obs.title != lunaSaidAbout
+                && obs.title != "Weekly trend"
+                && obs.title != "When you walk"
+                && obs.title != "Favorite hour"
         }
-    }
-
-    /// Picks the most personality-revealing observation and asks the LLM to
-    /// render it in dog-voice. Skips when there's nothing distinctive to say.
-    @MainActor
-    private func refreshLunaSays(for dog: Dog, observations: [Insight]) async {
-        guard let promoted = promotedObservation(from: observations) else {
-            withAnimation(.brandDefault) { lunaSaysLine = nil }
-            return
-        }
-        let line = await LLMService.insightLine(
-            for: dog,
-            pattern: promoted.title,
-            detail: promoted.body
-        )
-        withAnimation(.brandDefault) { lunaSaysLine = line }
-    }
-
-    private func promotedObservation(from observations: [Insight]) -> Insight? {
-        let priority: [String] = [
-            "When you walk",
-            "Weekday vs weekend",
-            "Favorite hour",
-            "Weekly trend",
-        ]
-        for title in priority {
-            if let match = observations.first(where: { $0.title == title }) {
-                return match
-            }
-        }
-        return nil
     }
 
     // MARK: - Pieces
@@ -564,36 +524,91 @@ struct InsightsStats: Equatable {
     }
 }
 
-// MARK: - Existing components (unchanged)
+// MARK: - Written insights list
 
-private struct LunaSaysCard: View {
-    let line: String
-    let dogName: String
+/// Rendered output of `DogInsightsService.insights(for:)`. One card with
+/// 1-3 written insights stacked inside, each with an icon + title + body.
+/// Replaces the LLM-driven `LunaSaysCard` — Insights now talks to the
+/// owner directly, in plain English, anchored in real data and breed/age
+/// context. The dog-voice surface lives on Home now.
+private struct DogInsightsListCard: View {
+    let insights: [DogInsight]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HStack(spacing: 6) {
-                Image(systemName: "quote.opening")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.brandPrimary)
-                Text("\(dogName.uppercased()) SAYS")
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.brandTextSecondary)
+        if insights.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                Text("Trot notices")
+                    .font(.titleSmall)
+                    .foregroundStyle(Color.brandTextPrimary)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(insights.enumerated()), id: \.element.id) { index, insight in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(Color.brandDivider.opacity(0.5))
+                                .frame(height: 1)
+                                .padding(.horizontal, Space.md)
+                        }
+                        row(for: insight)
+                    }
+                }
+                .background(Color.brandSurfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+                .brandCardShadow()
             }
-            Text(line)
-                .font(.titleSmall)
-                .italic()
-                .foregroundStyle(Color.brandTextPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func row(for insight: DogInsight) -> some View {
+        HStack(alignment: .top, spacing: Space.sm) {
+            ZStack {
+                Circle()
+                    .fill(tint(for: insight.kind).opacity(0.14))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon(for: insight.kind))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(tint(for: insight.kind))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(insight.title)
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+                Text(insight.body)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(Space.md)
-        .background(Color.brandPrimaryTint)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(dogName) says: \(line)")
+        .accessibilityLabel("\(insight.title). \(insight.body)")
+    }
+
+    /// Per-kind icon. Pulls from SF Symbols and uses a coral/secondary tint
+    /// pair so the eye groups insights of the same kind across screens.
+    private func icon(for kind: DogInsight.Kind) -> String {
+        switch kind {
+        case .volume:    return "target"
+        case .lifeStage: return "heart.fill"
+        case .health:    return "cross.case.fill"
+        case .timeOfDay: return "clock.fill"
+        case .trend:     return "chart.line.uptrend.xyaxis"
+        case .streak:    return "flame.fill"
+        }
+    }
+
+    private func tint(for kind: DogInsight.Kind) -> Color {
+        switch kind {
+        case .volume, .streak, .trend: return .brandPrimary
+        case .health, .lifeStage:      return .brandSecondary
+        case .timeOfDay:               return .brandSecondary
+        }
     }
 }
+
+// MARK: - Existing components (unchanged)
 
 private struct LearningCard: View {
     let progress: LearningProgress
