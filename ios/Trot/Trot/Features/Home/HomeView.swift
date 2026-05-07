@@ -108,12 +108,6 @@ struct HomeView: View {
                             percent: percent(for: dog),
                             minutesToGo: minutesToGo(for: dog)
                         )
-                        // Daily dog-voice line is suppressed once the target's
-                        // met — at that point the ring + "today done" pill say
-                        // it. Showing a third "good work" line is just noise.
-                        if percent(for: dog) < 1.0 {
-                            DailyDogVoiceRow(dog: dog)
-                        }
                         // Weather tile only when it's saying something useful
                         // (rain/snow/storm). On clear/cloudy days the mood
                         // layer already conveys the weather; a card too is
@@ -125,6 +119,10 @@ struct HomeView: View {
                             now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
+                        // Personality card lives at the bottom — the dog
+                        // talking to the owner. LLM-generated, capped at 3
+                        // calls per day via slotted caching in LLMService.
+                        DogChatCard(dog: dog)
                         // Extra clearance so the bottom card never hides
                         // behind the centre walk FAB.
                         Color.clear.frame(height: 100)
@@ -455,41 +453,7 @@ private struct DogPresenceCard: View {
     }
 }
 
-/// Contextual one-line nudge in Trot's voice (about Luna, implicitly from her).
-/// Driven by `DogVoiceService.dailyLine` — LLM-generated when available
-/// (cached 24h via LLMService), templated fallback otherwise. The first paint
-/// uses the templated value so there's no empty state, then async swaps in
-/// the LLM line when it arrives. Visual treatment is deliberately understated
-/// — a small leading dot + body text — so it reads as a voice rather than a
-/// card.
-private struct DailyDogVoiceRow: View {
-    let dog: Dog
-    @State private var line: String = ""
-
-    var body: some View {
-        HStack(alignment: .top, spacing: Space.sm) {
-            Circle()
-                .fill(Color.brandPrimary)
-                .frame(width: 6, height: 6)
-                .padding(.top, 8)
-            Text(displayedLine)
-                .font(.bodyLarge)
-                .foregroundStyle(Color.brandTextPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(displayedLine)
-        .task(id: dog.persistentModelID) {
-            line = await DogVoiceService.dailyLine(for: dog)
-        }
-    }
-
-    /// First-paint fallback before .task completes. Empty state is the
-    /// templated line so users never see a blank row.
-    private var displayedLine: String {
-        line.isEmpty ? DogVoiceService.currentLine(for: dog) : line
-    }
-}
+// DailyDogVoiceRow removed — DogChatCard at the bottom of Home replaces it.
 
 /// Render the WalkWindowTile only when the weather is actually saying
 /// something useful — rain, drizzle, snow, fog, thunder. On clear/cloudy
