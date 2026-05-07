@@ -63,7 +63,7 @@ struct RootView: View {
             }
         )) { wrapper in
             if let dog = activeDogs.first(where: { $0.persistentModelID == wrapper.id }) {
-                RecapView(recap: RecapService.weekly(for: dog)) {
+                RecapView(recap: RecapService.weekly(for: dog), dog: dog) {
                     RecapService.markSeen(for: dog)
                     try? modelContext.save()
                     appState.pendingRecapDogID = nil

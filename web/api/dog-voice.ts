@@ -178,7 +178,7 @@ ${landmarksHit.length > 0 ? `Landmarks crossed: ${landmarksHit.join(", ")}.` : "
 ${routeName ? `Route: ${routeName}.` : ""}
 ${nextLandmark ? `Next landmark coming up: ${nextLandmark}.` : ""}
 
-Write a 1-2 sentence celebration in ${dog.name}'s voice for the post-walk overlay. Loud, warm, share-worthy. Exclamation marks ALLOWED here. Reference a specific landmark or moment from the walk if one is given. Make the user smile.
+Write a 1-2 sentence celebration in ${dog.name}'s voice for the post-walk overlay. Speak as ${dog.name} in FIRST PERSON ("I sniffed", "we passed", never "Luna did" or "she walked"). Loud, warm, share-worthy. Exclamation marks ALLOWED here. Reference a specific landmark or moment if one is given. Do not refer to ${dog.name} by name in the line — the user already knows.
 Maximum 25 words.`,
                 maxTokens: 100,
             };

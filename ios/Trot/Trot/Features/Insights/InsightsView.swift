@@ -11,6 +11,7 @@ struct InsightsView: View {
 
     @Environment(AppState.self) private var appState
     @State private var showingRecap = false
+    @State private var lunaSaysLine: String?
 
     private var activeDog: Dog? { appState.selectedDog(from: activeDogs) }
 
@@ -23,6 +24,10 @@ struct InsightsView: View {
                 ScrollView {
                     VStack(spacing: Space.lg) {
                         header(for: dog)
+                        if let line = lunaSaysLine {
+                            LunaSaysCard(line: line, dogName: dog.name)
+                                .transition(.opacity)
+                        }
                         weeklyRecapButton(for: dog)
                         if let learning = state.learning {
                             LearningCard(progress: learning, dogName: dog.name)
@@ -48,6 +53,9 @@ struct InsightsView: View {
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.md)
                 }
+                .task(id: dog.persistentModelID) {
+                    await refreshLunaSays(for: dog, observations: state.observations)
+                }
             } else {
                 VStack(spacing: Space.md) {
                     Image(systemName: "lightbulb")
@@ -63,6 +71,41 @@ struct InsightsView: View {
 
     private func hasLifetimeObservation(_ observations: [Insight]) -> Bool {
         observations.contains(where: { $0.title == "Lifetime walks" })
+    }
+
+    /// Picks the most personality-revealing observation and asks the LLM to
+    /// render it in dog-voice. Skips when there's nothing distinctive to say
+    /// (lifetime stats only) — better silent than canned.
+    @MainActor
+    private func refreshLunaSays(for dog: Dog, observations: [Insight]) async {
+        guard let promoted = promotedObservation(from: observations) else {
+            withAnimation(.brandDefault) { lunaSaysLine = nil }
+            return
+        }
+        let line = await LLMService.insightLine(
+            for: dog,
+            pattern: promoted.title,
+            detail: promoted.body
+        )
+        withAnimation(.brandDefault) { lunaSaysLine = line }
+    }
+
+    /// Order of preference: rhythm/personality observations first, performance
+    /// second, lifetime stats last (and lifetime alone is treated as "nothing
+    /// to say in dog-voice yet").
+    private func promotedObservation(from observations: [Insight]) -> Insight? {
+        let priority: [String] = [
+            "When you walk",
+            "Weekday vs weekend",
+            "Favorite hour",
+            "Weekly trend",
+        ]
+        for title in priority {
+            if let match = observations.first(where: { $0.title == title }) {
+                return match
+            }
+        }
+        return nil
     }
 
     private func lifetimeWalkCount(for dog: Dog) -> Int {
@@ -111,7 +154,7 @@ struct InsightsView: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingRecap) {
-            RecapView(recap: RecapService.weekly(for: dog)) {
+            RecapView(recap: RecapService.weekly(for: dog), dog: dog) {
                 showingRecap = false
             }
         }
@@ -119,6 +162,39 @@ struct InsightsView: View {
 }
 
 // MARK: - Components
+
+/// Top-of-Insights dog-voice quote, sourced from LLMService.insightLine.
+/// Visual is a quote-style card — italic body, "— Luna" attribution — so
+/// the speaker (the dog) is unambiguous. Skipped silently when no distinctive
+/// observation is available or LLM is offline.
+private struct LunaSaysCard: View {
+    let line: String
+    let dogName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack(spacing: 6) {
+                Image(systemName: "quote.opening")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+                Text("\(dogName.uppercased()) SAYS")
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.brandTextSecondary)
+            }
+            Text(line)
+                .font(.titleSmall)
+                .italic()
+                .foregroundStyle(Color.brandTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(Space.md)
+        .background(Color.brandPrimaryTint)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(dogName) says: \(line)")
+    }
+}
 
 private struct LearningCard: View {
     let progress: LearningProgress

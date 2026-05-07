@@ -63,7 +63,7 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingHomeRecap) {
             if let dog = selectedDog {
-                RecapView(recap: RecapService.weekly(for: dog)) {
+                RecapView(recap: RecapService.weekly(for: dog), dog: dog) {
                     showingHomeRecap = false
                 }
             }

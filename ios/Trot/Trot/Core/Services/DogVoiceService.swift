@@ -15,8 +15,18 @@ import Foundation
 /// gets dog-voice (loud, specific). When it isn't, they get a respectful
 /// fallback that still names the dog and the moment.
 enum DogVoiceService {
-    /// LLM-first daily line for Home. Cached 24h per dog/day inside
-    /// `LLMService`; this method just sequences "try LLM, otherwise template".
+    /// LLM-first daily line for Home. Routes to the appropriate kind based on
+    /// recency of the dog's last walk, with templated fallbacks at every step:
+    ///
+    /// - 0-2 days since last walk → normal daily line (LLMService.dailyLine,
+    ///   templated `currentLine` fallback)
+    /// - 3-14 days → quiet decay line (LLMService.decayLine, templated
+    ///   `decayFallback` fallback)
+    /// - 15+ days → templated "very quiet" line, no LLM call. The decay
+    ///   safeguard kicks in past day 14 to avoid nagging a possibly-grieving
+    ///   user. After day 28 the dog is silently archive-eligible (handled
+    ///   elsewhere).
+    ///
     /// Safe to call from a SwiftUI `.task` modifier — never throws, never
     /// blocks UI for more than 8s, never returns empty.
     static func dailyLine(
@@ -24,10 +34,52 @@ enum DogVoiceService {
         now: Date = .now,
         calendar: Calendar = .current
     ) async -> String {
-        if let llm = await LLMService.dailyLine(for: dog, now: now, calendar: calendar) {
-            return llm
+        // nil (no walks yet) is treated as "onboarding state" — same path as
+        // 0-2 days. The decay branch only kicks in when there ARE prior walks
+        // and they're 3+ days old.
+        let days = daysSinceLastWalk(for: dog, now: now, calendar: calendar) ?? 0
+        let name = dog.name.isEmpty ? "Your dog" : dog.name
+
+        switch days {
+        case 0...2:
+            if let llm = await LLMService.dailyLine(for: dog, now: now, calendar: calendar) {
+                return llm
+            }
+            return currentLine(for: dog, now: now, calendar: calendar)
+        case 3...14:
+            if let llm = await LLMService.decayLine(for: dog, daysSinceLastWalk: days, now: now, calendar: calendar) {
+                return llm
+            }
+            return decayFallback(name: name, days: days)
+        default:
+            return "It's been a while."
         }
-        return currentLine(for: dog, now: now, calendar: calendar)
+    }
+
+    /// Days since the most recent walk. Returns nil if the dog has never been
+    /// walked (treated as the "0-2 days" branch — onboarding state, no decay).
+    static func daysSinceLastWalk(
+        for dog: Dog,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> Int? {
+        let walks = dog.walks ?? []
+        guard let mostRecent = walks.map(\.startedAt).max() else { return nil }
+        let startOfRecent = calendar.startOfDay(for: mostRecent)
+        let startOfNow = calendar.startOfDay(for: now)
+        let comps = calendar.dateComponents([.day], from: startOfRecent, to: startOfNow)
+        return max(0, comps.day ?? 0)
+    }
+
+    /// Templated decay copy. Quiet, sad-for-the-dog, never accusatory of the
+    /// human. Volume goes DOWN as days accumulate, not up. Gender-neutral
+    /// phrasing — the dog's name carries identity, no pronouns.
+    private static func decayFallback(name: String, days: Int) -> String {
+        switch days {
+        case 3, 4: return "\(name)'s been waiting."
+        case 5, 6, 7: return "\(name)'s still hoping for a walk."
+        default: return "\(name)'s been quiet for \(days) days."
+        }
     }
 
     static func currentLine(

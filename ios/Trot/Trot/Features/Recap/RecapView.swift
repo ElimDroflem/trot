@@ -1,15 +1,27 @@
 import SwiftUI
+import SwiftData
 
 /// Weekly-recap sheet per `docs/spec.md` → "6. Weekly recap as a fixed ritual."
 /// A celebratory ritual surface, not a dashboard — Bricolage Grotesque headline,
 /// dog photo as the hero, the week's numbers, comparison to last week, streak,
-/// and one insight.
+/// and one insight, plus a generated dog-voice paragraph when LLM is available.
 struct RecapView: View {
     let recap: WeeklyRecap
+    /// Optional. When supplied, RecapView fetches a dog-voice narrative line
+    /// from `LLMService.recapNarrative` and surfaces it above the stats card.
+    /// Nil for previews / tests / contexts where the Dog isn't in scope.
+    let dog: Dog?
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
+    @State private var narrative: String?
+
+    init(recap: WeeklyRecap, dog: Dog? = nil, onDismiss: @escaping () -> Void) {
+        self.recap = recap
+        self.dog = dog
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         ZStack {
@@ -19,6 +31,10 @@ struct RecapView: View {
                 VStack(spacing: Space.lg) {
                     header
                     photo
+                    if let narrative {
+                        narrativeQuote(narrative)
+                            .transition(.opacity)
+                    }
                     statsCard
                     if recap.hasComparison {
                         comparisonRow
@@ -55,6 +71,47 @@ struct RecapView: View {
                 }
             }
         }
+        .task(id: dog?.persistentModelID) {
+            await fetchNarrative()
+        }
+    }
+
+    @MainActor
+    private func fetchNarrative() async {
+        guard let dog else { return }
+        let line = await LLMService.recapNarrative(
+            for: dog,
+            minutesThisWeek: recap.thisWeek.totalMinutes,
+            minutesLastWeek: recap.lastWeek.totalMinutes,
+            streakDays: recap.streakDays
+        )
+        withAnimation(.brandDefault) {
+            narrative = line
+        }
+    }
+
+    private func narrativeQuote(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack(spacing: 6) {
+                Image(systemName: "quote.opening")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+                Text("\(recap.dogName.uppercased()) SAYS")
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.brandTextSecondary)
+            }
+            Text(text)
+                .font(.titleSmall)
+                .italic()
+                .foregroundStyle(Color.brandTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(Space.md)
+        .background(Color.brandPrimaryTint)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(recap.dogName) says: \(text)")
     }
 
     // MARK: - Sections
