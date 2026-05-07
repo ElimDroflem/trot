@@ -3,9 +3,14 @@ import SwiftData
 
 /// Trot's signature retention surface, promoted from a Home card to a dedicated tab.
 /// Layout: dog photo as the alive, breathing centerpiece; route name in display
-/// type; an anticipation block that names the next landmark; a STRAIGHT-line
-/// landmark timeline below it; recent crossings + coming-up routes scroll in
+/// type; a single big "next landmark + distance" anticipation block — the
+/// engine of the daily pull. Recent unlocks + coming-up routes scroll in
 /// underneath. Pure SwiftUI — no commissioned art for v1.
+///
+/// Deliberately does NOT show the whole route as a single dotted strip — when
+/// routes have 25+ landmarks the strip becomes a wall of locks that feels
+/// overwhelming rather than motivating. Single next-landmark focus + recent
+/// list does the same job and reads better at every scale.
 struct JourneyView: View {
     @Query(filter: #Predicate<Dog> { $0.archivedAt == nil })
     private var activeDogs: [Dog]
@@ -36,9 +41,6 @@ struct JourneyView: View {
 
     @ViewBuilder
     private func journeyContent(dog: Dog, route: Route) -> some View {
-        let progressFraction = route.totalKm > 0
-            ? min(1, max(0, dog.routeProgressKm / route.totalKm))
-            : 0
         let next = JourneyService.nextLandmark(for: dog)
         let recentLandmarks = recentlyUnlocked(route: route, progressKm: dog.routeProgressKm)
 
@@ -47,12 +49,6 @@ struct JourneyView: View {
                 JourneyHero(dog: dog, route: route, progressKm: dog.routeProgressKm)
 
                 NextLandmarkPanel(next: next, route: route, progressKm: dog.routeProgressKm)
-
-                JourneyTimelineStrip(
-                    route: route,
-                    progressFraction: progressFraction,
-                    dogPhoto: dog.photo
-                )
 
                 if !recentLandmarks.isEmpty {
                     RecentLandmarksSection(landmarks: recentLandmarks, route: route)
@@ -210,14 +206,25 @@ private struct NextLandmarkPanel: View {
 
     @ViewBuilder
     private func content(next: NextLandmark) -> some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HStack(spacing: Space.sm) {
-                Image(systemName: "questionmark.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
+        VStack(alignment: .leading, spacing: Space.md) {
+            HStack(spacing: 6) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.brandPrimary)
-                Text("\(next.metersAway)m to ???")
+                Text("NEXT UP")
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.brandTextSecondary)
+                Spacer()
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+                Text(distanceLabel(metersAway: next.metersAway))
+                    .font(.displayMedium)
+                    .foregroundStyle(Color.brandPrimary)
+                Text("to ???")
                     .font(.titleSmall)
-                    .foregroundStyle(Color.brandTextPrimary)
+                    .foregroundStyle(Color.brandTextSecondary)
                 Spacer()
             }
 
@@ -225,19 +232,29 @@ private struct NextLandmarkPanel: View {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.brandDivider)
-                        .frame(height: 6)
+                        .frame(height: 8)
                     Capsule()
                         .fill(Color.brandPrimary)
-                        .frame(width: geo.size.width * max(0.02, animatedFraction), height: 6)
+                        .frame(width: geo.size.width * max(0.02, animatedFraction), height: 8)
                 }
             }
-            .frame(height: 6)
+            .frame(height: 8)
         }
         .padding(Space.md)
         .background(Color.brandPrimaryTint)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(next.metersAway) metres to the next landmark.")
+    }
+
+    /// "240m" up to ~999m, then "1.2 km" past that. Distances are pace-based
+    /// estimates per spec — the precision conveyed should match.
+    private func distanceLabel(metersAway: Int) -> String {
+        if metersAway < 1_000 {
+            return "\(metersAway)m"
+        }
+        let km = Double(metersAway) / 1_000
+        return String(format: "%.1f km", km)
     }
 
     private var routeCompleteContent: some View {
@@ -267,136 +284,6 @@ private struct NextLandmarkPanel: View {
         guard span > 0 else { return 1 }
         let progressedInSpan = max(0, progressKm - prevKm)
         return min(1, max(0.02, progressedInSpan / span))
-    }
-}
-
-// MARK: - Straight-line timeline
-
-/// The route as a horizontal line. Landmark dots positioned by their km, dog
-/// photo as the marker positioned at progressFraction. Replaces the curved
-/// Catmull-Rom path of the old Home card — straighter is cleaner and reads
-/// better at a glance.
-private struct JourneyTimelineStrip: View {
-    let route: Route
-    let progressFraction: Double
-    let dogPhoto: Data?
-
-    @State private var markerPulse = false
-
-    private let stripHeight: CGFloat = 80
-    private let dogSize: CGFloat = 40
-    private let dotSize: CGFloat = 18
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HStack {
-                Text("THE ROUTE")
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.brandTextSecondary)
-                Spacer()
-                Text("\(route.landmarks.count) landmarks")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandTextTertiary)
-            }
-
-            GeometryReader { geo in
-                let width = geo.size.width
-                let trackY = stripHeight / 2
-
-                ZStack(alignment: .topLeading) {
-                    // Locked baseline — full width, faint
-                    Capsule()
-                        .fill(Color.brandDivider.opacity(0.55))
-                        .frame(width: width, height: 4)
-                        .offset(y: trackY - 2)
-
-                    // Completed coral overlay
-                    Capsule()
-                        .fill(Color.brandPrimary)
-                        .frame(width: width * progressFraction, height: 4)
-                        .offset(y: trackY - 2)
-
-                    // Landmark dots
-                    ForEach(route.landmarks) { landmark in
-                        let fraction = landmark.kmFromStart / max(0.0001, route.totalKm)
-                        let unlocked = fraction <= progressFraction
-                        TimelineDot(landmark: landmark, unlocked: unlocked)
-                            .frame(width: dotSize, height: dotSize)
-                            .position(
-                                x: width * fraction,
-                                y: trackY
-                            )
-                    }
-
-                    // Dog marker — sits on the line at progressFraction.
-                    DogTimelineMarker(photo: dogPhoto)
-                        .frame(width: dogSize, height: dogSize)
-                        .position(
-                            x: width * progressFraction,
-                            y: trackY
-                        )
-                        .scaleEffect(markerPulse ? 1.06 : 1.0)
-                        .onAppear {
-                            withAnimation(.brandAnticipation.repeatForever(autoreverses: true)) {
-                                markerPulse = true
-                            }
-                        }
-                }
-            }
-            .frame(height: stripHeight)
-        }
-        .padding(Space.md)
-        .background(Color.brandSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .brandCardShadow()
-    }
-}
-
-private struct TimelineDot: View {
-    let landmark: Landmark
-    let unlocked: Bool
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(unlocked ? Color.brandPrimaryTint : Color.brandSurface)
-            Circle()
-                .stroke(
-                    unlocked ? Color.brandPrimary : Color.brandDivider,
-                    lineWidth: unlocked ? 1.5 : 1
-                )
-            Image(systemName: unlocked ? landmark.symbolName : "lock.fill")
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(unlocked ? Color.brandPrimary : Color.brandTextTertiary)
-        }
-        .accessibilityLabel(unlocked ? landmark.name : "Locked landmark")
-    }
-}
-
-private struct DogTimelineMarker: View {
-    let photo: Data?
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.brandSurfaceElevated)
-            Circle()
-                .stroke(Color.brandPrimary, lineWidth: 2.5)
-            if let photo, let image = UIImage(data: photo) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .clipShape(Circle())
-                    .padding(3)
-            } else {
-                Image(systemName: "dog.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.brandPrimary)
-            }
-        }
-        .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 2)
-        .accessibilityLabel("Your dog's position on the route")
     }
 }
 
