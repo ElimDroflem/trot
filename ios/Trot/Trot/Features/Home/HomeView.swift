@@ -15,17 +15,28 @@ struct HomeView: View {
     @State private var showingExpedition = false
     @State private var editingWalk: Walk?
     @State private var showingAddAnotherDog = false
-    /// The walk tab is phantom — selecting it pops a confirmation dialog
-    /// and reverts to whichever tab was active before. We track the
-    /// previous tab so we can restore it when the dialog dismisses.
-    @State private var showingWalkMenu = false
-    @State private var previousTab: TrotTab = .today
 
     private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
+    /// Custom binding for the TabView. When the user taps the phantom Walk
+    /// tab, we open the ExpeditionView sheet but DON'T commit the
+    /// selection change — so the tab indicator never visibly jumps to Walk
+    /// and bounces back. Any other selection passes through normally.
+    private var tabBinding: Binding<TrotTab> {
+        Binding(
+            get: { appState.selectedTab },
+            set: { newTab in
+                if newTab == .walk {
+                    showingExpedition = true
+                } else {
+                    appState.selectedTab = newTab
+                }
+            }
+        )
+    }
+
     var body: some View {
-        @Bindable var appStateBindable = appState
-        TabView(selection: $appStateBindable.selectedTab) {
+        TabView(selection: tabBinding) {
             todayTab
                 .tabItem { Label("Today", systemImage: "house.fill") }
                 .tag(TrotTab.today)
@@ -34,12 +45,24 @@ struct HomeView: View {
                 .tabItem { Label("Journey", systemImage: "figure.walk.motion") }
                 .tag(TrotTab.journey)
 
-            // Walk — the app's primary verb. Sits in the centre slot of a
-            // 5-tab bar. The "view" itself is never seen; we intercept
-            // selection in onChange and pop the action menu instead of
-            // navigating.
+            // Walk — the app's primary verb. The "view" itself is never
+            // shown: tabBinding's setter intercepts the selection, opens
+            // the ExpeditionView sheet, and never commits the change to
+            // AppState.selectedTab. So the tab indicator never visibly
+            // jumps to Walk and bounces back.
+            //
+            // Rendered with a coral-baked UIImage so the icon stays brand
+            // colour regardless of selection state — the system tint
+            // would otherwise mute it grey when other tabs are active,
+            // and the whole point is for this button to draw the eye.
             Color.clear
-                .tabItem { Label("Walk", systemImage: "plus.circle.fill") }
+                .tabItem {
+                    Label {
+                        Text("Walk")
+                    } icon: {
+                        Image(uiImage: Self.walkTabIcon)
+                    }
+                }
                 .tag(TrotTab.walk)
 
             InsightsView()
@@ -53,25 +76,6 @@ struct HomeView: View {
                 .tag(TrotTab.dog)
         }
         .tint(.brandPrimary)
-        .onChange(of: appState.selectedTab) { oldTab, newTab in
-            if newTab == .walk {
-                // Pop the action menu; revert selection so the phantom tab
-                // is never actually shown.
-                showingWalkMenu = true
-                appState.selectedTab = oldTab == .walk ? .today : oldTab
-            } else {
-                previousTab = newTab
-            }
-        }
-        .confirmationDialog(
-            "Walk with your dog",
-            isPresented: $showingWalkMenu,
-            titleVisibility: .visible
-        ) {
-            Button("Start a walk") { showingExpedition = true }
-            Button("Log a past walk") { showingLogWalk = true }
-            Button("Cancel", role: .cancel) {}
-        }
         .sheet(isPresented: $showingLogWalk) {
             if let dog = selectedDog {
                 LogWalkSheet(dogs: [dog])
@@ -214,6 +218,19 @@ struct HomeView: View {
         formatter.locale = Locale(identifier: "en_GB")
         formatter.dateFormat = "EEE · d MMM"
         return formatter
+    }()
+
+    /// Pre-tinted UIImage for the Walk tab icon. Using `.alwaysOriginal`
+    /// rendering mode keeps the coral baked into the image regardless of
+    /// the tab's selected/unselected state — without this, the system
+    /// would mute the icon to its standard tab-bar grey when Walk isn't
+    /// the active tab. We want the eye drawn here always.
+    private static let walkTabIcon: UIImage = {
+        let coral = UIColor(Color.brandPrimary)
+        let config = UIImage.SymbolConfiguration(pointSize: 30, weight: .semibold)
+        let base = UIImage(systemName: "plus.circle.fill", withConfiguration: config)
+            ?? UIImage(systemName: "plus.circle.fill")!
+        return base.withTintColor(coral, renderingMode: .alwaysOriginal)
     }()
 }
 

@@ -21,6 +21,7 @@ struct ExpeditionView: View {
     @State private var state = ExpeditionState()
     @State private var showingFinishConfirm = false
     @State private var showingDiscardConfirm = false
+    @State private var showingLogPast = false
     @State private var visibleLandmark: Landmark?
     @State private var landmarkVisibleSince: Date?
 
@@ -62,7 +63,24 @@ struct ExpeditionView: View {
                     Button("Cancel") { showingDiscardConfirm = true }
                         .tint(.brandPrimary)
                 }
+                // Manual-log escape hatch — same destination as the old
+                // "Log a past walk" menu option, accessible from inside the
+                // live-walk view in case the user actually walked earlier
+                // and just wanted to record it.
+                ToolbarItem(placement: .topBarTrailing) {
+                    if state.elapsedSeconds == 0 {
+                        Button {
+                            showingLogPast = true
+                        } label: {
+                            Label("Log past walk", systemImage: "clock.arrow.circlepath")
+                        }
+                        .tint(.brandPrimary)
+                    }
+                }
             }
+        }
+        .sheet(isPresented: $showingLogPast) {
+            LogWalkSheet(dogs: [dog])
         }
         .interactiveDismissDisabled(state.elapsedSeconds > 0)
         .onReceive(tick) { _ in
