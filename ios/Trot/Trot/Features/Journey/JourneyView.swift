@@ -1,16 +1,21 @@
 import SwiftUI
 import SwiftData
 
-/// Trot's signature retention surface, promoted from a Home card to a dedicated tab.
-/// Layout: dog photo as the alive, breathing centerpiece; route name in display
-/// type; a single big "next landmark + distance" anticipation block — the
-/// engine of the daily pull. Recent unlocks + coming-up routes scroll in
-/// underneath. Pure SwiftUI — no commissioned art for v1.
+/// Trot's signature retention surface. The Journey tab tells the user where
+/// they are in their dog's narrative arc and what's coming next, with the
+/// dog photo as the breathing centerpiece.
 ///
-/// Deliberately does NOT show the whole route as a single dotted strip — when
-/// routes have 25+ landmarks the strip becomes a wall of locks that feels
-/// overwhelming rather than motivating. Single next-landmark focus + recent
-/// list does the same job and reads better at every scale.
+/// Layout, top to bottom:
+///   1. Hero — dog photo inside a huge route-progress arc, route name
+///      headline, "X% of <Route>" stat below.
+///   2. Landmark trail — horizontal row of moment dots with the dog's
+///      current position as a pulsing coral marker. Unlocked moments are
+///      coral with their icon; locked are grey with a lock.
+///   3. Up next — a single big display-type block naming time-to-next +
+///      a redacted moment title.
+///   4. Recent moments — diary cards with the dog-voice reflections
+///      (the emotional payload).
+///   5. Coming up — completed-route pills + the next route preview.
 struct JourneyView: View {
     @Query(filter: #Predicate<Dog> { $0.archivedAt == nil })
     private var activeDogs: [Dog]
@@ -26,9 +31,6 @@ struct JourneyView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-
-            // Same atmospheric layer used on the Today tab — swapping tabs
-            // doesn't break the immersion. Renders nothing if no postcode.
             WeatherMoodLayer()
 
             if let dog = selectedDog {
@@ -50,9 +52,22 @@ struct JourneyView: View {
 
         ScrollView {
             VStack(spacing: Space.lg) {
-                JourneyHero(dog: dog, route: route, progressMinutes: dog.routeProgressMinutes)
+                JourneyHero(
+                    dog: dog,
+                    route: route,
+                    progressMinutes: dog.routeProgressMinutes
+                )
 
-                NextLandmarkPanel(next: next, route: route, progressMinutes: dog.routeProgressMinutes)
+                LandmarkTrail(
+                    route: route,
+                    progressMinutes: dog.routeProgressMinutes
+                )
+
+                UpNextBlock(
+                    next: next,
+                    route: route,
+                    progressMinutes: dog.routeProgressMinutes
+                )
 
                 if !diaryEntries.isEmpty {
                     RecentMomentsSection(entries: diaryEntries, dogName: dog.name)
@@ -84,10 +99,6 @@ struct JourneyView: View {
         .padding(Space.xl)
     }
 
-    /// Up to eight most recent diary entries for this dog, newest first.
-    /// Spans seasons — old entries from the first season still show after
-    /// the dog has moved on, since the diary is the relationship's history,
-    /// not just the active season's.
     private func recentDiaryEntries(for dog: Dog) -> [MomentDiaryEntry] {
         (dog.momentDiary ?? [])
             .sorted { $0.unlockedAt > $1.unlockedAt }
@@ -98,60 +109,120 @@ struct JourneyView: View {
 
 // MARK: - Hero
 
-/// Big route headline + the dog photo as the breathing centerpiece. The photo
-/// itself does the work — coral ring, slow anticipation pulse, no extra chrome.
+/// Big route-progress arc with the dog photo at the center. The arc fills
+/// in coral as the dog progresses through the route — like the Today ring
+/// but at journey scale. Photo breathes with a slow anticipation pulse.
 private struct JourneyHero: View {
     let dog: Dog
     let route: Route
     let progressMinutes: Int
 
     @State private var pulse = false
+    @State private var animatedFraction: Double = 0
 
-    private let photoSize: CGFloat = 180
-    private let strokeWidth: CGFloat = 8
+    private let outerSize: CGFloat = 260
+    private let strokeWidth: CGFloat = 12
+    private let photoInset: CGFloat = 26
+
+    private var fraction: Double {
+        guard route.totalMinutes > 0 else { return 0 }
+        return min(1, max(0, Double(progressMinutes) / Double(route.totalMinutes)))
+    }
 
     var body: some View {
         VStack(spacing: Space.md) {
-            VStack(spacing: 4) {
-                Text(route.name)
-                    .font(.displayMedium)
-                    .foregroundStyle(Color.brandSecondary)
-                    .multilineTextAlignment(.center)
-                Text(statsLabel)
-                    .font(.bodyMedium.weight(.semibold))
-                    .foregroundStyle(Color.brandTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
+            Text(route.name)
+                .font(.displayMedium)
+                .foregroundStyle(Color.brandSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Space.md)
 
             ZStack {
+                // Track ring (faint)
                 Circle()
-                    .stroke(Color.brandPrimary, lineWidth: strokeWidth)
+                    .stroke(Color.brandDivider.opacity(0.7), lineWidth: strokeWidth)
 
+                // Animated coral progress arc
+                Circle()
+                    .trim(from: 0, to: animatedFraction)
+                    .stroke(
+                        Color.brandPrimary,
+                        style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+
+                // Photo (breathes)
                 photoFill
                     .frame(
-                        width: photoSize - strokeWidth * 2,
-                        height: photoSize - strokeWidth * 2
+                        width: outerSize - strokeWidth * 2 - photoInset * 2,
+                        height: outerSize - strokeWidth * 2 - photoInset * 2
                     )
                     .clipShape(Circle())
+                    .scaleEffect(pulse ? 1.025 : 1.0)
             }
-            .frame(width: photoSize, height: photoSize)
-            .scaleEffect(pulse ? 1.025 : 1.0)
+            .frame(width: outerSize, height: outerSize)
             .brandCardShadow()
             .onAppear {
+                withAnimation(.brandDefault.delay(0.05)) {
+                    animatedFraction = fraction
+                }
                 withAnimation(.brandAnticipation.repeatForever(autoreverses: true)) {
                     pulse = true
                 }
             }
-            .accessibilityLabel("\(dog.name) on \(route.name).")
+            .onChange(of: progressMinutes) { _, _ in
+                withAnimation(.brandDefault) {
+                    animatedFraction = fraction
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(dog.name) on \(route.name). \(Int(fraction * 100)) percent of the route.")
+
+            heroStats
         }
     }
 
-    private var statsLabel: String {
-        let toGo = max(0, route.totalMinutes - progressMinutes)
-        return "\(formatDuration(progressMinutes)) of \(formatDuration(route.totalMinutes)) · \(formatDuration(toGo)) to go"
+    private var heroStats: some View {
+        HStack(spacing: Space.lg) {
+            statColumn(
+                value: "\(Int(fraction * 100))%",
+                label: "OF ROUTE"
+            )
+            divider
+            statColumn(
+                value: formatDuration(progressMinutes),
+                label: "WALKED"
+            )
+            divider
+            statColumn(
+                value: formatDuration(max(0, route.totalMinutes - progressMinutes)),
+                label: "TO GO"
+            )
+        }
+        .padding(.horizontal, Space.md)
     }
 
-    /// "12 min" / "2h 15m" — concise, headline-suitable.
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.brandDivider)
+            .frame(width: 1, height: 36)
+    }
+
+    private func statColumn(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.titleMedium)
+                .foregroundStyle(Color.brandTextPrimary)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(Color.brandTextTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private func formatDuration(_ minutes: Int) -> String {
         if minutes < 60 { return "\(minutes) min" }
         let h = minutes / 60
@@ -170,61 +241,204 @@ private struct JourneyHero: View {
                 RadialGradient(
                     colors: [Color.brandSurfaceElevated, Color.brandSecondaryTint],
                     center: .center,
-                    startRadius: 20,
-                    endRadius: 110
+                    startRadius: 30,
+                    endRadius: 130
                 )
                 Image(systemName: "dog.fill")
-                    .font(.system(size: 40, weight: .regular))
+                    .font(.system(size: 50, weight: .regular))
                     .foregroundStyle(Color.brandSecondary.opacity(0.6))
             }
         }
     }
 }
 
-// MARK: - Anticipation block
+// MARK: - Landmark trail
 
-/// Names the next unreached landmark and shows how close we are. The biggest
-/// pull on this screen — "240m to The Bench" is what makes someone leave the
-/// house.
-private struct NextLandmarkPanel: View {
+/// Horizontal row of moment dots representing the route's landmarks.
+/// Unlocked landmarks (passed by progressMinutes) are coral with their
+/// symbol; locked are a small grey lock; the *current position* (just
+/// before the next-up landmark) is a pulsing coral disc with a paw — the
+/// dog's place on the trail.
+///
+/// Up to 6 visible at a time so the row stays readable on a phone — we
+/// window around the current position. If the route is shorter than 6
+/// landmarks we render them all.
+private struct LandmarkTrail: View {
+    let route: Route
+    let progressMinutes: Int
+
+    @State private var pulse = false
+
+    private let maxVisible = 6
+    private let dotSize: CGFloat = 32
+    private let activeSize: CGFloat = 38
+
+    var body: some View {
+        let stops = visibleStops
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack(spacing: 0) {
+                ForEach(Array(stops.enumerated()), id: \.offset) { index, stop in
+                    stopView(stop)
+                    if index < stops.count - 1 {
+                        connector(filled: stops[index + 1].state == .unlocked || stop.state == .current || stop.state == .unlocked)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            HStack(spacing: 0) {
+                ForEach(Array(stops.enumerated()), id: \.offset) { _, stop in
+                    Text(stop.label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(stop.state == .locked ? Color.brandTextTertiary : Color.brandTextPrimary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .padding(.horizontal, Space.xs)
+        }
+        .padding(.vertical, Space.md)
+        .padding(.horizontal, Space.sm)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+        .onAppear {
+            withAnimation(.brandAnticipation.repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stopView(_ stop: TrailStop) -> some View {
+        switch stop.state {
+        case .unlocked:
+            ZStack {
+                Circle()
+                    .fill(Color.brandPrimary)
+                Image(systemName: stop.symbolName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: dotSize, height: dotSize)
+            .accessibilityLabel("Unlocked: \(stop.label)")
+        case .current:
+            ZStack {
+                Circle()
+                    .fill(Color.brandPrimaryTint)
+                Circle()
+                    .stroke(Color.brandPrimary, lineWidth: 3)
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+            }
+            .frame(width: activeSize, height: activeSize)
+            .scaleEffect(pulse ? 1.08 : 1.0)
+            .accessibilityLabel("Current position: \(stop.label)")
+        case .locked:
+            ZStack {
+                Circle()
+                    .fill(Color.brandSurface)
+                Circle()
+                    .stroke(Color.brandDivider, lineWidth: 1.5)
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.brandTextTertiary)
+            }
+            .frame(width: dotSize, height: dotSize)
+            .accessibilityLabel("Locked: \(stop.label)")
+        }
+    }
+
+    private func connector(filled: Bool) -> some View {
+        Rectangle()
+            .fill(filled ? Color.brandPrimary : Color.brandDivider)
+            .frame(height: 2)
+            .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Stops construction
+
+    /// Window the route's landmarks into 6 visible stops, centred on the
+    /// dog's current progress when possible. The first stop is always a
+    /// "Start" virtual marker (so the trail visibly begins behind the dog).
+    private var visibleStops: [TrailStop] {
+        let sorted = route.landmarks.sorted { $0.minutesFromStart < $1.minutesFromStart }
+        // Insert a virtual "Start" stop at minute 0 so the dog isn't stranded
+        // at the leftmost real landmark with nothing behind them.
+        var stops: [TrailStop] = [
+            TrailStop(label: "Start", symbolName: "figure.walk", state: .unlocked, isVirtual: true)
+        ]
+        for landmark in sorted {
+            let state: StopState = progressMinutes >= landmark.minutesFromStart ? .unlocked : .locked
+            let label = state == .unlocked ? landmark.name : "???"
+            stops.append(TrailStop(label: label, symbolName: landmark.symbolName, state: state))
+        }
+
+        // Insert the "current" marker between the last unlocked and the next
+        // locked, so the dog visually sits between them.
+        if let firstLockedIndex = stops.firstIndex(where: { $0.state == .locked }) {
+            stops.insert(
+                TrailStop(label: "You", symbolName: "pawprint.fill", state: .current, isVirtual: true),
+                at: firstLockedIndex
+            )
+        }
+
+        // Window — keep up to maxVisible centred on the current marker.
+        guard stops.count > maxVisible else { return stops }
+        let currentIndex = stops.firstIndex(where: { $0.state == .current }) ?? stops.count / 2
+        let half = maxVisible / 2
+        var lower = max(0, currentIndex - half)
+        var upper = min(stops.count, lower + maxVisible)
+        // If we hit the right edge first, slide the window left.
+        if upper - lower < maxVisible {
+            lower = max(0, upper - maxVisible)
+        }
+        // If the lower edge is at zero, slide right.
+        if upper - lower < maxVisible {
+            upper = min(stops.count, lower + maxVisible)
+        }
+        return Array(stops[lower..<upper])
+    }
+
+    private struct TrailStop {
+        let label: String
+        let symbolName: String
+        let state: StopState
+        var isVirtual: Bool = false
+    }
+
+    private enum StopState {
+        case unlocked, current, locked
+    }
+}
+
+// MARK: - Up next block
+
+/// Display-type "Up next: <duration> to <???>". Replaces the old NEXT UP
+/// caption and progress bar — the trail above carries the visual job; this
+/// block is the single high-value sentence underneath.
+private struct UpNextBlock: View {
     let next: NextLandmark?
     let route: Route
     let progressMinutes: Int
 
-    @State private var animatedFraction: Double = 0
-
     var body: some View {
         if let next {
             content(next: next)
-                .onAppear {
-                    withAnimation(.brandDefault) {
-                        animatedFraction = fractionToNext(next: next)
-                    }
-                }
-                .onChange(of: progressMinutes) { _, _ in
-                    withAnimation(.brandDefault) {
-                        animatedFraction = fractionToNext(next: next)
-                    }
-                }
         } else {
             routeCompleteContent
         }
     }
 
-    @ViewBuilder
     private func content(next: NextLandmark) -> some View {
-        VStack(alignment: .leading, spacing: Space.md) {
-            HStack(spacing: 6) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.brandPrimary)
-                Text("NEXT UP")
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.brandTextSecondary)
-                Spacer()
-            }
-
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Text("UP NEXT")
+                .font(.caption.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(Color.brandTextSecondary)
             HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
                 Text(durationLabel(minutesAway: next.minutesAway))
                     .font(.displayMedium)
@@ -233,33 +447,20 @@ private struct NextLandmarkPanel: View {
                     .font(.titleSmall)
                     .foregroundStyle(Color.brandTextSecondary)
                 Spacer()
+                Image(systemName: "arrow.forward.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(Color.brandPrimary.opacity(0.45))
             }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.brandDivider)
-                        .frame(height: 8)
-                    Capsule()
-                        .fill(Color.brandPrimary)
-                        .frame(width: geo.size.width * max(0.02, animatedFraction), height: 8)
-                }
-            }
-            .frame(height: 8)
         }
         .padding(Space.md)
         .background(Color.brandPrimaryTint)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(next.minutesAway) minutes to the next landmark.")
+        .accessibilityLabel("Up next, \(next.minutesAway) minutes to the next moment.")
     }
 
-    /// "12 min" up to 59 min; "1h 15m" past that. Mirrors the hero's stats
-    /// formatting so the headline number and the to-go number share an idiom.
     private func durationLabel(minutesAway: Int) -> String {
-        if minutesAway < 60 {
-            return "\(minutesAway) min"
-        }
+        if minutesAway < 60 { return "\(minutesAway) min" }
         let h = minutesAway / 60
         let m = minutesAway % 60
         return m == 0 ? "\(h)h" : "\(h)h \(m)m"
@@ -279,38 +480,19 @@ private struct NextLandmarkPanel: View {
         .background(Color.brandSecondaryTint)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
     }
-
-    /// How close are we to the next landmark, expressed as a fraction of the
-    /// time between the previous landmark (or start) and this one. Drives
-    /// the progress bar fill.
-    private func fractionToNext(next: NextLandmark) -> Double {
-        let landmarksBefore = route.landmarks
-            .filter { $0.minutesFromStart < next.landmark.minutesFromStart }
-            .sorted { $0.minutesFromStart < $1.minutesFromStart }
-        let prevMinutes = landmarksBefore.last?.minutesFromStart ?? 0
-        let span = next.landmark.minutesFromStart - prevMinutes
-        guard span > 0 else { return 1 }
-        let progressedInSpan = max(0, progressMinutes - prevMinutes)
-        return min(1, max(0.02, Double(progressedInSpan) / Double(span)))
-    }
 }
 
 // MARK: - Recent Moments (diary entries)
 
-/// The diary list — recent dog-voice entries written when the user crossed
-/// Moments in their walks. Each card carries a generated reflection in the
-/// dog's voice ABOUT the user. This is the emotional payload of the Journey
-/// loop; the rest of the screen exists to point the user here.
 private struct RecentMomentsSection: View {
     let entries: [MomentDiaryEntry]
     let dogName: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("RECENT MOMENTS")
-                .font(.caption.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(Color.brandTextSecondary)
+            Text("Diary entries")
+                .font(.titleSmall)
+                .foregroundStyle(Color.brandTextPrimary)
 
             VStack(spacing: Space.sm) {
                 ForEach(entries) { entry in
@@ -328,15 +510,17 @@ private struct DiaryEntryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             HStack(spacing: Space.sm) {
-                Image(systemName: entry.symbolName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.brandPrimary)
-                    .frame(width: 28, height: 28)
-                    .background(Color.brandPrimaryTint)
-                    .clipShape(Circle())
+                ZStack {
+                    Circle()
+                        .fill(Color.brandPrimary)
+                    Image(systemName: entry.symbolName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 36, height: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.momentTitle)
-                        .font(.bodyMedium.weight(.semibold))
+                        .font(.bodyLarge.weight(.semibold))
                         .foregroundStyle(Color.brandTextPrimary)
                     Text(Self.dateLabel(entry.unlockedAt))
                         .font(.caption)
@@ -366,8 +550,6 @@ private struct DiaryEntryCard: View {
         .accessibilityLabel("\(entry.momentTitle), \(Self.dateLabel(entry.unlockedAt)). \(dogName) says: \(entry.dogVoiceLine)")
     }
 
-    /// Today / Yesterday / day name within the last week / "5 May" past that.
-    /// Idiomatic for a diary read.
     private static func dateLabel(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "Today" }
@@ -388,9 +570,6 @@ private struct DiaryEntryCard: View {
 
 // MARK: - Coming up
 
-/// Below-the-fold preview of the next route in the sequence + a small set of
-/// "completed" badges if any routes are already done. Keeps the long-term
-/// anticipation alive — the user can see what comes after London-Brighton.
 private struct ComingUpSection: View {
     let currentRouteID: String
     let completedIDs: [String]
@@ -416,10 +595,9 @@ private struct ComingUpSection: View {
 
     private func completedBlock(routes: [Route]) -> some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("COMPLETED")
-                .font(.caption.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(Color.brandTextSecondary)
+            Text("Completed seasons")
+                .font(.titleSmall)
+                .foregroundStyle(Color.brandTextPrimary)
             FlowLayout(spacing: Space.sm) {
                 ForEach(routes) { route in
                     completedPill(route: route)
@@ -444,10 +622,9 @@ private struct ComingUpSection: View {
 
     private func comingUpBlock(route: Route) -> some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("COMING UP")
-                .font(.caption.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(Color.brandTextSecondary)
+            Text("Up next, after this")
+                .font(.titleSmall)
+                .foregroundStyle(Color.brandTextPrimary)
 
             HStack(spacing: Space.md) {
                 Image(systemName: "lock.fill")
@@ -459,7 +636,7 @@ private struct ComingUpSection: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(route.name)
-                        .font(.titleSmall)
+                        .font(.bodyLarge.weight(.semibold))
                         .foregroundStyle(Color.brandTextPrimary)
                     Text(route.subtitle)
                         .font(.caption)
@@ -492,10 +669,8 @@ private struct EmptyJourneyPlaceholder: View {
     }
 }
 
-// MARK: - Tiny flow layout (for the completed pills)
+// MARK: - Tiny flow layout
 
-/// Wraps children onto multiple lines like CSS flex-wrap. Used for the
-/// completed-routes pill cluster which can be 0..n long.
 private struct FlowLayout: Layout {
     var spacing: CGFloat = Space.sm
 
