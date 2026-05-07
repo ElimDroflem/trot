@@ -82,4 +82,19 @@ enum NotificationDecisions {
     static func nudgeBody(dogName: String, minutesToday: Int, targetMinutes: Int) -> String {
         "\(dogName) has had \(minutesToday) minutes today. Target is \(targetMinutes)."
     }
+
+    /// Daily 7:00 local "good morning" nudge — kicks the user toward today's
+    /// best walk window. Returns the next 07:00 from `now` (today if it hasn't
+    /// happened yet, otherwise tomorrow).
+    static func morningWindowTime(now: Date, calendar: Calendar) -> Date? {
+        guard let sevenToday = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: now)
+        else { return nil }
+        if now < sevenToday { return sevenToday }
+        return calendar.date(byAdding: .day, value: 1, to: sevenToday)
+    }
+
+    /// Body copy for the morning walk-window push. Stays calm and dog-focused.
+    static func morningWindowBody(dogName: String) -> String {
+        "Good morning. Open Trot for \(dogName)'s walk window today."
+    }
 }

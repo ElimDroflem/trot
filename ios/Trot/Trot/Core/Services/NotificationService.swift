@@ -8,6 +8,7 @@ import UserNotifications
 enum NotificationService {
     private static let nudgeID = "trot.nudge"
     private static let recapID = "trot.recap"
+    private static let morningWindowID = "trot.morningWindow"
     private static func milestoneID(_ count: Int) -> String { "trot.milestone.\(count)" }
 
     /// Asks for permission. Idempotent — safe to call repeatedly.
@@ -32,6 +33,7 @@ enum NotificationService {
         await scheduleNudgeIfNeeded(for: dog, now: now, calendar: calendar, center: center)
         await scheduleMilestoneIfNeeded(for: dog, now: now, calendar: calendar, center: center)
         await scheduleRecap(for: dog, now: now, calendar: calendar, center: center)
+        await scheduleMorningWindow(for: dog, now: now, calendar: calendar, center: center)
     }
 
     /// Cancels all Trot-owned pending notifications. Used when the last active dog is archived.
@@ -133,6 +135,37 @@ enum NotificationService {
         )
 
         let request = UNNotificationRequest(identifier: recapID, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    /// Repeating 07:00 daily push pointing at today's walk-window forecast.
+    /// Skipped if the user has no postcode set — we'd be sending them to a tile
+    /// that says "add a postcode", which is a worse experience than silence.
+    private static func scheduleMorningWindow(
+        for dog: Dog,
+        now: Date,
+        calendar: Calendar,
+        center: UNUserNotificationCenter
+    ) async {
+        guard !UserPreferences.postcode.isEmpty else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Walk window"
+        content.body = NotificationDecisions.morningWindowBody(dogName: dog.name)
+        content.sound = .default
+
+        // Repeating daily — only the hour/minute components are passed so the
+        // trigger fires every day at 07:00 local until cancelled.
+        var components = DateComponents()
+        components.hour = 7
+        components.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+
+        let request = UNNotificationRequest(
+            identifier: morningWindowID,
+            content: content,
+            trigger: trigger
+        )
         try? await center.add(request)
     }
 }

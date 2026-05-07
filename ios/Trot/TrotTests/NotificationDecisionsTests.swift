@@ -20,6 +20,24 @@ struct NotificationDecisionsTests {
         return calendar.date(from: components) ?? .now
     }
 
+    // MARK: - Morning window (07:00 daily)
+
+    @Test("morning window: before 7am returns today 7am")
+    func morningWindowBeforeSeven() {
+        let early = date(year: 2026, month: 5, day: 11, hour: 6, minute: 30)
+        let result = NotificationDecisions.morningWindowTime(now: early, calendar: calendar)
+        let expected = date(year: 2026, month: 5, day: 11, hour: 7)
+        #expect(result == expected)
+    }
+
+    @Test("morning window: after 7am returns tomorrow 7am")
+    func morningWindowAfterSeven() {
+        let later = date(year: 2026, month: 5, day: 11, hour: 9)
+        let result = NotificationDecisions.morningWindowTime(now: later, calendar: calendar)
+        let expected = date(year: 2026, month: 5, day: 12, hour: 7)
+        #expect(result == expected)
+    }
+
     // MARK: - Nudge
 
     @Test("nudge: Sunday suppression returns nil")

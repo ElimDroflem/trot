@@ -1,0 +1,42 @@
+import Foundation
+
+/// User-level preferences that aren't tied to a specific dog. Currently:
+/// postcode (for weather lookups). Stored in UserDefaults — no CloudKit sync
+/// in v1, so users on a new device re-enter their postcode. Acceptable
+/// trade-off vs introducing a UserSettings @Model just for one field.
+enum UserPreferences {
+    private static let postcodeKey = "trot.user.postcode"
+    private static let cachedLocationKey = "trot.user.cachedLocation"
+
+    /// Latest postcode the user typed in onboarding or Profile. Whitespace-
+    /// trimmed and uppercased. Empty means unset.
+    static var postcode: String {
+        get {
+            UserDefaults.standard.string(forKey: postcodeKey) ?? ""
+        }
+        set {
+            let cleaned = newValue.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            UserDefaults.standard.set(cleaned, forKey: postcodeKey)
+            // Invalidate the cached lat/lon if the postcode changed — the
+            // weather service will geocode again on next fetch.
+            if let cached = cachedLocation(for: cleaned), cached.postcode == cleaned {
+                // Same postcode, keep cache.
+            } else {
+                UserDefaults.standard.removeObject(forKey: cachedLocationKey)
+            }
+        }
+    }
+
+    /// Returns the cached `WeatherLocation` if its postcode matches the
+    /// requested one. Avoids re-geocoding on every weather fetch.
+    static func cachedLocation(for postcode: String) -> WeatherLocation? {
+        guard let data = UserDefaults.standard.data(forKey: cachedLocationKey) else { return nil }
+        guard let location = try? JSONDecoder().decode(WeatherLocation.self, from: data) else { return nil }
+        return location.postcode == postcode ? location : nil
+    }
+
+    static func setCachedLocation(_ location: WeatherLocation) {
+        guard let data = try? JSONEncoder().encode(location) else { return }
+        UserDefaults.standard.set(data, forKey: cachedLocationKey)
+    }
+}

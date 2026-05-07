@@ -110,6 +110,7 @@ struct HomeView: View {
                             minutesToGo: minutesToGo(for: dog)
                         )
                         DailyDogVoiceRow(dog: dog)
+                        WalkWindowTile(dog: dog)
                         TodayTimeline(
                             walks: walksToday(for: dog),
                             walkWindows: dog.walkWindows ?? [],

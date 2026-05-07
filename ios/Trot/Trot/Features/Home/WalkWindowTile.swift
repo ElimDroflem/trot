@@ -1,0 +1,197 @@
+import SwiftUI
+
+/// "When's the best time to walk today?" tile on the Today tab.
+///
+/// Three visual states:
+///   - **No postcode**: a calm prompt sending the user to Profile to add one.
+///   - **Loading**: a placeholder while geocoding/forecast is in flight.
+///   - **Recommendation**: weather icon, headline, optional detail, and a small
+///     temperature pill.
+///
+/// Loads itself on appear, and re-fetches when the postcode changes (the
+/// `.task(id:)` modifier keys off it). The forecast itself is cached for 30
+/// minutes inside `WeatherService`, so opening the app twice in an hour is one
+/// request.
+struct WalkWindowTile: View {
+    let dog: Dog
+
+    @State private var state: TileState = .loading
+    @State private var postcode: String = UserPreferences.postcode
+
+    enum TileState {
+        case loading
+        case noPostcode
+        case unavailable
+        case ready(WalkRecommendationService.Recommendation)
+    }
+
+    var body: some View {
+        Group {
+            switch state {
+            case .loading:        loadingTile
+            case .noPostcode:     noPostcodeTile
+            case .unavailable:    unavailableTile
+            case .ready(let rec): recommendationTile(rec)
+            }
+        }
+        .task(id: postcode) { await load() }
+        .onAppear {
+            // UserPreferences isn't observable, so re-read on each appear so a
+            // postcode added in Profile/Edit lands on the next Home view.
+            let current = UserPreferences.postcode
+            if current != postcode { postcode = current }
+        }
+    }
+
+    // MARK: - States
+
+    private var loadingTile: some View {
+        tileShell(
+            icon: "cloud",
+            tint: .brandTextTertiary,
+            title: "Checking the forecast…",
+            subtitle: nil,
+            tempPill: nil
+        )
+    }
+
+    private var noPostcodeTile: some View {
+        tileShell(
+            icon: "location.slash",
+            tint: .brandTextTertiary,
+            title: "Add a postcode for the daily walk forecast.",
+            subtitle: "Profile → Edit profile → Where you walk.",
+            tempPill: nil
+        )
+    }
+
+    private var unavailableTile: some View {
+        tileShell(
+            icon: "cloud.slash",
+            tint: .brandTextTertiary,
+            title: "Forecast unavailable.",
+            subtitle: "We'll try again later.",
+            tempPill: nil
+        )
+    }
+
+    private func recommendationTile(_ rec: WalkRecommendationService.Recommendation) -> some View {
+        tileShell(
+            icon: weatherIcon(for: rec.category),
+            tint: weatherTint(for: rec.category),
+            title: rec.headline,
+            subtitle: rec.detail,
+            tempPill: "\(Int(rec.temperatureC.rounded()))°"
+        )
+    }
+
+    // MARK: - Shell
+
+    private func tileShell(
+        icon: String,
+        tint: Color,
+        title: String,
+        subtitle: String?,
+        tempPill: String?
+    ) -> some View {
+        HStack(alignment: .top, spacing: Space.md) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+
+            VStack(alignment: .leading, spacing: Space.xs) {
+                HStack(alignment: .top) {
+                    Text("WALK WINDOW")
+                        .font(.caption.weight(.semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(Color.brandTextTertiary)
+                    Spacer()
+                    if let temp = tempPill {
+                        Text(temp)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(tint)
+                            .padding(.horizontal, Space.xs)
+                            .padding(.vertical, 2)
+                            .background(tint.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                }
+                Text(title)
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.brandTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(Space.md)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+    }
+
+    // MARK: - Loading
+
+    private func load() async {
+        let trimmed = UserPreferences.postcode
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            await update(.noPostcode)
+            return
+        }
+
+        guard let location = await WeatherService.location(for: trimmed) else {
+            await update(.unavailable)
+            return
+        }
+        guard let forecast = await WeatherService.forecast(for: location) else {
+            await update(.unavailable)
+            return
+        }
+
+        if let rec = WalkRecommendationService.recommend(for: dog, forecast: forecast) {
+            await update(.ready(rec))
+        } else {
+            await update(.unavailable)
+        }
+    }
+
+    @MainActor
+    private func update(_ next: TileState) {
+        withAnimation(.brandDefault) { state = next }
+    }
+
+    // MARK: - Visual mapping
+
+    private func weatherIcon(for category: WeatherCategory) -> String {
+        switch category {
+        case .clear:        return "sun.max.fill"
+        case .partlyCloudy: return "cloud.sun.fill"
+        case .cloudy:       return "cloud.fill"
+        case .fog:          return "cloud.fog.fill"
+        case .drizzle:      return "cloud.drizzle.fill"
+        case .rain:         return "cloud.rain.fill"
+        case .snow:         return "cloud.snow.fill"
+        case .thunder:      return "cloud.bolt.rain.fill"
+        }
+    }
+
+    private func weatherTint(for category: WeatherCategory) -> Color {
+        switch category {
+        case .clear, .partlyCloudy: return .brandPrimary
+        case .cloudy, .fog:         return .brandSecondary
+        case .drizzle, .rain:       return .brandSecondary
+        case .snow:                 return .brandTextSecondary
+        case .thunder:              return .brandError
+        }
+    }
+}

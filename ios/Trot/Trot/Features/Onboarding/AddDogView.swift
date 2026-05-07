@@ -28,6 +28,10 @@ struct AddDogView: View {
     @State private var showingBreedPicker = false
     @State private var step: Step
     @State private var greetingLine: String?
+    /// Per-user, not per-dog — bound to `UserPreferences.postcode`. Surfaced in
+    /// onboarding because it unlocks the weather window recommendation on day 1;
+    /// users without one just see a calmer Today tile until they add it.
+    @State private var postcode: String = UserPreferences.postcode
 
     init(editingDog: Dog? = nil, showsCancelButton: Bool = false) {
         self.editingDog = editingDog
@@ -238,6 +242,7 @@ struct AddDogView: View {
                 basicsCard
                 bodyCard
                 activityCard
+                postcodeCard
                 healthCard
                 saveButton
                 Color.clear.frame(height: Space.lg)
@@ -399,6 +404,26 @@ struct AddDogView: View {
         }
     }
 
+    /// Postcode is per-user, used solely for weather-window suggestions. Optional
+    /// — leaving it blank just means the Today tile reads as "Add a postcode for
+    /// your walk forecast" instead of a real recommendation. Whitespace + case
+    /// normalisation happens inside `UserPreferences`.
+    private var postcodeCard: some View {
+        FormCard(title: "Where you walk") {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                TextField("e.g. SW1A 1AA", text: $postcode)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .disableAutocorrection(true)
+                    .submitLabel(.done)
+                Text("Optional. Used for the daily walk-window forecast — never your live location.")
+                    .font(.caption)
+                    .foregroundStyle(Color.brandTextTertiary)
+            }
+            .padding(.vertical, Space.xs)
+        }
+    }
+
     private var healthCard: some View {
         FormCard(title: "Health") {
             FormRow(label: "Arthritis") {
@@ -463,6 +488,9 @@ struct AddDogView: View {
                 savedDog = dog
             }
             try modelContext.save()
+            // Persist postcode (per-user). Setter handles trim + uppercase and
+            // invalidates the cached lat/lon if it changed.
+            UserPreferences.postcode = postcode
             // Newly added dogs become the selected one — both for first-run onboarding
             // and for "add another dog" flows. Edits leave selection alone.
             if !isEditing {
