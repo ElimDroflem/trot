@@ -125,6 +125,7 @@ struct HomeView: View {
                 EmptyDogPlaceholder()
             }
         }
+        .topStatusGlass()
     }
 
     private func placeholderTab(title: String) -> some View {

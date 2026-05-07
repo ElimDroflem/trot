@@ -2,7 +2,7 @@
   "routes": [
     {
       "id": "trot-first-walk",
-      "name": "First walks together",
+      "name": "Walks together",
       "subtitle": "The start of something. Time settling in.",
       "theme": "townLane",
       "totalMinutes": 96,

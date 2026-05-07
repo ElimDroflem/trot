@@ -40,6 +40,7 @@ struct DogProfileView: View {
                 emptyState
             }
         }
+        .topStatusGlass()
         .sheet(isPresented: $showingSettings) {
             if let dog = activeDog {
                 DogSettingsSheet(dog: dog)

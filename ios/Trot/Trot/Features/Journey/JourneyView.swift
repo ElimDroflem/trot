@@ -43,6 +43,7 @@ struct JourneyView: View {
                 EmptyJourneyPlaceholder()
             }
         }
+        .topStatusGlass()
     }
 
     @ViewBuilder
@@ -269,9 +270,9 @@ private struct LandmarkTrail: View {
 
     @State private var pulse = false
 
-    private let maxVisible = 6
-    private let dotSize: CGFloat = 32
-    private let activeSize: CGFloat = 38
+    private let maxVisible = 4
+    private let dotSize: CGFloat = 36
+    private let activeSize: CGFloat = 42
 
     var body: some View {
         let stops = visibleStops
@@ -293,8 +294,8 @@ private struct LandmarkTrail: View {
                         .foregroundStyle(stop.state == .locked ? Color.brandTextTertiary : Color.brandTextPrimary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.85)
                 }
             }
             .padding(.horizontal, Space.xs)
@@ -361,16 +362,12 @@ private struct LandmarkTrail: View {
 
     // MARK: - Stops construction
 
-    /// Window the route's landmarks into 6 visible stops, centred on the
-    /// dog's current progress when possible. The first stop is always a
-    /// "Start" virtual marker (so the trail visibly begins behind the dog).
+    /// Window the route's landmarks into `maxVisible` stops, centred on the
+    /// dog's current progress when possible. No virtual placeholder — the
+    /// real landmarks are the trail.
     private var visibleStops: [TrailStop] {
         let sorted = route.landmarks.sorted { $0.minutesFromStart < $1.minutesFromStart }
-        // Insert a virtual "Start" stop at minute 0 so the dog isn't stranded
-        // at the leftmost real landmark with nothing behind them.
-        var stops: [TrailStop] = [
-            TrailStop(label: "Start", symbolName: "figure.walk", state: .unlocked, isVirtual: true)
-        ]
+        var stops: [TrailStop] = []
         for landmark in sorted {
             let state: StopState = progressMinutes >= landmark.minutesFromStart ? .unlocked : .locked
             let label = state == .unlocked ? landmark.name : "???"

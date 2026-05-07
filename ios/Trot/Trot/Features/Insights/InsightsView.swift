@@ -93,6 +93,7 @@ struct InsightsView: View {
                 }
             }
         }
+        .topStatusGlass()
     }
 
     // MARK: - Filtering
