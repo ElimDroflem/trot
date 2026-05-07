@@ -18,6 +18,7 @@ struct ActivityView: View {
     var body: some View {
         ZStack {
             Color.brandSurface.ignoresSafeArea()
+            WeatherMoodLayer()
 
             if let dog = activeDog {
                 ScrollView {

@@ -25,6 +25,9 @@ import SwiftUI
 struct WeatherMoodLayer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var snapshot: HourlySnapshot?
+    /// Re-read on every appear so a debug-override change in Profile lands
+    /// immediately on the next tab swap.
+    @State private var refreshTrigger: Int = 0
 
     var body: some View {
         Group {
@@ -36,7 +39,8 @@ struct WeatherMoodLayer: View {
                 Color.clear
             }
         }
-        .task { await load() }
+        .task(id: refreshTrigger) { await load() }
+        .onAppear { refreshTrigger &+= 1 }
         .ignoresSafeArea()
     }
 
@@ -102,6 +106,21 @@ struct WeatherMoodLayer: View {
     // MARK: - Load
 
     private func load() async {
+        // DEBUG override: when set, skip the network entirely and synthesise a
+        // snapshot that matches the chosen category. Lets us QA every visual
+        // variant on a sunny day at lunchtime without waiting for real
+        // weather to cooperate. No-op on release builds.
+        #if DEBUG
+        if let forced = DebugOverrides.weatherCategory {
+            await MainActor.run {
+                withAnimation(.brandDefault) {
+                    snapshot = Self.syntheticSnapshot(for: forced)
+                }
+            }
+            return
+        }
+        #endif
+
         let postcode = UserPreferences.postcode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !postcode.isEmpty else { return }
         guard let location = await WeatherService.location(for: postcode) else { return }
@@ -112,6 +131,33 @@ struct WeatherMoodLayer: View {
                 snapshot = current
             }
         }
+    }
+
+    /// Build an `HourlySnapshot` whose `category` resolves to `target` and whose
+    /// other fields read as a plausible example of that weather. Used by the
+    /// DEBUG override path. The wind speed deliberately varies per category so
+    /// cloud drift speed differs visibly between (e.g.) calm and stormy.
+    private static func syntheticSnapshot(for target: WeatherCategory) -> HourlySnapshot {
+        let (code, tempC, precip, wind): (Int, Double, Int, Double) = {
+            switch target {
+            case .clear:        return (0, 18, 0, 6)
+            case .partlyCloudy: return (2, 16, 5, 10)
+            case .cloudy:       return (3, 13, 20, 12)
+            case .fog:          return (45, 9, 10, 4)
+            case .drizzle:      return (51, 11, 60, 14)
+            case .rain:         return (63, 10, 90, 18)
+            case .snow:         return (73, 1, 80, 10)
+            case .thunder:      return (95, 14, 95, 26)
+            }
+        }()
+        return HourlySnapshot(
+            time: .now,
+            temperatureC: tempC,
+            precipitationProbability: precip,
+            weatherCodeRaw: code,
+            windSpeedKmh: wind,
+            isDay: true
+        )
     }
 }
 

@@ -24,6 +24,7 @@ struct DogProfileView: View {
     var body: some View {
         ZStack {
             Color.brandSurface.ignoresSafeArea()
+            WeatherMoodLayer()
 
             if let dog = activeDog {
                 ScrollView {
@@ -36,6 +37,9 @@ struct DogProfileView: View {
                         healthCard(dog: dog)
                         WalkWindowsCard(dog: dog)
                         postcodeCard
+                        #if DEBUG
+                        DebugToolsCard()
+                        #endif
                         addAnotherDogButton
                         archiveButton(dog: dog)
                         Color.clear.frame(height: Space.lg)

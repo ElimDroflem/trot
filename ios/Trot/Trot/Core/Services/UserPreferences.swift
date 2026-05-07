@@ -40,3 +40,33 @@ enum UserPreferences {
         UserDefaults.standard.set(data, forKey: cachedLocationKey)
     }
 }
+
+// MARK: - Debug overrides
+
+/// Lightweight UserDefaults-backed knobs used during development to force
+/// specific UI states without waiting for the real world to cooperate
+/// (sunny weather at 1am, etc.). Reads are gated by the call sites — typically
+/// the override only takes effect in DEBUG builds, but the storage itself is
+/// available everywhere so the override toggle works inside the app.
+enum DebugOverrides {
+    private static let weatherCategoryKey = "trot.debug.weatherCategoryOverride"
+
+    /// Forced weather category. `nil` means "use the real forecast."
+    /// `WeatherMoodLayer` checks this on load (DEBUG only) and skips the
+    /// network call when it's set.
+    static var weatherCategory: WeatherCategory? {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: weatherCategoryKey),
+                  let category = WeatherCategory(rawValue: raw)
+            else { return nil }
+            return category
+        }
+        set {
+            if let category = newValue {
+                UserDefaults.standard.set(category.rawValue, forKey: weatherCategoryKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: weatherCategoryKey)
+            }
+        }
+    }
+}
