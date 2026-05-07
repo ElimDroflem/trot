@@ -612,13 +612,18 @@ private struct ProgressTrack: View {
 }
 
 /// Visual day-strip showing today's walks against the dog's enabled walk windows.
-/// Replaces the text walk list — the user feels the day at a glance: where they
-/// said they'd walk (window tints), what actually happened (coral segments),
-/// and where "now" sits. Tapping a segment opens the existing edit sheet.
+/// Replaces the text walk list — the user feels the day at a glance.
 ///
-/// Range: 5am to 11pm (18 hours). Walks outside that range are clamped visually
-/// (rare in practice). Today is the only day shown — historical days live in
-/// the Activity tab.
+/// Visual layers (back to front):
+///   1. A flat track lane (the day, 5am-11pm) with rounded ends
+///   2. Walk-window tints — full-track-height very-low-opacity coral bands
+///      that read as "highlighted regions of the day" rather than chunky pills
+///   3. Hour ticks every 2 hours along the bottom edge
+///   4. Walks — solid coral pills at full track height
+///   5. "Now" marker — a thin vertical pin with a small dot on top
+///   6. Hour labels (6a, 10a, 2p, 6p, 10p) anchored at their real x-position
+///
+/// Range: 5am to 11pm (18 hours). Walks outside that range are clamped.
 private struct TodayTimeline: View {
     let walks: [Walk]
     let walkWindows: [WalkWindow]
@@ -627,7 +632,9 @@ private struct TodayTimeline: View {
 
     private let startHour: Double = 5
     private let endHour: Double = 23
-    private let trackHeight: CGFloat = 28
+    private let trackHeight: CGFloat = 22
+    private let labelHours: [Int] = [6, 10, 14, 18, 22]
+    private let tickHours: [Int] = [6, 8, 10, 12, 14, 16, 18, 20, 22]
 
     private var hoursSpan: Double { endHour - startHour }
 
@@ -645,26 +652,32 @@ private struct TodayTimeline: View {
             }
 
             GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    // Track baseline
-                    Capsule()
-                        .fill(Color.brandDivider.opacity(0.6))
-                        .frame(height: 4)
+                ZStack(alignment: .topLeading) {
+                    // 1. Track lane (the day)
+                    RoundedRectangle(cornerRadius: trackHeight / 2)
+                        .fill(Color.brandSurface)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: trackHeight / 2)
+                                .stroke(Color.brandDivider.opacity(0.7), lineWidth: 1)
+                        }
+                        .frame(height: trackHeight)
 
-                    // Walk-window tints (where you planned to walk)
+                    // 2. Walk-window tints — soft coral bands marking "the
+                    //    times you said you'd walk." Clipped to the track so
+                    //    the rounded ends bleed cleanly.
                     ForEach(enabledWindows, id: \.persistentModelID) { window in
                         let bounds = windowBounds(for: window.slot, in: geo.size.width)
-                        Capsule()
-                            .fill(Color.brandSecondaryTint)
-                            .frame(width: max(bounds.width, 6), height: trackHeight - 8)
+                        Rectangle()
+                            .fill(Color.brandPrimary.opacity(0.10))
+                            .frame(width: max(bounds.width, 4), height: trackHeight)
                             .offset(x: bounds.x)
                     }
 
-                    // Walks (what actually happened)
+                    // 3. Walks — bold coral pills, the actual data.
                     ForEach(walks) { walk in
                         let bounds = walkBounds(for: walk, in: geo.size.width)
                         Button(action: { onTapWalk(walk) }) {
-                            Capsule()
+                            RoundedRectangle(cornerRadius: trackHeight / 2)
                                 .fill(Color.brandPrimary)
                                 .frame(width: max(bounds.width, 8), height: trackHeight)
                                 .offset(x: bounds.x)
@@ -673,27 +686,52 @@ private struct TodayTimeline: View {
                         .accessibilityLabel("\(walk.durationMinutes)-minute walk. Tap to edit.")
                     }
 
-                    // Now marker
+                    // Track-shape mask so window tints + walks can't bleed
+                    // past the rounded lane. Applied to the whole ZStack via
+                    // .mask below.
+                }
+                .mask {
+                    RoundedRectangle(cornerRadius: trackHeight / 2)
+                        .frame(height: trackHeight)
+                }
+                .overlay(alignment: .topLeading) {
+                    // 4. Now marker — sits on top, ignoring the mask so the
+                    //    pin head can extend a touch above the track.
                     let nowX = nowOffset(in: geo.size.width)
                     if nowX >= 0 && nowX <= geo.size.width {
-                        Capsule()
-                            .fill(Color.brandTextPrimary.opacity(0.45))
-                            .frame(width: 2, height: trackHeight + 8)
-                            .offset(x: nowX - 1, y: -4)
+                        VStack(spacing: 0) {
+                            Circle()
+                                .fill(Color.brandTextPrimary)
+                                .frame(width: 6, height: 6)
+                            Capsule()
+                                .fill(Color.brandTextPrimary.opacity(0.7))
+                                .frame(width: 1.5, height: trackHeight)
+                        }
+                        .offset(x: nowX - 3, y: -3)
+                        .accessibilityHidden(true)
                     }
                 }
-                .frame(height: trackHeight, alignment: .center)
+                .frame(height: trackHeight)
             }
-            .frame(height: trackHeight + 8)
+            .frame(height: trackHeight)
 
-            HStack {
-                ForEach(hourLabels, id: \.self) { label in
-                    Text(label)
-                        .font(.caption2)
-                        .foregroundStyle(Color.brandTextTertiary)
-                    if label != hourLabels.last { Spacer() }
+            // 5. Hour labels anchored at real positions. GeometryReader picks
+            //    up the actual width so 6a sits where 6am is, not where
+            //    Spacer() decided.
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    ForEach(labelHours, id: \.self) { hour in
+                        let x = positionX(forHour: Double(hour), width: geo.size.width)
+                        Text(hourLabel(hour))
+                            .font(.caption2)
+                            .foregroundStyle(Color.brandTextTertiary)
+                            .fixedSize()
+                            .alignmentGuide(.leading) { d in d.width / 2 }
+                            .offset(x: x)
+                    }
                 }
             }
+            .frame(height: 14)
         }
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
@@ -705,10 +743,6 @@ private struct TodayTimeline: View {
         walkWindows.filter(\.enabled)
     }
 
-    private var hourLabels: [String] {
-        ["6a", "10a", "2p", "6p", "10p"]
-    }
-
     private var summary: String {
         if walks.isEmpty {
             return "no walks yet"
@@ -717,7 +751,23 @@ private struct TodayTimeline: View {
         return "\(walks.count.pluralised("walk")) · \(total) min"
     }
 
+    private func hourLabel(_ hour: Int) -> String {
+        switch hour {
+        case 0: return "12a"
+        case 12: return "12p"
+        case 1...11: return "\(hour)a"
+        default: return "\(hour - 12)p"
+        }
+    }
+
     // MARK: - Position math
+
+    /// X-pixel for a given hour on the timeline (no clamping — caller decides
+    /// what to do with values outside the visible span).
+    private func positionX(forHour hour: Double, width: CGFloat) -> CGFloat {
+        let fraction = (hour - startHour) / hoursSpan
+        return CGFloat(fraction) * width
+    }
 
     private func windowBounds(for slot: WalkSlot, in width: CGFloat) -> (x: CGFloat, width: CGFloat) {
         let (start, end) = hourRange(for: slot)
