@@ -179,62 +179,76 @@ private struct SkyGradient: View {
         )
     }
 
+    /// Saturated stops, pushed harder than v1 so the atmosphere actually
+    /// reads through the warm-cream brand surface beneath. Earlier values
+    /// were diluted to the point that a clear afternoon and a clear dusk
+    /// looked similar — both somewhere around "vaguely warm." Now each
+    /// (category × isDay) pair has a distinct palette.
     private var stops: [Color] {
         switch (category, isDay) {
         case (.clear, true):
+            // Bright daytime — saturated sky blue at the top, warm gold mid.
             return [
-                Color(red: 0.62, green: 0.84, blue: 0.96).opacity(0.65),
-                Color(red: 0.92, green: 0.78, blue: 0.55).opacity(0.30),
+                Color(red: 0.42, green: 0.74, blue: 0.96).opacity(0.92),
+                Color(red: 0.62, green: 0.84, blue: 0.96).opacity(0.70),
+                Color(red: 0.96, green: 0.78, blue: 0.45).opacity(0.42),
                 .clear,
             ]
         case (.clear, false):
-            // Dusk: pinks and warm purples. Still bright at the bottom because
-            // we force light mode.
+            // Sunset: deep purple top, sodium-orange middle, warm fade.
             return [
-                Color(red: 0.78, green: 0.62, blue: 0.78).opacity(0.55),
-                Color(red: 0.96, green: 0.74, blue: 0.62).opacity(0.35),
+                Color(red: 0.42, green: 0.30, blue: 0.72).opacity(0.85),
+                Color(red: 0.92, green: 0.40, blue: 0.42).opacity(0.65),
+                Color(red: 0.99, green: 0.62, blue: 0.36).opacity(0.45),
                 .clear,
             ]
         case (.partlyCloudy, true):
             return [
-                Color(red: 0.68, green: 0.82, blue: 0.92).opacity(0.55),
-                Color(red: 0.94, green: 0.86, blue: 0.72).opacity(0.20),
+                Color(red: 0.50, green: 0.76, blue: 0.94).opacity(0.85),
+                Color(red: 0.78, green: 0.86, blue: 0.94).opacity(0.55),
+                Color(red: 0.96, green: 0.84, blue: 0.62).opacity(0.32),
                 .clear,
             ]
         case (.partlyCloudy, false):
             return [
-                Color(red: 0.65, green: 0.62, blue: 0.78).opacity(0.45),
-                Color(red: 0.92, green: 0.78, blue: 0.68).opacity(0.20),
+                Color(red: 0.45, green: 0.38, blue: 0.72).opacity(0.78),
+                Color(red: 0.85, green: 0.54, blue: 0.58).opacity(0.55),
+                Color(red: 0.96, green: 0.74, blue: 0.58).opacity(0.32),
                 .clear,
             ]
         case (.cloudy, _):
             return [
-                Color(red: 0.66, green: 0.70, blue: 0.78).opacity(0.55),
-                Color(red: 0.78, green: 0.80, blue: 0.84).opacity(0.30),
+                Color(red: 0.45, green: 0.52, blue: 0.62).opacity(0.85),
+                Color(red: 0.66, green: 0.72, blue: 0.80).opacity(0.55),
+                Color(red: 0.84, green: 0.86, blue: 0.88).opacity(0.30),
                 .clear,
             ]
         case (.fog, _):
             return [
-                Color(red: 0.82, green: 0.82, blue: 0.84).opacity(0.55),
-                Color(red: 0.86, green: 0.86, blue: 0.86).opacity(0.30),
+                Color(red: 0.72, green: 0.74, blue: 0.78).opacity(0.85),
+                Color(red: 0.84, green: 0.84, blue: 0.86).opacity(0.55),
+                Color(red: 0.92, green: 0.92, blue: 0.92).opacity(0.30),
                 .clear,
             ]
         case (.drizzle, _), (.rain, _):
             return [
-                Color(red: 0.42, green: 0.50, blue: 0.62).opacity(0.55),
-                Color(red: 0.58, green: 0.65, blue: 0.75).opacity(0.30),
+                Color(red: 0.22, green: 0.32, blue: 0.50).opacity(0.92),
+                Color(red: 0.40, green: 0.52, blue: 0.66).opacity(0.65),
+                Color(red: 0.62, green: 0.72, blue: 0.82).opacity(0.32),
                 .clear,
             ]
         case (.thunder, _):
             return [
-                Color(red: 0.32, green: 0.34, blue: 0.46).opacity(0.65),
-                Color(red: 0.48, green: 0.50, blue: 0.62).opacity(0.30),
+                Color(red: 0.18, green: 0.20, blue: 0.34).opacity(0.95),
+                Color(red: 0.32, green: 0.36, blue: 0.50).opacity(0.70),
+                Color(red: 0.50, green: 0.54, blue: 0.66).opacity(0.32),
                 .clear,
             ]
         case (.snow, _):
             return [
-                Color(red: 0.84, green: 0.88, blue: 0.94).opacity(0.65),
-                Color(red: 0.94, green: 0.96, blue: 0.98).opacity(0.30),
+                Color(red: 0.66, green: 0.78, blue: 0.92).opacity(0.85),
+                Color(red: 0.84, green: 0.90, blue: 0.96).opacity(0.55),
+                Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.30),
                 .clear,
             ]
         }
@@ -253,32 +267,32 @@ private struct SunDisc: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
             Canvas { canvas, size in
                 let t = context.date.timeIntervalSinceReferenceDate
-                // Anchor the sun in the top-right at ~75% width, ~22% height.
+                // Anchor the sun in the top-right at ~75% width, ~20% height.
                 let centre = CGPoint(x: size.width * 0.78, y: size.height * 0.18)
-                let coreRadius: CGFloat = 36
-                let haloRadius: CGFloat = 110
+                let coreRadius: CGFloat = 50
+                let haloRadius: CGFloat = 150
 
-                // Soft halo (radial gradient drawn as concentric circles)
-                let haloRect = CGRect(
-                    x: centre.x - haloRadius, y: centre.y - haloRadius,
-                    width: haloRadius * 2, height: haloRadius * 2
-                )
-                canvas.fill(
-                    Path(ellipseIn: haloRect),
-                    with: .color(haloColor.opacity(0.16 * intensity))
-                )
-                let midRect = haloRect.insetBy(dx: 28, dy: 28)
-                canvas.fill(
-                    Path(ellipseIn: midRect),
-                    with: .color(haloColor.opacity(0.20 * intensity))
-                )
+                // Outer glow — three concentric soft rings so the halo reads
+                // through the warm cream brand surface underneath.
+                for i in 0..<3 {
+                    let r = haloRadius - CGFloat(i) * 32
+                    let rect = CGRect(
+                        x: centre.x - r, y: centre.y - r,
+                        width: r * 2, height: r * 2
+                    )
+                    canvas.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(haloColor.opacity((0.16 + Double(i) * 0.08) * intensity))
+                    )
+                }
 
-                // Slow rotating rays — 8 thin lines fanning out from the core.
+                // Slow rotating rays — 12 thin lines (was 8) so the sun
+                // visibly throws light around it.
                 let rotation = t * 0.18
-                let rayInner: CGFloat = coreRadius + 6
-                let rayOuter: CGFloat = coreRadius + 56
-                for i in 0..<8 {
-                    let angle = rotation + Double(i) * (.pi / 4)
+                let rayInner: CGFloat = coreRadius + 8
+                let rayOuter: CGFloat = coreRadius + 78
+                for i in 0..<12 {
+                    let angle = rotation + Double(i) * (.pi / 6)
                     let p1 = CGPoint(
                         x: centre.x + cos(angle) * rayInner,
                         y: centre.y + sin(angle) * rayInner
@@ -292,19 +306,25 @@ private struct SunDisc: View {
                     path.addLine(to: p2)
                     canvas.stroke(
                         path,
-                        with: .color(coreColor.opacity(0.18 * intensity)),
-                        lineWidth: 2
+                        with: .color(coreColor.opacity(0.30 * intensity)),
+                        lineWidth: 2.5
                     )
                 }
 
-                // Core disc
+                // Core disc — opaque so it reads as a real light source.
                 let coreRect = CGRect(
                     x: centre.x - coreRadius, y: centre.y - coreRadius,
                     width: coreRadius * 2, height: coreRadius * 2
                 )
                 canvas.fill(
                     Path(ellipseIn: coreRect),
-                    with: .color(coreColor.opacity(0.85 * intensity))
+                    with: .color(coreColor.opacity(0.98 * intensity))
+                )
+                // Inner highlight for a touch of dimensionality.
+                let innerRect = coreRect.insetBy(dx: 12, dy: 12)
+                canvas.fill(
+                    Path(ellipseIn: innerRect),
+                    with: .color(.white.opacity(0.18 * intensity))
                 )
             }
         }
@@ -312,14 +332,14 @@ private struct SunDisc: View {
 
     private var coreColor: Color {
         isDay
-            ? Color(red: 0.99, green: 0.85, blue: 0.45)
-            : Color(red: 0.99, green: 0.62, blue: 0.48)  // dusk pink
+            ? Color(red: 1.00, green: 0.86, blue: 0.40)   // bright golden noon
+            : Color(red: 1.00, green: 0.52, blue: 0.32)   // hot sunset orange
     }
 
     private var haloColor: Color {
         isDay
-            ? Color(red: 0.99, green: 0.78, blue: 0.42)
-            : Color(red: 0.96, green: 0.55, blue: 0.65)
+            ? Color(red: 1.00, green: 0.78, blue: 0.36)   // gold halo
+            : Color(red: 0.98, green: 0.42, blue: 0.48)   // sunset rose
     }
 }
 
