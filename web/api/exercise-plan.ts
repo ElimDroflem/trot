@@ -12,7 +12,7 @@
 // ios/Trot/Trot/Resources/BreedData.json. Both derive from docs/breed-table.md.
 // TODO(corey, pre-launch): wire a build-time check that fails if the two diverge.
 
-import breedData from "./breed-data.json" with { type: "json" };
+import breedData from "./breed-data.json";
 
 export const config = { runtime: "edge" };
 
