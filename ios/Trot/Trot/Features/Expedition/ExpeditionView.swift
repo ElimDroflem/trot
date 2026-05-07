@@ -284,13 +284,14 @@ struct ExpeditionView: View {
     }
 
     private var nextLandmark: NextLandmark? {
-        // Compute against the LIVE position (logged progress + estimated this session)
-        let liveDog = dog
-        let snapshotProgress = liveDog.routeProgressKm
-        liveDog.routeProgressKm = snapshotProgress + estimatedKm
-        let result = JourneyService.nextLandmark(for: liveDog)
-        liveDog.routeProgressKm = snapshotProgress
-        return result
+        // Compute against the LIVE position (logged progress + estimated this
+        // session). NEVER mutate `dog` here — it's a @Model reference and
+        // mutating from a computed property triggers a render-loop freeze.
+        guard let route = JourneyService.currentRoute(for: dog) else { return nil }
+        return JourneyService.nextLandmark(
+            in: route,
+            progressKm: dog.routeProgressKm + estimatedKm
+        )
     }
 
     private func metersToNext(_ next: NextLandmark) -> Int {

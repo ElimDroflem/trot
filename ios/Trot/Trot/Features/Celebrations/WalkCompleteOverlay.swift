@@ -1,20 +1,22 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Full-screen post-walk dopamine moment. Fires after EVERY walk save (manual
 /// log or expedition mode finish). The visual story:
-///   1. Dog photo (or placeholder) inside a coral ring that fills 0→100%.
-///   2. Headline — "X minutes with Luna!" in display type.
-///   3. Generated dog-voice line in italics ("Sniffed everything past the
+///   1. Confetti burst from the centre + success haptic the moment it lands.
+///   2. Dog photo zooms up inside a coral ring that fills 0→100%.
+///   3. Headline pops in — "X minutes with Luna!" in display type.
+///   4. Generated dog-voice line in italics ("Sniffed everything past the
 ///      duck pond!") — fetched from `LLMService` on appear; absent on miss.
-///   4. Route progress mini-bar that animates from oldFraction → newFraction.
-///   5. Optional landmark stamps if any landmarks were crossed.
-///   6. Optional "[Route name] complete" line if a route finished.
-///   7. Continue button.
+///   5. Route progress mini-bar that animates from oldFraction → newFraction.
+///   6. Optional landmark stamps if any landmarks were crossed.
+///   7. Optional "[Route name] complete!" line if a route finished.
+///   8. Continue button.
 ///
-/// New brand voice: celebration carve-out applies. Exclamation marks allowed
-/// and encouraged; the dopamine comes from the visual progression PLUS the
-/// generated dog-voice that names something specific from the walk.
+/// New brand voice: celebration carve-out applies. Loud, share-worthy,
+/// exclamation marks. The dopamine comes from staggered springs, haptic
+/// feedback, and the dog-voice line naming something specific from the walk.
 struct WalkCompleteOverlay: View {
     let event: PendingWalkComplete
     /// Optional — needed for the LLM dog-voice fetch. When nil (rare: dog
@@ -28,6 +30,10 @@ struct WalkCompleteOverlay: View {
     @State private var ringFraction: Double = 0
     @State private var routeFraction: Double = 0
     @State private var dogVoiceLine: String?
+    @State private var photoScale: CGFloat = 0.65
+    @State private var headlineScale: CGFloat = 0.85
+    @State private var headlineOpacity: Double = 0
+    @State private var confettiTrigger = 0
 
     var body: some View {
         ZStack {
@@ -36,10 +42,18 @@ struct WalkCompleteOverlay: View {
             VStack(spacing: Space.lg) {
                 Spacer()
 
-                photoWithRing
-                    .frame(width: 180, height: 180)
+                ZStack {
+                    photoWithRing
+                        .frame(width: 180, height: 180)
+                        .scaleEffect(photoScale)
+                    ConfettiBurst(trigger: confettiTrigger)
+                        .frame(width: 220, height: 220)
+                        .allowsHitTesting(false)
+                }
 
                 headline
+                    .scaleEffect(headlineScale)
+                    .opacity(headlineOpacity)
 
                 if let line = dogVoiceLine {
                     dogVoiceQuote(line)
@@ -74,7 +88,6 @@ struct WalkCompleteOverlay: View {
                 .padding(.bottom, Space.xl)
             }
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 16)
         }
         .onAppear {
             runEntranceAnimation()
@@ -89,17 +102,40 @@ struct WalkCompleteOverlay: View {
             appeared = true
             ringFraction = 1
             routeFraction = event.newFraction
-        } else {
-            withAnimation(.brandDefault) { appeared = true }
-            withAnimation(.brandCelebration.delay(0.15)) {
-                ringFraction = 1
-            }
-            // Initialise routeFraction at the OLD position so the animate-to-new
-            // produces a visible bar advance.
-            routeFraction = event.oldFraction
-            withAnimation(.brandDefault.delay(0.45)) {
-                routeFraction = event.newFraction
-            }
+            photoScale = 1
+            headlineScale = 1
+            headlineOpacity = 1
+            return
+        }
+
+        // Success haptic the instant the overlay lands.
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        // Surface fade.
+        withAnimation(.brandDefault) { appeared = true }
+
+        // Photo zooms up + ring fills, in sync.
+        withAnimation(.brandCelebration.delay(0.05)) {
+            photoScale = 1
+            ringFraction = 1
+        }
+
+        // Confetti at the apex of the photo zoom.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            confettiTrigger += 1
+        }
+
+        // Headline pops in just after.
+        withAnimation(.brandCelebration.delay(0.25)) {
+            headlineScale = 1
+            headlineOpacity = 1
+        }
+
+        // Initialise routeFraction at the OLD position so the animate-to-new
+        // produces a visible bar advance.
+        routeFraction = event.oldFraction
+        withAnimation(.brandDefault.delay(0.55)) {
+            routeFraction = event.newFraction
         }
     }
 
@@ -256,3 +292,77 @@ struct WalkCompleteOverlay: View {
     }
 }
 
+// MARK: - Confetti
+
+/// Lightweight confetti burst — 18 small coral / secondary dots radiating
+/// from the centre, fading and falling slightly. Pure SwiftUI, no library.
+/// Re-fires whenever `trigger` changes.
+private struct ConfettiBurst: View {
+    let trigger: Int
+
+    private let pieceCount = 18
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<pieceCount, id: \.self) { index in
+                ConfettiPiece(
+                    seed: index,
+                    trigger: trigger
+                )
+            }
+        }
+    }
+}
+
+private struct ConfettiPiece: View {
+    let seed: Int
+    let trigger: Int
+
+    @State private var animated = false
+
+    /// Stable per-piece randomness keyed off seed so each piece has a
+    /// distinct trajectory but the result is deterministic across renders.
+    private var angle: Double {
+        Double(seed) * (360.0 / 18.0) + Double(seed % 3) * 7
+    }
+
+    private var distance: CGFloat {
+        90 + CGFloat(seed % 4) * 14
+    }
+
+    private var color: Color {
+        seed % 2 == 0 ? Color.brandPrimary : Color.brandSecondary
+    }
+
+    private var size: CGFloat {
+        seed % 3 == 0 ? 8 : 6
+    }
+
+    var body: some View {
+        let radians = angle * .pi / 180
+        let dx = cos(radians) * distance
+        let dy = sin(radians) * distance
+
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+            .offset(
+                x: animated ? dx : 0,
+                y: animated ? dy + 12 : 0  // slight downward bias as they "fall"
+            )
+            .scaleEffect(animated ? 0.4 : 1)
+            .opacity(animated ? 0 : 1)
+            .onChange(of: trigger) { _, _ in
+                animated = false
+                withAnimation(.easeOut(duration: 0.9)) {
+                    animated = true
+                }
+            }
+            .onAppear {
+                guard trigger > 0 else { return }
+                withAnimation(.easeOut(duration: 0.9)) {
+                    animated = true
+                }
+            }
+    }
+}

@@ -162,13 +162,22 @@ enum JourneyService {
     /// Used by JourneyView ("240m to ???") and ExpeditionView (live countdown).
     static func nextLandmark(for dog: Dog, in routes: [Route] = allRoutes) -> NextLandmark? {
         guard let route = currentRoute(for: dog, in: routes) else { return nil }
-        let progress = dog.routeProgressKm
+        return nextLandmark(in: route, progressKm: dog.routeProgressKm)
+    }
+
+    /// Non-mutating variant. Takes a route + progress in km directly so callers
+    /// (esp. ExpeditionView, which adds in-flight estimated km) can compute
+    /// against a hypothetical position without touching the Dog model. Critical
+    /// for any view that reads this in a computed property — `Dog` is a @Model
+    /// reference type, mutating it from a render path causes infinite invalidate
+    /// loops that freeze the UI.
+    static func nextLandmark(in route: Route, progressKm: Double) -> NextLandmark? {
         guard let next = route.landmarks
-            .filter({ $0.kmFromStart > progress })
+            .filter({ $0.kmFromStart > progressKm })
             .min(by: { $0.kmFromStart < $1.kmFromStart })
         else { return nil }
 
-        let meters = max(0, Int(((next.kmFromStart - progress) * 1000).rounded()))
+        let meters = max(0, Int(((next.kmFromStart - progressKm) * 1000).rounded()))
         let isFinal = next.id == route.finalLandmark?.id
         return NextLandmark(landmark: next, metersAway: meters, isFinalLandmarkOfRoute: isFinal)
     }
