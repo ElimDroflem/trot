@@ -25,11 +25,6 @@ final class ExpeditionState {
         Int(round(Double(elapsedSeconds) / 60.0))
     }
 
-    /// Estimated km covered this session, given the dog's pace (km/h).
-    func estimatedKm(pace: Double) -> Double {
-        (pace / 3600.0) * Double(elapsedSeconds)
-    }
-
     func markLandmarkFired(_ id: String) {
         firedLandmarkIDs.insert(id)
     }

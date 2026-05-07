@@ -1,12 +1,17 @@
 import Foundation
 
 /// The journey mechanic: each minute walked moves the dog along an active route.
-/// Landmarks unlock as cumulative `routeProgressKm` crosses their `kmFromStart`.
-/// When a route is fully traversed, the dog auto-advances to the next route in the
-/// sequence (with any residual km carried over).
+/// Landmarks unlock as cumulative `routeProgressMinutes` crosses their
+/// `minutesFromStart`. When a route is fully traversed, the dog auto-advances
+/// to the next route in the sequence (with any residual minutes carried over).
 ///
 /// Pure-function namespace, same shape as `StreakService`/`MilestoneService`.
 /// Mutates the passed-in `Dog` in `applyWalk` (caller saves the model context).
+///
+/// **Time, not distance.** The app collects walk duration only. We never measure
+/// real km. Routes are sized in minutes (calibrated against ~5 km/h so the
+/// real-world geography stays meaningful as flavor) and progression is
+/// `+minutes`. See `JourneyService+Routes.swift` for the rationale in full.
 enum JourneyService {
     /// Fixed unlock order. After the final route completes, loops back to the starter
     /// — extremely rare in v1 (~3+ months of walking to clear all four routes).
@@ -48,63 +53,43 @@ enum JourneyService {
         return route(for: routeSequence.first ?? "", in: routes)
     }
 
-    // MARK: - Pace
-
-    /// Walking pace in km/h, modulated by the dog's owner-rated activity level.
-    static func paceKmH(for activityLevel: ActivityLevel) -> Double {
-        switch activityLevel {
-        case .low: return 4.0
-        case .moderate: return 5.0
-        case .high: return 5.5
-        }
-    }
-
-    /// Distance covered in `minutes` at the given pace.
-    static func km(forMinutes minutes: Int, pace: Double) -> Double {
-        guard minutes > 0, pace > 0 else { return 0 }
-        return (pace / 60.0) * Double(minutes)
-    }
-
     // MARK: - Walk application (mutates dog)
 
-    /// Apply a walk of `minutes` minutes to the dog. Mutates `dog.routeProgressKm`
-    /// (and possibly `dog.activeRouteID` + `dog.completedRouteIDs` if the walk
-    /// completes the active route). Returns the structured outcome for the
-    /// celebration flow to render.
+    /// Apply a walk of `minutes` minutes to the dog. Mutates
+    /// `dog.routeProgressMinutes` (and possibly `dog.activeRouteID` +
+    /// `dog.completedRouteIDs` if the walk completes the active route).
+    /// Returns the structured outcome for the celebration flow to render.
     @discardableResult
     static func applyWalk(minutes: Int, to dog: Dog, in routes: [Route] = allRoutes) -> WalkApplication {
         guard minutes > 0 else {
-            return WalkApplication(kmAdded: 0, landmarksCrossed: [], routeCompleted: nil, nextRoute: nil)
+            return WalkApplication(minutesAdded: 0, landmarksCrossed: [], routeCompleted: nil, nextRoute: nil)
         }
-
-        let pace = paceKmH(for: dog.activityLevel)
-        let totalAdded = km(forMinutes: minutes, pace: pace)
 
         var allCrossings: [Landmark] = []
         var firstCompletedRoute: Route?
         var firstNextRoute: Route?
-        var remaining = totalAdded
-        // Safety bound: at most 4 route completions in a single walk. A 24-hour
-        // walk at high pace covers ~130km; the longest single route is 160km;
-        // realistically this loop runs once even for absurd walks.
+        var remaining = minutes
+        // Safety bound: at most 4 route completions in a single walk. Even a
+        // 24-hour single walk wouldn't clear the 32-hour South Downs route, so
+        // this loop runs once for any realistic walk.
         var safety = 4
 
         while remaining > 0, safety > 0 {
             safety -= 1
             guard let route = currentRoute(for: dog, in: routes) else { break }
-            let oldKm = dog.routeProgressKm
-            let proposedKm = oldKm + remaining
+            let oldMinutes = dog.routeProgressMinutes
+            let proposedMinutes = oldMinutes + remaining
 
-            if proposedKm < route.totalKm {
+            if proposedMinutes < route.totalMinutes {
                 // Stays within current route.
-                let crossings = landmarksCrossed(from: oldKm, to: proposedKm, in: route)
+                let crossings = landmarksCrossed(from: oldMinutes, to: proposedMinutes, in: route)
                 allCrossings.append(contentsOf: crossings)
-                dog.routeProgressKm = proposedKm
+                dog.routeProgressMinutes = proposedMinutes
                 remaining = 0
             } else {
                 // Walk completes (or overflows) the current route.
-                let consumedKm = route.totalKm - oldKm
-                let crossings = landmarksCrossed(from: oldKm, to: route.totalKm, in: route)
+                let consumedMinutes = route.totalMinutes - oldMinutes
+                let crossings = landmarksCrossed(from: oldMinutes, to: route.totalMinutes, in: route)
                 allCrossings.append(contentsOf: crossings)
 
                 if firstCompletedRoute == nil {
@@ -119,13 +104,13 @@ enum JourneyService {
                     firstNextRoute = self.route(for: nextID, in: routes)
                 }
                 dog.activeRouteID = nextID
-                dog.routeProgressKm = 0
-                remaining -= consumedKm
+                dog.routeProgressMinutes = 0
+                remaining -= consumedMinutes
             }
         }
 
         return WalkApplication(
-            kmAdded: totalAdded,
+            minutesAdded: minutes,
             landmarksCrossed: allCrossings,
             routeCompleted: firstCompletedRoute,
             nextRoute: firstNextRoute
@@ -144,49 +129,52 @@ enum JourneyService {
 
     // MARK: - Pure queries
 
-    /// Landmarks of `route` whose `kmFromStart` falls in `(startKm, endKm]`.
-    /// Strictly-greater on the start so a landmark at exactly `startKm` doesn't
+    /// Landmarks of `route` whose `minutesFromStart` falls in `(startMinutes, endMinutes]`.
+    /// Strictly-greater on the start so a landmark at exactly `startMinutes` doesn't
     /// re-fire (the user already crossed it on a previous walk).
     static func landmarksCrossed(
-        from startKm: Double,
-        to endKm: Double,
+        from startMinutes: Int,
+        to endMinutes: Int,
         in route: Route
     ) -> [Landmark] {
-        guard endKm > startKm else { return [] }
+        guard endMinutes > startMinutes else { return [] }
         return route.landmarks
-            .filter { $0.kmFromStart > startKm && $0.kmFromStart <= endKm }
-            .sorted { $0.kmFromStart < $1.kmFromStart }
+            .filter { $0.minutesFromStart > startMinutes && $0.minutesFromStart <= endMinutes }
+            .sorted { $0.minutesFromStart < $1.minutesFromStart }
     }
 
     /// First landmark on the dog's current route that they haven't reached yet.
-    /// Used by JourneyView ("240m to ???") and ExpeditionView (live countdown).
+    /// Used by JourneyView ("12 min to ???") and ExpeditionView (live countdown).
     static func nextLandmark(for dog: Dog, in routes: [Route] = allRoutes) -> NextLandmark? {
         guard let route = currentRoute(for: dog, in: routes) else { return nil }
-        return nextLandmark(in: route, progressKm: dog.routeProgressKm)
+        return nextLandmark(in: route, progressMinutes: dog.routeProgressMinutes)
     }
 
-    /// Non-mutating variant. Takes a route + progress in km directly so callers
-    /// (esp. ExpeditionView, which adds in-flight estimated km) can compute
-    /// against a hypothetical position without touching the Dog model. Critical
-    /// for any view that reads this in a computed property — `Dog` is a @Model
-    /// reference type, mutating it from a render path causes infinite invalidate
-    /// loops that freeze the UI.
-    static func nextLandmark(in route: Route, progressKm: Double) -> NextLandmark? {
+    /// Non-mutating variant. Takes a route + progress in minutes directly so
+    /// callers (esp. ExpeditionView, which adds in-flight elapsed minutes) can
+    /// compute against a hypothetical position without touching the Dog model.
+    /// Critical for any view that reads this in a computed property — `Dog` is
+    /// a @Model reference type, mutating it from a render path causes infinite
+    /// invalidate loops that freeze the UI.
+    static func nextLandmark(in route: Route, progressMinutes: Int) -> NextLandmark? {
         guard let next = route.landmarks
-            .filter({ $0.kmFromStart > progressKm })
-            .min(by: { $0.kmFromStart < $1.kmFromStart })
+            .filter({ $0.minutesFromStart > progressMinutes })
+            .min(by: { $0.minutesFromStart < $1.minutesFromStart })
         else { return nil }
 
-        let meters = max(0, Int(((next.kmFromStart - progressKm) * 1000).rounded()))
+        let minutesAway = max(0, next.minutesFromStart - progressMinutes)
         let isFinal = next.id == route.finalLandmark?.id
-        return NextLandmark(landmark: next, metersAway: meters, isFinalLandmarkOfRoute: isFinal)
+        return NextLandmark(landmark: next, minutesAway: minutesAway, isFinalLandmarkOfRoute: isFinal)
     }
 }
 
 // MARK: - Returned models
 
 struct WalkApplication: Sendable {
-    let kmAdded: Double
+    /// Minutes credited to the route by this walk. Equal to the saved walk's
+    /// `durationMinutes` unless the walk straddled a route boundary, in which
+    /// case still the full walk duration — the active route advances mid-walk.
+    let minutesAdded: Int
     /// Every landmark crossed by this single walk, in order. May span more than
     /// one route if the walk was long enough to complete a route mid-stride.
     let landmarksCrossed: [Landmark]
@@ -199,6 +187,8 @@ struct WalkApplication: Sendable {
 
 struct NextLandmark: Sendable {
     let landmark: Landmark
-    let metersAway: Int
+    /// Minutes of walking remaining before this landmark unlocks. 0 means the
+    /// dog is right at it.
+    let minutesAway: Int
     let isFinalLandmarkOfRoute: Bool
 }

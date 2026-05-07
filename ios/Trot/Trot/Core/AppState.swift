@@ -117,10 +117,10 @@ final class AppState {
         minutes: Int,
         isFirstWalk: Bool,
         application: WalkApplication,
-        oldProgressKm: Double,
-        newProgressKm: Double,
+        oldProgressMinutes: Int,
+        newProgressMinutes: Int,
         routeName: String,
-        routeTotalKm: Double
+        routeTotalMinutes: Int
     ) {
         let nextLandmark = JourneyService.nextLandmark(for: dog)?.landmark.name
         let event = PendingWalkComplete(
@@ -128,11 +128,11 @@ final class AppState {
             dogName: dog.name.isEmpty ? "Your dog" : dog.name,
             minutes: minutes,
             isFirstWalk: isFirstWalk,
-            kmAdded: application.kmAdded,
-            oldProgressKm: oldProgressKm,
-            newProgressKm: newProgressKm,
+            minutesAdded: application.minutesAdded,
+            oldProgressMinutes: oldProgressMinutes,
+            newProgressMinutes: newProgressMinutes,
             routeName: routeName,
-            routeTotalKm: routeTotalKm,
+            routeTotalMinutes: routeTotalMinutes,
             landmarksCrossed: application.landmarksCrossed,
             nextLandmarkName: nextLandmark,
             routeCompleted: application.routeCompleted?.name
@@ -174,11 +174,14 @@ struct PendingWalkComplete: Identifiable, Sendable {
     /// LLM toward a more cinematic post-walk line. The visual milestone
     /// celebration for "first walk" rides on top via `MilestoneService`.
     let isFirstWalk: Bool
-    let kmAdded: Double
-    let oldProgressKm: Double
-    let newProgressKm: Double
+    /// Minutes credited to the active route by this walk. Equal to `minutes`
+    /// in normal cases; differs only on degenerate edge cases (zero-minute
+    /// walks return 0 added).
+    let minutesAdded: Int
+    let oldProgressMinutes: Int
+    let newProgressMinutes: Int
     let routeName: String
-    let routeTotalKm: Double
+    let routeTotalMinutes: Int
     let landmarksCrossed: [Landmark]
     /// Name of the very next landmark the dog hasn't reached yet, if any.
     /// Lets the LLM hint at what's coming ("Tea Hut next time?").
@@ -194,10 +197,10 @@ struct PendingWalkComplete: Identifiable, Sendable {
     /// 0...1 progress on the active route AT THE MOMENT the walk landed.
     /// Used by the overlay to animate the route bar from old to new.
     var oldFraction: Double {
-        routeTotalKm > 0 ? min(1, max(0, oldProgressKm / routeTotalKm)) : 0
+        routeTotalMinutes > 0 ? min(1, max(0, Double(oldProgressMinutes) / Double(routeTotalMinutes))) : 0
     }
 
     var newFraction: Double {
-        routeTotalKm > 0 ? min(1, max(0, newProgressKm / routeTotalKm)) : 0
+        routeTotalMinutes > 0 ? min(1, max(0, Double(newProgressMinutes) / Double(routeTotalMinutes))) : 0
     }
 }

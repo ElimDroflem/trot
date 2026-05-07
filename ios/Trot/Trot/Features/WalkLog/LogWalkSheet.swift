@@ -210,7 +210,7 @@ struct LogWalkSheet: View {
         guard minutes > 0 else { return }
         for dog in dogs {
             guard let route = JourneyService.currentRoute(for: dog) else { continue }
-            let oldKm = dog.routeProgressKm
+            let oldMinutes = dog.routeProgressMinutes
             // First-walk detection: at this point the new walk has been saved,
             // so a count of exactly 1 means this is the dog's debut.
             let isFirstWalk = (dog.walks ?? []).count == 1
@@ -222,10 +222,10 @@ struct LogWalkSheet: View {
                 minutes: minutes,
                 isFirstWalk: isFirstWalk,
                 application: application,
-                oldProgressKm: oldKm,
-                newProgressKm: application.routeCompleted == nil ? dog.routeProgressKm : route.totalKm,
+                oldProgressMinutes: oldMinutes,
+                newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
                 routeName: route.name,
-                routeTotalKm: route.totalKm
+                routeTotalMinutes: route.totalMinutes
             )
         }
         try? modelContext.save()

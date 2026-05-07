@@ -225,7 +225,7 @@ struct WalkCompleteOverlay: View {
                     .tracking(0.5)
                     .foregroundStyle(Color.brandTextTertiary)
                 Spacer()
-                Text("+\(formatKm(event.kmAdded)) km")
+                Text("+\(event.minutesAdded) min")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.brandPrimary)
             }
@@ -284,12 +284,6 @@ struct WalkCompleteOverlay: View {
         }
     }
 
-    private func formatKm(_ km: Double) -> String {
-        if km < 1.0 {
-            return String(format: "%.2f", km)
-        }
-        return String(format: "%.1f", km)
-    }
 }
 
 // MARK: - Confetti

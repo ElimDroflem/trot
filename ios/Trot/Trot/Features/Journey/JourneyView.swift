@@ -42,13 +42,13 @@ struct JourneyView: View {
     @ViewBuilder
     private func journeyContent(dog: Dog, route: Route) -> some View {
         let next = JourneyService.nextLandmark(for: dog)
-        let recentLandmarks = recentlyUnlocked(route: route, progressKm: dog.routeProgressKm)
+        let recentLandmarks = recentlyUnlocked(route: route, progressMinutes: dog.routeProgressMinutes)
 
         ScrollView {
             VStack(spacing: Space.lg) {
-                JourneyHero(dog: dog, route: route, progressKm: dog.routeProgressKm)
+                JourneyHero(dog: dog, route: route, progressMinutes: dog.routeProgressMinutes)
 
-                NextLandmarkPanel(next: next, route: route, progressKm: dog.routeProgressKm)
+                NextLandmarkPanel(next: next, route: route, progressMinutes: dog.routeProgressMinutes)
 
                 if !recentLandmarks.isEmpty {
                     RecentLandmarksSection(landmarks: recentLandmarks, route: route)
@@ -80,11 +80,11 @@ struct JourneyView: View {
         .padding(Space.xl)
     }
 
-    /// Up to five most recent unlocked landmarks, in reverse km order.
-    private func recentlyUnlocked(route: Route, progressKm: Double) -> [Landmark] {
+    /// Up to five most recent unlocked landmarks, in reverse minute order.
+    private func recentlyUnlocked(route: Route, progressMinutes: Int) -> [Landmark] {
         route.landmarks
-            .filter { $0.kmFromStart <= progressKm }
-            .sorted { $0.kmFromStart > $1.kmFromStart }
+            .filter { $0.minutesFromStart <= progressMinutes }
+            .sorted { $0.minutesFromStart > $1.minutesFromStart }
             .prefix(5)
             .map { $0 }
     }
@@ -97,7 +97,7 @@ struct JourneyView: View {
 private struct JourneyHero: View {
     let dog: Dog
     let route: Route
-    let progressKm: Double
+    let progressMinutes: Int
 
     @State private var pulse = false
 
@@ -141,15 +141,16 @@ private struct JourneyHero: View {
     }
 
     private var statsLabel: String {
-        let progress = formatKm(progressKm)
-        let total = formatKm(route.totalKm)
-        let toGo = formatKm(max(0, route.totalKm - progressKm))
-        return "\(progress) of \(total) km · \(toGo) to go"
+        let toGo = max(0, route.totalMinutes - progressMinutes)
+        return "\(formatDuration(progressMinutes)) of \(formatDuration(route.totalMinutes)) · \(formatDuration(toGo)) to go"
     }
 
-    private func formatKm(_ km: Double) -> String {
-        if km >= 10 { return String(format: "%.0f", km) }
-        return String(format: "%.1f", km)
+    /// "12 min" / "2h 15m" — concise, headline-suitable.
+    private func formatDuration(_ minutes: Int) -> String {
+        if minutes < 60 { return "\(minutes) min" }
+        let h = minutes / 60
+        let m = minutes % 60
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
     @ViewBuilder
@@ -182,7 +183,7 @@ private struct JourneyHero: View {
 private struct NextLandmarkPanel: View {
     let next: NextLandmark?
     let route: Route
-    let progressKm: Double
+    let progressMinutes: Int
 
     @State private var animatedFraction: Double = 0
 
@@ -194,7 +195,7 @@ private struct NextLandmarkPanel: View {
                         animatedFraction = fractionToNext(next: next)
                     }
                 }
-                .onChange(of: progressKm) { _, _ in
+                .onChange(of: progressMinutes) { _, _ in
                     withAnimation(.brandDefault) {
                         animatedFraction = fractionToNext(next: next)
                     }
@@ -219,7 +220,7 @@ private struct NextLandmarkPanel: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
-                Text(distanceLabel(metersAway: next.metersAway))
+                Text(durationLabel(minutesAway: next.minutesAway))
                     .font(.displayMedium)
                     .foregroundStyle(Color.brandPrimary)
                 Text("to ???")
@@ -244,17 +245,18 @@ private struct NextLandmarkPanel: View {
         .background(Color.brandPrimaryTint)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(next.metersAway) metres to the next landmark.")
+        .accessibilityLabel("\(next.minutesAway) minutes to the next landmark.")
     }
 
-    /// "240m" up to ~999m, then "1.2 km" past that. Distances are pace-based
-    /// estimates per spec — the precision conveyed should match.
-    private func distanceLabel(metersAway: Int) -> String {
-        if metersAway < 1_000 {
-            return "\(metersAway)m"
+    /// "12 min" up to 59 min; "1h 15m" past that. Mirrors the hero's stats
+    /// formatting so the headline number and the to-go number share an idiom.
+    private func durationLabel(minutesAway: Int) -> String {
+        if minutesAway < 60 {
+            return "\(minutesAway) min"
         }
-        let km = Double(metersAway) / 1_000
-        return String(format: "%.1f km", km)
+        let h = minutesAway / 60
+        let m = minutesAway % 60
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
     private var routeCompleteContent: some View {
@@ -273,17 +275,17 @@ private struct NextLandmarkPanel: View {
     }
 
     /// How close are we to the next landmark, expressed as a fraction of the
-    /// distance between the previous landmark (or start) and this one. Drives
+    /// time between the previous landmark (or start) and this one. Drives
     /// the progress bar fill.
     private func fractionToNext(next: NextLandmark) -> Double {
         let landmarksBefore = route.landmarks
-            .filter { $0.kmFromStart < next.landmark.kmFromStart }
-            .sorted { $0.kmFromStart < $1.kmFromStart }
-        let prevKm = landmarksBefore.last?.kmFromStart ?? 0
-        let span = next.landmark.kmFromStart - prevKm
+            .filter { $0.minutesFromStart < next.landmark.minutesFromStart }
+            .sorted { $0.minutesFromStart < $1.minutesFromStart }
+        let prevMinutes = landmarksBefore.last?.minutesFromStart ?? 0
+        let span = next.landmark.minutesFromStart - prevMinutes
         guard span > 0 else { return 1 }
-        let progressedInSpan = max(0, progressKm - prevKm)
-        return min(1, max(0.02, progressedInSpan / span))
+        let progressedInSpan = max(0, progressMinutes - prevMinutes)
+        return min(1, max(0.02, Double(progressedInSpan) / Double(span)))
     }
 }
 

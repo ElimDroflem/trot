@@ -5,12 +5,11 @@ import Combine
 /// Live-walk sheet — the heart of expedition mode. Replaces "Log a past walk"
 /// for new walks. While open, a 1Hz timer drives:
 ///   - the elapsed-time display
-///   - the estimated distance (pace × elapsed)
-///   - the live "X metres to ???" countdown to the next landmark
+///   - the live "X minutes to ???" countdown to the next landmark
 ///   - mid-walk landmark celebration toasts when the dog crosses a landmark
 ///
-/// Distance is pace-based estimation (matches the rest of the app's no-GPS
-/// stance per spec.md). Wall-clock time means backgrounding doesn't lose
+/// Time-based throughout — landmarks unlock by accumulated minutes, not by
+/// estimated distance. Wall-clock time means backgrounding doesn't lose
 /// progress.
 struct ExpeditionView: View {
     let dog: Dog
@@ -138,16 +137,9 @@ struct ExpeditionView: View {
                 .font(.system(size: 56, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.brandTextPrimary)
                 .monospacedDigit()
-            HStack(spacing: Space.sm) {
-                Text(formatKm(estimatedKm))
-                    .font(.bodyLarge.weight(.semibold))
-                    .foregroundStyle(Color.brandPrimary)
-                Text("·")
-                    .foregroundStyle(Color.brandTextTertiary)
-                Text("pace \(String(format: "%.1f", pace))")
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
-            }
+            Text("with \(dog.name)")
+                .font(.bodyMedium)
+                .foregroundStyle(Color.brandTextSecondary)
         }
     }
 
@@ -158,7 +150,7 @@ struct ExpeditionView: View {
                 HStack {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(Color.brandTextTertiary)
-                    Text("\(metersToNext(next))m to ???")
+                    Text("\(next.minutesAway) min to ???")
                         .font(.bodyLarge.weight(.semibold))
                         .foregroundStyle(Color.brandTextPrimary)
                     Spacer()
@@ -208,12 +200,12 @@ struct ExpeditionView: View {
             }
         }
 
-        // Mid-walk landmark detection: which landmarks does the live estimated
-        // total cross?
+        // Mid-walk landmark detection: live position is the dog's saved
+        // progress on the route + the minutes elapsed in this session.
         guard let route = JourneyService.currentRoute(for: dog) else { return }
-        let live = dog.routeProgressKm + estimatedKm
-        for landmark in route.landmarks where landmark.kmFromStart > dog.routeProgressKm {
-            if landmark.kmFromStart <= live, !state.firedLandmarkIDs.contains(landmark.id) {
+        let live = dog.routeProgressMinutes + state.elapsedMinutes
+        for landmark in route.landmarks where landmark.minutesFromStart > dog.routeProgressMinutes {
+            if landmark.minutesFromStart <= live, !state.firedLandmarkIDs.contains(landmark.id) {
                 state.markLandmarkFired(landmark.id)
                 withAnimation(.brandCelebration) {
                     visibleLandmark = landmark
@@ -255,7 +247,7 @@ struct ExpeditionView: View {
 
         // Journey progression + walk-complete celebration
         if let route = JourneyService.currentRoute(for: dog) {
-            let oldKm = dog.routeProgressKm
+            let oldMinutes = dog.routeProgressMinutes
             let isFirstWalk = (dog.walks ?? []).count == 1
             let application = JourneyService.applyWalk(minutes: minutes, to: dog)
             appState.enqueueWalkComplete(
@@ -263,10 +255,10 @@ struct ExpeditionView: View {
                 minutes: minutes,
                 isFirstWalk: isFirstWalk,
                 application: application,
-                oldProgressKm: oldKm,
-                newProgressKm: application.routeCompleted == nil ? dog.routeProgressKm : route.totalKm,
+                oldProgressMinutes: oldMinutes,
+                newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
                 routeName: route.name,
-                routeTotalKm: route.totalKm
+                routeTotalMinutes: route.totalMinutes
             )
         }
         try? modelContext.save()
@@ -275,47 +267,29 @@ struct ExpeditionView: View {
 
     // MARK: - Helpers
 
-    private var pace: Double {
-        JourneyService.paceKmH(for: dog.activityLevel)
-    }
-
-    private var estimatedKm: Double {
-        state.estimatedKm(pace: pace)
-    }
-
     private var nextLandmark: NextLandmark? {
-        // Compute against the LIVE position (logged progress + estimated this
-        // session). NEVER mutate `dog` here — it's a @Model reference and
-        // mutating from a computed property triggers a render-loop freeze.
+        // Compute against the LIVE position (logged progress + minutes elapsed
+        // in this session). NEVER mutate `dog` here — it's a @Model reference
+        // and mutating from a computed property triggers a render-loop freeze.
         guard let route = JourneyService.currentRoute(for: dog) else { return nil }
         return JourneyService.nextLandmark(
             in: route,
-            progressKm: dog.routeProgressKm + estimatedKm
+            progressMinutes: dog.routeProgressMinutes + state.elapsedMinutes
         )
     }
 
-    private func metersToNext(_ next: NextLandmark) -> Int {
-        next.metersAway
-    }
-
+    /// Fill the bar based on how close the user is to the next landmark.
+    /// Anchor at "30 minutes away" → 0%, "0 min" → 100%. Clamp. 30 minutes is
+    /// chosen because the longest gap between landmarks on the bigger routes
+    /// is roughly that, so the bar reaches near-empty at the start of a leg.
     private func landmarkProgressFraction(_ next: NextLandmark) -> Double {
-        // Fill the bar based on how close the user is to the next landmark.
-        // Anchor at "1 km away" → 0%, "0m" → 100%. Clamp.
-        let m = Double(next.metersAway)
-        let fraction = max(0, min(1, 1.0 - (m / 1000.0)))
-        return fraction
+        let m = Double(next.minutesAway)
+        return max(0, min(1, 1.0 - (m / 30.0)))
     }
 
     private func formatTime(_ seconds: Int) -> String {
         let m = seconds / 60
         let s = seconds % 60
         return String(format: "%d:%02d", m, s)
-    }
-
-    private func formatKm(_ km: Double) -> String {
-        if km < 1.0 {
-            return "\(Int(round(km * 1000)))m"
-        }
-        return String(format: "%.2f km", km)
     }
 }

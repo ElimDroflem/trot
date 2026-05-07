@@ -41,13 +41,14 @@ final class Dog {
 
     /// ID of the route the dog is currently traversing. Defaults to the starter
     /// route. Auto-advances through `JourneyService.routeSequence` when the
-    /// active route's `routeProgressKm` reaches `totalKm`.
+    /// active route's `routeProgressMinutes` reaches `totalMinutes`.
     var activeRouteID: String = "trot-first-walk"
 
-    /// Cumulative km on the active route. Resets to 0 (with overflow carrying
-    /// over) when a route completes. Driven by `JourneyService.applyWalk` after
-    /// every walk save.
-    var routeProgressKm: Double = 0
+    /// Cumulative MINUTES of walking on the active route. Resets to 0 (with
+    /// overflow carrying over) when a route completes. Driven by
+    /// `JourneyService.applyWalk` after every walk save. Time, not distance —
+    /// see `JourneyService+Routes.swift` for rationale.
+    var routeProgressMinutes: Int = 0
 
     /// IDs of routes the dog has fully completed, in chronological order. Used
     /// for the long-tail "you walked Hadrian's Wall this year" emotional artifact
