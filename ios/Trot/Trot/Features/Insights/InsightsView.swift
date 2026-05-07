@@ -74,7 +74,8 @@ struct InsightsView: View {
                             ObservationCard(insight: observation)
                         }
 
-                        Color.clear.frame(height: Space.lg)
+                        // Clearance for the centre walk FAB.
+                        Color.clear.frame(height: 100)
                     }
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.md)
@@ -93,7 +94,7 @@ struct InsightsView: View {
                 }
             }
         }
-        .topStatusGlass()
+        .edgeGlass()
     }
 
     // MARK: - Filtering
@@ -207,7 +208,10 @@ private struct WeekdayRhythmCard: View {
     let averagePerActiveDay: Int
     let dogName: String
 
-    private let weekdayLabels: [String] = ["M", "T", "W", "T", "F", "S", "S"]
+    /// Full weekday names — used as Y-axis labels in the horizontal bar
+    /// chart. We render the chart sideways so it visually differs from the
+    /// daily-minutes vertical chart underneath.
+    private let weekdayLabels: [String] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
     private var allZero: Bool { minutesByWeekday.allSatisfy { $0 == 0 } }
     private var topWeekday: (label: String, minutes: Int)? {
@@ -230,21 +234,27 @@ private struct WeekdayRhythmCard: View {
                 }
             }
 
-            // Use integer x-values rather than the letter labels — Charts
-            // collapses duplicate string keys ("T" appears twice for Tue/Thu)
-            // which would shift bars into the wrong slot. Labels are mapped
-            // back from the index in chartXAxis.
+            // Horizontal bars — Y-axis is the day, X-axis is minutes. Visually
+            // distinct from the vertical daily-minutes chart further down on
+            // the same screen, so the eye reads them as different shapes.
             Chart {
                 ForEach(Array(minutesByWeekday.enumerated()), id: \.offset) { index, minutes in
                     BarMark(
-                        x: .value("Day", index),
-                        y: .value("Minutes", minutes)
+                        x: .value("Minutes", minutes),
+                        y: .value("Day", weekdayLabels[index])
                     )
                     .foregroundStyle(Color.brandPrimary)
-                    .cornerRadius(4)
+                    .cornerRadius(3)
                 }
             }
             .chartYAxis {
+                AxisMarks(preset: .aligned, position: .leading, values: weekdayLabels) { _ in
+                    AxisValueLabel()
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.brandTextTertiary)
+                }
+            }
+            .chartXAxis {
                 AxisMarks(values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine()
                         .foregroundStyle(Color.brandDivider.opacity(0.6))
@@ -253,18 +263,7 @@ private struct WeekdayRhythmCard: View {
                         .foregroundStyle(Color.brandTextTertiary)
                 }
             }
-            .chartXAxis {
-                AxisMarks(values: Array(0..<7)) { value in
-                    AxisValueLabel {
-                        if let i = value.as(Int.self), (0..<7).contains(i) {
-                            Text(weekdayLabels[i])
-                                .font(.caption2)
-                                .foregroundStyle(Color.brandTextTertiary)
-                        }
-                    }
-                }
-            }
-            .frame(height: 130)
+            .frame(height: 160)
 
             if allZero {
                 Text("Trot is still learning \(dogName)'s rhythm. Log a walk.")
@@ -397,13 +396,26 @@ private struct StatGrid: View {
                 unit: "min",
                 label: "This week"
             )
-            StatCard(
-                icon: stats.weekDeltaIcon,
-                tint: stats.weekDeltaIsBetter ? .brandSuccess : .brandSecondary,
-                value: stats.weekDeltaValue,
-                unit: stats.weekDeltaUnit,
-                label: "vs last week"
-            )
+            // When there's no prior week to compare against, the delta card
+            // would show "+78" against zero — misleading. Replace with a
+            // calm "First week" placeholder until a real comparison exists.
+            if stats.lastWeekMinutes == 0 {
+                StatCard(
+                    icon: "sparkle",
+                    tint: .brandSecondary,
+                    value: "—",
+                    unit: "",
+                    label: "First week"
+                )
+            } else {
+                StatCard(
+                    icon: stats.weekDeltaIcon,
+                    tint: stats.weekDeltaIsBetter ? .brandSuccess : .brandSecondary,
+                    value: stats.weekDeltaValue,
+                    unit: stats.weekDeltaUnit,
+                    label: "vs last week"
+                )
+            }
             StatCard(
                 icon: "stopwatch.fill",
                 tint: .brandSecondary,

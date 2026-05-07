@@ -33,9 +33,20 @@ struct TraitsCard: View {
                     .tracking(0.5)
                     .foregroundStyle(Color.brandTextSecondary)
                 Spacer()
-                Text("\(unlocked.count) of \(MilestoneCode.allCases.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandTextTertiary)
+                // Coral-tinted progress chip — was a faint tertiary "3 of 9"
+                // string. The chip reads as a count-of-progress at a glance.
+                HStack(spacing: 0) {
+                    Text("\(unlocked.count)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.brandPrimary)
+                    Text("/\(MilestoneCode.allCases.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.brandPrimary.opacity(0.6))
+                }
+                .padding(.horizontal, Space.sm)
+                .padding(.vertical, 3)
+                .background(Color.brandPrimaryTint)
+                .clipShape(Capsule())
             }
 
             LazyVGrid(columns: columns, spacing: Space.sm) {

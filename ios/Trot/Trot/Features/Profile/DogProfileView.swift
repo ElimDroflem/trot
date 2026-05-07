@@ -31,7 +31,8 @@ struct DogProfileView: View {
                         DogTagPanel(dog: dog)
                         TraitsCard(dog: dog)
                         settingsButton
-                        Color.clear.frame(height: Space.lg)
+                        // Clearance for the centre walk FAB.
+                        Color.clear.frame(height: 100)
                     }
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.md)
@@ -40,7 +41,7 @@ struct DogProfileView: View {
                 emptyState
             }
         }
-        .topStatusGlass()
+        .edgeGlass()
         .sheet(isPresented: $showingSettings) {
             if let dog = activeDog {
                 DogSettingsSheet(dog: dog)

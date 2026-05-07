@@ -43,7 +43,7 @@ struct JourneyView: View {
                 EmptyJourneyPlaceholder()
             }
         }
-        .topStatusGlass()
+        .edgeGlass()
     }
 
     @ViewBuilder
@@ -76,7 +76,9 @@ struct JourneyView: View {
 
                 ComingUpSection(currentRouteID: route.id, completedIDs: dog.completedRouteIDs)
 
-                Color.clear.frame(height: Space.lg)
+                // Extra clearance so the last diary card / coming-up tile
+                // never hides behind the centre walk FAB.
+                Color.clear.frame(height: 100)
             }
             .padding(.horizontal, Space.md)
             .padding(.top, Space.md)
@@ -160,6 +162,12 @@ private struct JourneyHero: View {
                     )
                     .clipShape(Circle())
                     .scaleEffect(pulse ? 1.025 : 1.0)
+
+                // Percent badge tucked into the bottom-right of the arc so
+                // the arc itself reads at a glance — no need to scan down to
+                // the stats row to find the number.
+                percentBadge
+                    .offset(x: outerSize / 2 - 28, y: outerSize / 2 - 28)
             }
             .frame(width: outerSize, height: outerSize)
             .brandCardShadow()
@@ -183,13 +191,25 @@ private struct JourneyHero: View {
         }
     }
 
+    /// Small coral pill showing the current percent. Sits inside the arc at
+    /// the bottom-right so the arc reads as "this much of the route" without
+    /// the eye having to translate fill-amount → percentage.
+    private var percentBadge: some View {
+        Text("\(Int(fraction * 100))%")
+            .font(.titleSmall.weight(.bold))
+            .foregroundStyle(Color.brandTextOnPrimary)
+            .padding(.horizontal, Space.sm)
+            .padding(.vertical, 6)
+            .background(Color.brandPrimary)
+            .clipShape(Capsule())
+            .shadow(color: Color.brandPrimary.opacity(0.4), radius: 6, x: 0, y: 3)
+    }
+
+    /// Two-column stats — drop the percent column since the percent now
+    /// lives inside the arc itself. Walked + to-go are the supporting
+    /// numbers a route-progress arc can't show on its own.
     private var heroStats: some View {
         HStack(spacing: Space.lg) {
-            statColumn(
-                value: "\(Int(fraction * 100))%",
-                label: "OF ROUTE"
-            )
-            divider
             statColumn(
                 value: formatDuration(progressMinutes),
                 label: "WALKED"
@@ -291,7 +311,7 @@ private struct LandmarkTrail: View {
                 ForEach(Array(stops.enumerated()), id: \.offset) { _, stop in
                     Text(stop.label)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(stop.state == .locked ? Color.brandTextTertiary : Color.brandTextPrimary)
+                        .foregroundStyle(labelColor(for: stop.state))
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .lineLimit(3)
@@ -358,6 +378,18 @@ private struct LandmarkTrail: View {
             .fill(filled ? Color.brandPrimary : Color.brandDivider)
             .frame(height: 2)
             .frame(maxWidth: .infinity)
+    }
+
+    /// Three-tier label colour so the eye can tell the *current* stop apart
+    /// from already-unlocked stops at a glance — current = primary text,
+    /// unlocked = secondary, locked = tertiary. Without this, the most-recent
+    /// unlocked stop and the dog's current marker read at the same weight.
+    private func labelColor(for state: StopState) -> Color {
+        switch state {
+        case .current:  return .brandTextPrimary
+        case .unlocked: return .brandTextSecondary
+        case .locked:   return .brandTextTertiary
+        }
     }
 
     // MARK: - Stops construction

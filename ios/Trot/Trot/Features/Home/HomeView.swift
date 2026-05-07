@@ -40,6 +40,20 @@ struct HomeView: View {
                 .tag(TrotTab.dog)
         }
         .tint(.brandPrimary)
+        .overlay(alignment: .bottom) {
+            // Strava-style centre FAB. Sits above the tab bar's centre slot —
+            // raised so it reads as a floating primary action rather than a
+            // fifth tab. Visible regardless of which tab is selected because
+            // "walk with your dog" is the app's core verb.
+            WalkActionFAB(
+                onStartWalk: { showingExpedition = true },
+                onLogPastWalk: { showingLogWalk = true }
+            )
+            // Tab-bar height + a lift so the button rises above the bar.
+            // 49pt is the standard iOS tab-bar item height; we add ~22pt of
+            // lift so roughly half the FAB sits above the bar, half over it.
+            .padding(.bottom, 49 - 22)
+        }
         .sheet(isPresented: $showingLogWalk) {
             if let dog = selectedDog {
                 LogWalkSheet(dogs: [dog])
@@ -87,9 +101,7 @@ struct HomeView: View {
                             streakDays: StreakService.currentStreak(for: dog),
                             dateLabel: Self.dateLabel(for: .now),
                             onSelectDog: { appState.select($0) },
-                            onAddAnotherDog: { showingAddAnotherDog = true },
-                            onStartWalk: { showingExpedition = true },
-                            onLogPastWalk: { showingLogWalk = true }
+                            onAddAnotherDog: { showingAddAnotherDog = true }
                         )
                         DogPresenceCard(
                             dog: dog,
@@ -116,7 +128,9 @@ struct HomeView: View {
                             now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
-                        Color.clear.frame(height: Space.lg)
+                        // Extra clearance so the bottom card never hides
+                        // behind the centre walk FAB.
+                        Color.clear.frame(height: 100)
                     }
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.sm)
@@ -125,7 +139,7 @@ struct HomeView: View {
                 EmptyDogPlaceholder()
             }
         }
-        .topStatusGlass()
+        .edgeGlass()
     }
 
     private func placeholderTab(title: String) -> some View {
@@ -194,12 +208,13 @@ private struct HomeHeader: View {
     let dateLabel: String
     let onSelectDog: (Dog) -> Void
     let onAddAnotherDog: () -> Void
-    let onStartWalk: () -> Void
-    let onLogPastWalk: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-        HStack {
+        // Single row: dog selector pill on the left, date and streak chip
+        // sharing the right side. The "+" walk button moved to the centre of
+        // the bottom tab bar (Strava-style FAB), so the header has no trailing
+        // action button now — keeps the top of the screen calm.
+        HStack(spacing: Space.sm) {
             Menu {
                 ForEach(activeDogs) { dog in
                     Button {
@@ -228,7 +243,7 @@ private struct HomeHeader: View {
                         .foregroundStyle(Color.brandTextSecondary)
                 }
                 .padding(.horizontal, Space.md)
-                .frame(height: 44)
+                .frame(height: 40)
                 .background(Color.brandSurfaceElevated)
                 .clipShape(Capsule())
                 .brandCardShadow()
@@ -237,26 +252,9 @@ private struct HomeHeader: View {
 
             Spacer()
 
-            Menu {
-                Button(action: onStartWalk) {
-                    Label("Start a walk", systemImage: "figure.walk")
-                }
-                Button(action: onLogPastWalk) {
-                    Label("Log a past walk", systemImage: "clock.arrow.circlepath")
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.brandTextOnPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(Color.brandPrimary)
-                    .clipShape(Circle())
-            }
-            .accessibilityLabel("Add a walk")
-        }
-            // Date + streak inline below the dog selector. Streak chip
-            // collapses to a calm "Today's the day" placeholder when zero so
-            // the row layout stays stable regardless of state.
+            // Date + streak in one trailing chip cluster — no longer a full
+            // row underneath the selector, so the whole header is a single
+            // visual line.
             HStack(spacing: Space.xs) {
                 Text(dateLabel)
                     .font(.caption.weight(.semibold))
@@ -266,10 +264,7 @@ private struct HomeHeader: View {
                 Text("·")
                     .foregroundStyle(Color.brandTextTertiary)
                 StreakChip(streakDays: streakDays)
-                Spacer()
             }
-            .padding(.leading, Space.sm)
-            .padding(.top, Space.xs)
         }
     }
 }
@@ -597,15 +592,14 @@ private struct TodayTimeline: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
+            // Drop the "TODAY" caption — the tab itself is called Today, so
+            // the label was duplicating the screen name. The summary on the
+            // right ("4 walks · 78 min") carries enough context on its own.
             HStack {
-                Text("TODAY")
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.brandTextSecondary)
-                Spacer()
                 Text(summary)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandTextTertiary)
+                    .foregroundStyle(Color.brandTextSecondary)
+                Spacer()
             }
 
             GeometryReader { geo in

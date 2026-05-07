@@ -155,13 +155,13 @@ private struct StatTile: View {
     let label: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
+        VStack(alignment: .leading, spacing: Space.xs) {
             ZStack {
                 Circle()
                     .fill(tint.opacity(0.14))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(tint)
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -181,7 +181,8 @@ private struct StatTile: View {
                 .tracking(0.5)
                 .foregroundStyle(Color.brandTextSecondary)
         }
-        .padding(Space.md)
+        .padding(.horizontal, Space.md)
+        .padding(.vertical, Space.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
