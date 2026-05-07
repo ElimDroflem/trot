@@ -159,7 +159,7 @@ enum JourneyService {
     }
 
     /// First landmark on the dog's current route that they haven't reached yet.
-    /// Used by JourneyCard ("240m to ???") and ExpeditionView (live countdown).
+    /// Used by JourneyView ("240m to ???") and ExpeditionView (live countdown).
     static func nextLandmark(for dog: Dog, in routes: [Route] = allRoutes) -> NextLandmark? {
         guard let route = currentRoute(for: dog, in: routes) else { return nil }
         let progress = dog.routeProgressKm

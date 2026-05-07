@@ -27,6 +27,9 @@ struct HomeView: View {
             ActivityView()
                 .tabItem { Label("Activity", systemImage: "calendar") }
 
+            JourneyView()
+                .tabItem { Label("Journey", systemImage: "figure.walk.motion") }
+
             InsightsView()
                 .tabItem { Label("Insights", systemImage: "lightbulb") }
 
@@ -107,7 +110,6 @@ struct HomeView: View {
                             now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
-                        JourneyCard(dog: dog)
                         WeeklyRecapTile(onTap: { showingHomeRecap = true })
                         Color.clear.frame(height: Space.lg)
                     }
