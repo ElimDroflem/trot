@@ -15,7 +15,6 @@ struct HomeView: View {
     @State private var showingExpedition = false
     @State private var editingWalk: Walk?
     @State private var showingAddAnotherDog = false
-    @State private var showingHomeRecap = false
 
     private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
@@ -67,13 +66,6 @@ struct HomeView: View {
                     .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .sheet(isPresented: $showingHomeRecap) {
-            if let dog = selectedDog {
-                RecapView(recap: RecapService.weekly(for: dog), dog: dog) {
-                    showingHomeRecap = false
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -96,14 +88,12 @@ struct HomeView: View {
                         HomeHeader(
                             activeDogs: activeDogs,
                             selectedDog: dog,
+                            streakDays: StreakService.currentStreak(for: dog),
+                            dateLabel: Self.dateLabel(for: .now),
                             onSelectDog: { appState.select($0) },
                             onAddAnotherDog: { showingAddAnotherDog = true },
                             onStartWalk: { showingExpedition = true },
                             onLogPastWalk: { showingLogWalk = true }
-                        )
-                        StreakAndDateRow(
-                            streakDays: StreakService.currentStreak(for: dog),
-                            dateLabel: Self.dateLabel(for: .now)
                         )
                         DogPresenceCard(
                             dog: dog,
@@ -113,15 +103,23 @@ struct HomeView: View {
                             percent: percent(for: dog),
                             minutesToGo: minutesToGo(for: dog)
                         )
-                        DailyDogVoiceRow(dog: dog)
-                        WalkWindowTile(dog: dog)
+                        // Daily dog-voice line is suppressed once the target's
+                        // met — at that point the ring + "today done" pill say
+                        // it. Showing a third "good work" line is just noise.
+                        if percent(for: dog) < 1.0 {
+                            DailyDogVoiceRow(dog: dog)
+                        }
+                        // Weather tile only when it's saying something useful
+                        // (rain/snow/storm). On clear/cloudy days the mood
+                        // layer already conveys the weather; a card too is
+                        // duplicated info.
+                        ConditionalWalkWindowTile(dog: dog)
                         TodayTimeline(
                             walks: walksToday(for: dog),
                             walkWindows: dog.walkWindows ?? [],
                             now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
-                        WeeklyRecapTile(onTap: { showingHomeRecap = true })
                         Color.clear.frame(height: Space.lg)
                     }
                     .padding(.horizontal, Space.md)
@@ -195,12 +193,15 @@ struct HomeView: View {
 private struct HomeHeader: View {
     let activeDogs: [Dog]
     let selectedDog: Dog
+    let streakDays: Int
+    let dateLabel: String
     let onSelectDog: (Dog) -> Void
     let onAddAnotherDog: () -> Void
     let onStartWalk: () -> Void
     let onLogPastWalk: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
         HStack {
             Menu {
                 ForEach(activeDogs) { dog in
@@ -256,130 +257,63 @@ private struct HomeHeader: View {
             }
             .accessibilityLabel("Add a walk")
         }
+            // Date + streak inline below the dog selector. Streak chip
+            // collapses to a calm "Today's the day" placeholder when zero so
+            // the row layout stays stable regardless of state.
+            HStack(spacing: Space.xs) {
+                Text(dateLabel)
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .textCase(.uppercase)
+                Text("·")
+                    .foregroundStyle(Color.brandTextTertiary)
+                StreakChip(streakDays: streakDays)
+                Spacer()
+            }
+            .padding(.leading, Space.sm)
+            .padding(.top, Space.xs)
+        }
     }
 }
 
-/// Two layouts in one component:
-///   - Promoted (streak in 1...6): vertical stack with the date as a small caption
-///     and a wider, coral-tinted streak card below. Streak is the focus, since these
-///     are the fragile early days where dropping a walk would hurt.
-///   - Standard (streak == 0 or ≥7): side-by-side pills as before. At 0, the streak
-///     pill becomes a calm "Today's the day" placeholder.
-private struct StreakAndDateRow: View {
+/// Compact flame chip that lives inline with the date — replaces the old
+/// full-width StreakAndDateRow card. Pulses when the streak increments so the
+/// celebration moment still lands; collapses to a tertiary "Today's the day"
+/// at zero streak.
+private struct StreakChip: View {
     let streakDays: Int
-    let dateLabel: String
-
     @State private var scale: CGFloat = 1.0
-
-    private var isPromoted: Bool { (1...6).contains(streakDays) }
 
     var body: some View {
         Group {
-            if isPromoted {
-                VStack(alignment: .leading, spacing: Space.sm) {
-                    Text(dateLabel)
-                        .font(.caption.weight(.semibold))
-                        .tracking(0.5)
-                        .foregroundStyle(Color.brandTextSecondary)
-                        .textCase(.uppercase)
-                    promotedStreakCard
-                }
+            if streakDays == 0 {
+                Text("Today's the day")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.brandTextSecondary)
             } else {
-                HStack {
-                    standardStreakPill
-                    Spacer()
-                    datePill
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(Color.brandPrimary)
+                    Text(streakDays.pluralised("day"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.brandTextPrimary)
                 }
             }
         }
         .scaleEffect(scale)
         .onChange(of: streakDays) { oldValue, newValue in
-            // Increment-only pulse — burning-down doesn't deserve a celebration.
             guard newValue > oldValue else { return }
-            withAnimation(.brandCelebration) { scale = 1.06 }
+            withAnimation(.brandCelebration) { scale = 1.15 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
                 withAnimation(.brandCelebration) { scale = 1.0 }
             }
         }
-    }
-
-    private var promotedStreakCard: some View {
-        HStack(spacing: Space.md) {
-            Image(systemName: "flame.fill")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(Color.brandPrimary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(streakDays.pluralised("day"))
-                    .font(.displayMedium)
-                    .foregroundStyle(Color.brandTextPrimary)
-                Text(promotedSubtitle)
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, Space.md)
-        .padding(.vertical, Space.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.brandPrimaryTint)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .brandCardShadow()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Streak: \(streakDays.pluralised("day")). \(promotedSubtitle)")
-    }
-
-    private var promotedSubtitle: String {
-        switch streakDays {
-        case 1: return "Day one. Build it from here."
-        case 2: return "Two in a row."
-        case 3: return "Three days. The habit is forming."
-        case 4: return "Four days. Keep going."
-        case 5: return "Five days. Almost a week."
-        case 6: return "Six days. One more for the week."
-        default: return ""
-        }
-    }
-
-    @ViewBuilder
-    private var standardStreakPill: some View {
-        if streakDays == 0 {
-            HStack(spacing: Space.xs) {
-                Image(systemName: "flame")
-                    .foregroundStyle(Color.brandTextSecondary)
-                Text("Today's the day")
-                    .font(.bodyMedium.weight(.semibold))
-                    .foregroundStyle(Color.brandTextSecondary)
-            }
-            .padding(.horizontal, Space.md)
-            .padding(.vertical, Space.sm)
-            .background(Color.brandSurfaceElevated)
-            .clipShape(Capsule())
-            .brandCardShadow()
-        } else {
-            HStack(spacing: Space.xs) {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(Color.brandPrimary)
-                Text(streakDays.pluralised("day"))
-                    .font(.bodyMedium.weight(.semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-            }
-            .padding(.horizontal, Space.md)
-            .padding(.vertical, Space.sm)
-            .background(Color.brandSurfaceElevated)
-            .clipShape(Capsule())
-            .brandCardShadow()
-        }
-    }
-
-    private var datePill: some View {
-        Text(dateLabel)
-            .font(.bodyMedium.weight(.semibold))
-            .foregroundStyle(Color.brandTextPrimary)
-            .padding(.horizontal, Space.md)
-            .padding(.vertical, Space.sm)
-            .background(Color.brandSurfaceElevated)
-            .clipShape(Capsule())
-            .brandCardShadow()
+        .accessibilityLabel(
+            streakDays == 0
+                ? "No streak yet."
+                : "Streak: \(streakDays.pluralised("day"))."
+        )
     }
 }
 
@@ -488,25 +422,28 @@ private struct DogPresenceCard: View {
         }
     }
 
+    /// Single line: minutes + (status pill if today done, "X min to go" if not).
+    /// The percent number is dropped — the ring already draws it. The dog-voice
+    /// affirmation row above this card is hidden when target's met so we don't
+    /// stack three "you're done" messages.
     private var captionRow: some View {
         HStack(spacing: Space.xs) {
-            Text("\(Int(min(1, percent) * 100))%")
-                .font(.bodyLarge.weight(.semibold))
-                .foregroundStyle(Color.brandPrimary)
-            Text("·")
-                .foregroundStyle(Color.brandTextTertiary)
             Text("\(minutesDone) of \(targetMinutes) min")
-                .font(.bodyMedium)
-                .foregroundStyle(Color.brandTextSecondary)
+                .font(.bodyLarge.weight(.semibold))
+                .foregroundStyle(Color.brandTextPrimary)
             Spacer()
-            if percent < 1.0 {
+            if percent >= 1.0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                    Text("today done")
+                        .font(.bodyMedium.weight(.semibold))
+                }
+                .foregroundStyle(Color.brandSuccess)
+            } else {
                 Text("\(minutesToGo) min to go")
                     .font(.bodyMedium)
                     .foregroundStyle(Color.brandTextSecondary)
-            } else {
-                Text("today done")
-                    .font(.bodyMedium.weight(.semibold))
-                    .foregroundStyle(Color.brandSuccess)
             }
         }
     }
@@ -565,34 +502,57 @@ private struct DailyDogVoiceRow: View {
     }
 }
 
-/// Discoverable entry point for the weekly recap from the Today tab.
-/// Subtle by design — the recap is a Sunday-evening ritual, not a constant
-/// nag. This row keeps the surface aware of the recap year-round without
-/// crowding the daily view.
-private struct WeeklyRecapTile: View {
-    let onTap: () -> Void
+/// Render the WalkWindowTile only when the weather is actually saying
+/// something useful — rain, drizzle, snow, fog, thunder. On clear/cloudy
+/// days the WeatherMoodLayer behind everything already conveys the weather
+/// and a card on top is duplicate information.
+///
+/// We re-read the postcode-cached forecast on appear (cheap — 30-min cache
+/// in WeatherService) and decide locally; never blocks the main view.
+private struct ConditionalWalkWindowTile: View {
+    let dog: Dog
+    @State private var shouldRender: Bool = false
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: Space.sm) {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.brandPrimary)
-                Text("This week's recap")
-                    .font(.bodyMedium.weight(.semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.brandTextTertiary)
+        Group {
+            if shouldRender {
+                WalkWindowTile(dog: dog)
+                    .transition(.opacity)
+            } else {
+                Color.clear.frame(height: 0)
             }
-            .padding(.vertical, Space.sm)
-            .padding(.horizontal, Space.md)
-            .background(Color.brandSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            .brandCardShadow()
         }
-        .buttonStyle(.plain)
+        .task { await decide() }
+    }
+
+    private func decide() async {
+        let postcode = UserPreferences.postcode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !postcode.isEmpty else { return }
+
+        // DEBUG override should always render the tile so we can QA it.
+        #if DEBUG
+        if let forced = DebugOverrides.weatherCategory {
+            await MainActor.run {
+                withAnimation(.brandDefault) {
+                    shouldRender = noticeableCategories.contains(forced)
+                }
+            }
+            return
+        }
+        #endif
+
+        guard let location = await WeatherService.location(for: postcode) else { return }
+        guard let forecast = await WeatherService.forecast(for: location) else { return }
+        guard let current = forecast.snapshot(at: .now) else { return }
+        await MainActor.run {
+            withAnimation(.brandDefault) {
+                shouldRender = noticeableCategories.contains(current.category)
+            }
+        }
+    }
+
+    private var noticeableCategories: Set<WeatherCategory> {
+        [.drizzle, .rain, .snow, .thunder, .fog]
     }
 }
 
