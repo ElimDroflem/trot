@@ -61,12 +61,10 @@ struct DogTagPanel: View {
     private var heroStrip: some View {
         HStack(spacing: Space.sm) {
             heroColumn(
-                icon: "figure.walk",
                 value: "\(lifetimeWalks)",
                 label: lifetimeWalks == 1 ? "WALK" : "WALKS"
             )
             heroColumn(
-                icon: "stopwatch.fill",
                 value: "\(lifetimeMinutes)",
                 label: "MINUTES"
             )
@@ -76,21 +74,10 @@ struct DogTagPanel: View {
             RoundedRectangle(cornerRadius: Radius.lg)
                 .fill(Color.brandPrimaryTint)
         )
-        .overlay(alignment: .bottom) {
-            // Subtle "since <date>" caption keeps the player-card frame.
-            Text("Together since \(sinceLabel)")
-                .font(.caption2.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(Color.brandPrimary)
-                .padding(.bottom, Space.sm)
-        }
     }
 
-    private func heroColumn(icon: String, value: String, label: String) -> some View {
+    private func heroColumn(value: String, label: String) -> some View {
         VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.brandPrimary)
             Text(value)
                 .font(.displayLarge)
                 .foregroundStyle(Color.brandTextPrimary)
@@ -101,8 +88,7 @@ struct DogTagPanel: View {
                 .tracking(0.5)
                 .foregroundStyle(Color.brandTextSecondary)
         }
-        .padding(.top, Space.md)
-        .padding(.bottom, Space.lg)
+        .padding(.vertical, Space.md)
         .frame(maxWidth: .infinity)
     }
 
@@ -110,13 +96,6 @@ struct DogTagPanel: View {
 
     private var lifetimeWalks: Int { (dog.walks ?? []).count }
     private var lifetimeMinutes: Int { (dog.walks ?? []).reduce(0) { $0 + $1.durationMinutes } }
-
-    private var sinceLabel: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_GB")
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: dog.createdAt).uppercased()
-    }
 
     private var ageValue: String {
         let calendar = Calendar.current

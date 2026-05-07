@@ -49,28 +49,38 @@ struct DogProfileView: View {
 
     // MARK: - Sections
 
+    /// Photo gets the same coral tracking ring used on Today so it doesn't
+    /// melt into the weather mood layer behind it.
     private func photoHeader(dog: Dog) -> some View {
-        VStack(spacing: Space.md) {
+        let outerSize: CGFloat = 156
+        let strokeWidth: CGFloat = 6
+        let photoInset: CGFloat = 6
+        let innerSize = outerSize - strokeWidth * 2 - photoInset * 2
+
+        return VStack(spacing: Space.md) {
             ZStack {
                 Circle()
-                    .fill(Color.brandSecondaryTint)
-                    .frame(width: 140, height: 140)
+                    .stroke(Color.brandPrimary, lineWidth: strokeWidth)
 
-                if let data = dog.photo, let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 140, height: 140)
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.brandSecondary.opacity(0.5))
+                Group {
+                    if let data = dog.photo, let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        ZStack {
+                            Color.brandSecondaryTint
+                            Image(systemName: "pawprint.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(Color.brandSecondary.opacity(0.5))
+                        }
+                    }
                 }
+                .frame(width: innerSize, height: innerSize)
+                .clipShape(Circle())
             }
-            .overlay {
-                Circle().stroke(Color.brandDivider, lineWidth: 1)
-            }
+            .frame(width: outerSize, height: outerSize)
+            .brandCardShadow()
 
             VStack(spacing: Space.xs) {
                 Text(dog.name)

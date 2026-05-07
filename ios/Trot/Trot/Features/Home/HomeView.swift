@@ -25,10 +25,6 @@ struct HomeView: View {
                 .tabItem { Label("Today", systemImage: "house.fill") }
                 .tag(TrotTab.today)
 
-            ActivityView()
-                .tabItem { Label("Activity", systemImage: "calendar") }
-                .tag(TrotTab.activity)
-
             JourneyView()
                 .tabItem { Label("Journey", systemImage: "figure.walk.motion") }
                 .tag(TrotTab.journey)

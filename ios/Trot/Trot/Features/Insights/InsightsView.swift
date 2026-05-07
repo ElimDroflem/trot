@@ -51,6 +51,7 @@ struct InsightsView: View {
                                 averagePerActiveDay: stats.averageMinutesPerActiveDay,
                                 dogName: dog.name
                             )
+                            DailyMinutesCard(dog: dog)
                             StatGrid(stats: stats)
                         }
 
@@ -282,6 +283,97 @@ private struct WeekdayRhythmCard: View {
 
     private func fullDayName(_ index: Int) -> String {
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][index]
+    }
+}
+
+// MARK: - Daily minutes (rolling 30 days)
+
+/// Bar chart of the last 30 days' walking minutes. Shows shape over time
+/// rather than a static grid. Today's bar reads slightly brighter so the
+/// user spots their contribution to the running picture.
+///
+/// Replaces the dedicated Activity tab — the calendar grid was redundant
+/// once daily minutes are visible at a glance, and "tap a day to see its
+/// walks" wasn't a path many people used.
+private struct DailyMinutesCard: View {
+    let dog: Dog
+
+    private struct DailyMinute: Identifiable {
+        let day: Date
+        let minutes: Int
+        let isToday: Bool
+        var id: Date { day }
+    }
+
+    private let windowDays = 30
+
+    private var series: [DailyMinute] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let minutesByDay: [Date: Int] = (dog.walks ?? []).reduce(into: [:]) { acc, walk in
+            let day = calendar.startOfDay(for: walk.startedAt)
+            acc[day, default: 0] += walk.durationMinutes
+        }
+
+        return (0..<windowDays).reversed().compactMap { offset -> DailyMinute? in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else {
+                return nil
+            }
+            return DailyMinute(
+                day: day,
+                minutes: minutesByDay[day] ?? 0,
+                isToday: offset == 0
+            )
+        }
+    }
+
+    private var peakMinutes: Int {
+        series.map(\.minutes).max() ?? 0
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Last 30 days")
+                    .font(.titleSmall)
+                    .foregroundStyle(Color.brandTextPrimary)
+                Spacer()
+                if peakMinutes > 0 {
+                    Text("Peak \(peakMinutes) min")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.brandTextTertiary)
+                }
+            }
+
+            Chart {
+                ForEach(series) { entry in
+                    BarMark(
+                        x: .value("Day", entry.day, unit: .day),
+                        y: .value("Minutes", entry.minutes)
+                    )
+                    .foregroundStyle(entry.isToday ? Color.brandPrimary : Color.brandPrimary.opacity(0.8))
+                    .cornerRadius(2)
+                }
+            }
+            .chartYAxis {
+                AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                    AxisGridLine().foregroundStyle(Color.brandDivider.opacity(0.6))
+                    AxisValueLabel().font(.caption2).foregroundStyle(Color.brandTextTertiary)
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                    AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                        .font(.caption2)
+                        .foregroundStyle(Color.brandTextTertiary)
+                }
+            }
+            .frame(height: 110)
+        }
+        .padding(Space.md)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 }
 

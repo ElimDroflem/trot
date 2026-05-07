@@ -9,7 +9,6 @@ import SwiftData
 /// so DEBUG deep-link navigation (`trot://debug/tab/<name>`) can drive selection.
 enum TrotTab: String, Hashable, Sendable {
     case today
-    case activity
     case journey
     case insights
     case dog

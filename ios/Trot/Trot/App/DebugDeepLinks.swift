@@ -13,7 +13,7 @@ import SwiftData
 /// every call into this enum is compiled out.
 ///
 /// Routes:
-/// - `trot://debug/tab/today|activity|journey|insights|dog` — switch tabs
+/// - `trot://debug/tab/today|journey|insights|dog` — switch tabs
 /// - `trot://debug/seed-walks?count=N` — insert N synthetic recent walks for
 ///   the currently-selected (or first) active dog
 /// - `trot://debug/reset` — clear all dogs/walks/windows (gate fires next launch)
