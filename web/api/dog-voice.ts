@@ -29,7 +29,8 @@ type Kind =
     | "insight"
     | "recap"
     | "decay"
-    | "onboarding_card";
+    | "onboarding_card"
+    | "moment_unlock";
 
 interface DogInfo {
     name: string;
@@ -99,7 +100,7 @@ export default async function handler(req: Request): Promise<Response> {
 
 // MARK: - Validation
 
-const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card"];
+const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "moment_unlock"];
 
 function validate(body: RequestBody): string | null {
     if (!body || typeof body !== "object") return "invalid_body";
@@ -251,6 +252,47 @@ This is the very first card the user sees after uploading ${dog.name}'s photo, b
 Write ONE punchy line in ${dog.name}'s voice that announces them. Warm, excited, share-worthy. Exclamation marks ALLOWED. Use the dog's name. Examples of the right register: "${dog.name}'s here. Let's go!" / "Hi, I'm ${dog.name}. Walk?"
 Maximum 10 words.`,
                 maxTokens: 50,
+            };
+        }
+
+        case "moment_unlock": {
+            const headlineMomentTitle = str(context.headlineMomentTitle);
+            const momentDescription = str(context.momentDescription);
+            const allCrossedTitles = arr(context.allCrossedTitles);
+            const lifetimeMinutesWithDog = num(context.lifetimeMinutesWithDog, 0);
+            const daysSinceFirstWalk = num(context.daysSinceFirstWalk, 0);
+            const otherCrossings = allCrossedTitles
+                .filter((t) => t !== headlineMomentTitle)
+                .slice(0, 4);
+
+            const lifetimeHours = Math.round(lifetimeMinutesWithDog / 60);
+            const lifetimeLabel = lifetimeMinutesWithDog < 60
+                ? `${lifetimeMinutesWithDog} minutes`
+                : lifetimeHours === 1
+                    ? "about an hour"
+                    : `${lifetimeHours} hours`;
+
+            return {
+                system: SYSTEM_BASE,
+                user: `${dogContext}
+A Moment just unlocked in the user's current season.
+Moment: "${headlineMomentTitle}" — ${momentDescription}
+${otherCrossings.length > 0 ? `Other moments crossed in the same walk: ${otherCrossings.join(", ")}.` : ""}
+Lifetime walking time with this user: ${lifetimeLabel}.
+Days since the first walk in the diary: ${daysSinceFirstWalk}.
+
+Write a 1-2 sentence DIARY ENTRY in ${dog.name}'s voice. The dog is reflecting on the moment, speaking ABOUT the user — what they smell like, when they walk, how they walk, something specific. The app is invisible — never mention "Trot", "the app", "tracking", "logged". Don't claim "first ever" of anything (the user may have had this dog for years). Talk about accumulated time and the relationship as it stands. The line should feel like a private observation the dog is making about the human they walk with.
+
+Tone: warm, plain, slightly dry. Specific over generic. The line should make the user feel seen.
+
+Examples of the right register:
+- "Your slowest walks. My favourite kind."
+- "You always smell like coffee in the mornings. I wait for it."
+- "Five hours of rain this winter. You towel my chest first, every time."
+- "We've done a lot of walks. You're easier to follow than you think."
+
+Maximum 28 words. No exclamation marks unless the moment is genuinely big.`,
+                maxTokens: 130,
             };
         }
     }

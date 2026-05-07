@@ -250,6 +250,14 @@ struct ExpeditionView: View {
             let oldMinutes = dog.routeProgressMinutes
             let isFirstWalk = (dog.walks ?? []).count == 1
             let application = JourneyService.applyWalk(minutes: minutes, to: dog)
+            if !application.landmarksCrossed.isEmpty {
+                MomentDiaryService.recordUnlocks(
+                    for: dog,
+                    crossings: application.landmarksCrossed,
+                    seasonID: route.id,
+                    modelContext: modelContext
+                )
+            }
             appState.enqueueWalkComplete(
                 dog: dog,
                 minutes: minutes,

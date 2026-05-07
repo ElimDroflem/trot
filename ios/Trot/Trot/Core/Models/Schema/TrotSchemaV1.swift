@@ -7,6 +7,6 @@ enum TrotSchemaV1: VersionedSchema {
     }
 
     static var models: [any PersistentModel.Type] {
-        [Dog.self, Walk.self, WalkWindow.self]
+        [Dog.self, Walk.self, WalkWindow.self, MomentDiaryEntry.self]
     }
 }

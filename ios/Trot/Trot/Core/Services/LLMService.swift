@@ -24,6 +24,10 @@ enum LLMService {
         case recap
         case decay
         case onboardingCard = "onboarding_card"
+        /// Diary entry generated when the user crosses a Moment in their season.
+        /// Reflective, observational dog-voice line ABOUT THE USER — the
+        /// emotional payload of the Journey loop.
+        case momentUnlock = "moment_unlock"
     }
 
     // MARK: - Public surfaces
@@ -136,6 +140,34 @@ enum LLMService {
         // Effectively forever — 10 years.
         LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24 * 365 * 10)
         return text
+    }
+
+    /// Diary entry generated when a Moment unlocks in the user's current season.
+    /// The dog-voice reflection that creates the bond — speaks about the user,
+    /// never about the app. No cache — every unlock is its own moment, even when
+    /// the same Moment crosses again across multiple dogs.
+    ///
+    /// `headlineMomentTitle` is the principal Moment that this entry represents
+    /// (the latest/furthest along the season if a single walk crossed several).
+    /// `allCrossedTitles` lets the LLM nod to the multi-cross when it happened.
+    /// `lifetimeMinutesWithDog` and `daysSinceFirstWalk` are emotional anchors
+    /// the model uses to scale the diary tone (early walks vs deep history).
+    static func momentUnlockLine(
+        for dog: Dog,
+        headlineMomentTitle: String,
+        momentDescription: String,
+        allCrossedTitles: [String],
+        lifetimeMinutesWithDog: Int,
+        daysSinceFirstWalk: Int
+    ) async -> String? {
+        let context: [String: any Sendable] = [
+            "headlineMomentTitle": headlineMomentTitle,
+            "momentDescription": momentDescription,
+            "allCrossedTitles": allCrossedTitles,
+            "lifetimeMinutesWithDog": lifetimeMinutesWithDog,
+            "daysSinceFirstWalk": daysSinceFirstWalk,
+        ]
+        return await request(kind: .momentUnlock, dog: dog, context: context)
     }
 
     /// Pre-save onboarding card. Called from `AddDogView` after the user has

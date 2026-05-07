@@ -42,7 +42,7 @@ struct JourneyView: View {
     @ViewBuilder
     private func journeyContent(dog: Dog, route: Route) -> some View {
         let next = JourneyService.nextLandmark(for: dog)
-        let recentLandmarks = recentlyUnlocked(route: route, progressMinutes: dog.routeProgressMinutes)
+        let diaryEntries = recentDiaryEntries(for: dog)
 
         ScrollView {
             VStack(spacing: Space.lg) {
@@ -50,8 +50,8 @@ struct JourneyView: View {
 
                 NextLandmarkPanel(next: next, route: route, progressMinutes: dog.routeProgressMinutes)
 
-                if !recentLandmarks.isEmpty {
-                    RecentLandmarksSection(landmarks: recentLandmarks, route: route)
+                if !diaryEntries.isEmpty {
+                    RecentMomentsSection(entries: diaryEntries, dogName: dog.name)
                 }
 
                 ComingUpSection(currentRouteID: route.id, completedIDs: dog.completedRouteIDs)
@@ -80,12 +80,14 @@ struct JourneyView: View {
         .padding(Space.xl)
     }
 
-    /// Up to five most recent unlocked landmarks, in reverse minute order.
-    private func recentlyUnlocked(route: Route, progressMinutes: Int) -> [Landmark] {
-        route.landmarks
-            .filter { $0.minutesFromStart <= progressMinutes }
-            .sorted { $0.minutesFromStart > $1.minutesFromStart }
-            .prefix(5)
+    /// Up to eight most recent diary entries for this dog, newest first.
+    /// Spans seasons — old entries from the first season still show after
+    /// the dog has moved on, since the diary is the relationship's history,
+    /// not just the active season's.
+    private func recentDiaryEntries(for dog: Dog) -> [MomentDiaryEntry] {
+        (dog.momentDiary ?? [])
+            .sorted { $0.unlockedAt > $1.unlockedAt }
+            .prefix(8)
             .map { $0 }
     }
 }
@@ -289,61 +291,94 @@ private struct NextLandmarkPanel: View {
     }
 }
 
-// MARK: - Recent landmarks
+// MARK: - Recent Moments (diary entries)
 
-private struct RecentLandmarksSection: View {
-    let landmarks: [Landmark]
-    let route: Route
+/// The diary list — recent dog-voice entries written when the user crossed
+/// Moments in their walks. Each card carries a generated reflection in the
+/// dog's voice ABOUT the user. This is the emotional payload of the Journey
+/// loop; the rest of the screen exists to point the user here.
+private struct RecentMomentsSection: View {
+    let entries: [MomentDiaryEntry]
+    let dogName: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("RECENT LANDMARKS")
+            Text("RECENT MOMENTS")
                 .font(.caption.weight(.semibold))
                 .tracking(0.5)
                 .foregroundStyle(Color.brandTextSecondary)
 
-            VStack(spacing: 0) {
-                ForEach(Array(landmarks.enumerated()), id: \.element.id) { index, landmark in
-                    LandmarkRow(landmark: landmark)
-                    if index < landmarks.count - 1 {
-                        Divider()
-                            .background(Color.brandDivider)
-                            .padding(.leading, Space.lg + 24)
-                    }
+            VStack(spacing: Space.sm) {
+                ForEach(entries) { entry in
+                    DiaryEntryCard(entry: entry, dogName: dogName)
                 }
             }
-            .background(Color.brandSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-            .brandCardShadow()
         }
     }
 }
 
-private struct LandmarkRow: View {
-    let landmark: Landmark
+private struct DiaryEntryCard: View {
+    let entry: MomentDiaryEntry
+    let dogName: String
 
     var body: some View {
-        HStack(spacing: Space.md) {
-            Image(systemName: landmark.symbolName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.brandPrimary)
-                .frame(width: 24, height: 24)
-                .background(Color.brandPrimaryTint)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(landmark.name)
-                    .font(.bodyMedium.weight(.semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-                Text(landmark.description)
-                    .font(.caption)
-                    .foregroundStyle(Color.brandTextSecondary)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack(spacing: Space.sm) {
+                Image(systemName: entry.symbolName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+                    .frame(width: 28, height: 28)
+                    .background(Color.brandPrimaryTint)
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.momentTitle)
+                        .font(.bodyMedium.weight(.semibold))
+                        .foregroundStyle(Color.brandTextPrimary)
+                    Text(Self.dateLabel(entry.unlockedAt))
+                        .font(.caption)
+                        .foregroundStyle(Color.brandTextTertiary)
+                }
+                Spacer()
             }
-            Spacer()
+
+            Text("\u{201C}\(entry.dogVoiceLine)\u{201D}")
+                .font(.bodyLarge)
+                .italic()
+                .foregroundStyle(Color.brandTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack {
+                Spacer()
+                Text("— \(dogName)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.brandSecondary)
+            }
         }
-        .padding(.horizontal, Space.md)
-        .padding(.vertical, Space.sm + 2)
+        .padding(Space.md)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(entry.momentTitle), \(Self.dateLabel(entry.unlockedAt)). \(dogName) says: \(entry.dogVoiceLine)")
+    }
+
+    /// Today / Yesterday / day name within the last week / "5 May" past that.
+    /// Idiomatic for a diary read.
+    private static func dateLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let days = calendar.dateComponents([.day], from: date, to: .now).day ?? 0
+        if days < 7 {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_GB")
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_GB")
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
     }
 }
 

@@ -244,10 +244,10 @@ struct WalkCompleteOverlay: View {
 
     private var landmarkStamps: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            Text("CROSSED")
+            Text(event.landmarksCrossed.count == 1 ? "MOMENT UNLOCKED" : "MOMENTS UNLOCKED")
                 .font(.caption.weight(.semibold))
                 .tracking(0.5)
-                .foregroundStyle(Color.brandTextTertiary)
+                .foregroundStyle(Color.brandPrimary)
             VStack(spacing: Space.xs) {
                 ForEach(event.landmarksCrossed) { landmark in
                     HStack(spacing: Space.sm) {

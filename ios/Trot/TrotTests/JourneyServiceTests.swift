@@ -24,7 +24,6 @@ struct JourneyServiceTests {
                 Landmark(id: "c", name: "C", description: "", minutesFromStart: 18, symbolName: "leaf.fill"),
                 Landmark(id: "z", name: "End", description: "", minutesFromStart: 24, symbolName: "flag.fill")
             ],
-            pathPoints: []
         ),
         Route(
             id: "london-brighton",
@@ -36,7 +35,6 @@ struct JourneyServiceTests {
                 Landmark(id: "x", name: "X", description: "", minutesFromStart: 12, symbolName: "drop.fill"),
                 Landmark(id: "y", name: "Y", description: "", minutesFromStart: 60, symbolName: "flag.fill")
             ],
-            pathPoints: []
         ),
         Route(
             id: "hadrians-wall",
@@ -47,8 +45,7 @@ struct JourneyServiceTests {
             landmarks: [
                 Landmark(id: "h1", name: "H1", description: "", minutesFromStart: 60, symbolName: "drop.fill"),
                 Landmark(id: "h2", name: "H2", description: "", minutesFromStart: 120, symbolName: "flag.fill")
-            ],
-            pathPoints: []
+            ]
         )
     ]
 

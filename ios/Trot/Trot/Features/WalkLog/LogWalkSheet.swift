@@ -215,6 +215,16 @@ struct LogWalkSheet: View {
             // so a count of exactly 1 means this is the dog's debut.
             let isFirstWalk = (dog.walks ?? []).count == 1
             let application = JourneyService.applyWalk(minutes: minutes, to: dog)
+            // Record diary entries for any Moments crossed. Templated line
+            // immediately, LLM enrichment fires off async.
+            if !application.landmarksCrossed.isEmpty {
+                MomentDiaryService.recordUnlocks(
+                    for: dog,
+                    crossings: application.landmarksCrossed,
+                    seasonID: route.id,
+                    modelContext: modelContext
+                )
+            }
             // After applyWalk, dog.activeRouteID may have advanced; the route the
             // walk-complete UI shows is the one that was IN PROGRESS for this walk.
             appState.enqueueWalkComplete(

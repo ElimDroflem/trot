@@ -1,18 +1,21 @@
-import CoreGraphics
 import Foundation
 
-/// Bundled route — immutable reference data loaded once from `Routes.json`.
+/// A "season" of the user-and-dog relationship. The app calls these `Route` in
+/// type names (legacy), but every user-facing string says **season** — the
+/// arc the user and dog are walking together right now. Each contains a series
+/// of **Moments** (still typed `Landmark` for legacy reasons, displayed as
+/// "Moment") that unlock as accumulated walking minutes pass their threshold.
 ///
-/// Routes are measured in **minutes of walking together**, not km. The geography
-/// (route name, landmark names, route subtitle) stays as flavor — but the unit
-/// of progression is time. This is honest given that the app collects only the
-/// `durationMinutes` of each walk and never measures real distance, and it
-/// matches the dog-welfare frame: a 60-minute slow walk and a 30-minute brisk
-/// walk are not equivalent for the dog, even if they cover the same km.
+/// Bond-framing: titles describe accumulated time and observations of the
+/// relationship, never "first ever" (which would patronise users with older
+/// dogs) and never the app as narrator. The LLM-generated diary entry on
+/// each unlock carries the emotional payload — a short dog-voice line about
+/// the user, written specifically for that user and dog.
 ///
-/// Lengths are calibrated at a canonical 5 km/h pace (12 min/km) so the route
-/// names remain anchored to a real-world distance — "London to Brighton ≈ 16
-/// hours of walking together" — without ever displaying or computing km.
+/// Lengths are in MINUTES of walking together. Calibrated against a ~5 km/h
+/// canonical pace (so the four seasons total roughly the time it takes to
+/// walk all four real-world routes the type names came from), but km is never
+/// displayed or computed.
 struct Route: Decodable, Identifiable, Sendable, Hashable {
     let id: String
     let name: String
@@ -20,9 +23,9 @@ struct Route: Decodable, Identifiable, Sendable, Hashable {
     let theme: RouteTheme
     let totalMinutes: Int
     let landmarks: [Landmark]
-    let pathPoints: [RoutePoint]
 
-    /// Final landmark (typically the route's destination). Nil for an empty route.
+    /// Final Moment of the season (typically the season-completion celebration).
+    /// Nil for an empty season.
     var finalLandmark: Landmark? { landmarks.last }
 }
 
@@ -34,22 +37,12 @@ struct Landmark: Decodable, Identifiable, Sendable, Hashable {
     let symbolName: String
 }
 
-/// Normalised 0-1 control point for the SwiftUI Path that draws a route.
-/// Decoded from `{"x": Double, "y": Double}` JSON, exposed as a `CGPoint` to
-/// the rendering code.
-struct RoutePoint: Decodable, Sendable, Hashable {
-    let x: Double
-    let y: Double
-
-    var cgPoint: CGPoint { CGPoint(x: x, y: y) }
-}
-
-/// Per-route colour palette key. The view layer maps this to brand colours.
+/// Per-season colour palette key. The view layer maps this to brand colours.
 enum RouteTheme: String, Decodable, Sendable, Hashable {
-    case townLane    // starter: warm coral/cream
-    case coastal     // London-Brighton: blues + cream
-    case roman       // Hadrian's Wall: stone greys + ochre
-    case downs       // South Downs: greens + chalk
+    case townLane    // first walks together: warm coral/cream
+    case coastal     // finding your rhythm: blues + cream
+    case roman       // rituals: stone greys + ochre
+    case downs       // the long road: greens + chalk
 }
 
 /// Top-level shape of `Routes.json`.
