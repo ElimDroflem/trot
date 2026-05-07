@@ -86,7 +86,7 @@ enum WeatherService {
         components.queryItems = [
             URLQueryItem(name: "latitude", value: String(location.latitude)),
             URLQueryItem(name: "longitude", value: String(location.longitude)),
-            URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weathercode,windspeed_10m"),
+            URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weathercode,windspeed_10m,is_day"),
             URLQueryItem(name: "forecast_days", value: "1"),
             URLQueryItem(name: "timezone", value: "auto"),
         ]
@@ -137,6 +137,11 @@ struct HourlySnapshot: Codable, Sendable, Equatable {
     let precipitationProbability: Int  // 0-100
     let weatherCodeRaw: Int
     let windSpeedKmh: Double
+    /// True if this hour is between the local sunrise and sunset, per
+    /// Open-Meteo's `is_day` field. Used by the mood layer to flip between a
+    /// daylight palette and a softer dusk palette (we force light mode in v1
+    /// so this never goes fully dark — it just shifts the warmth).
+    var isDay: Bool = true
 
     /// Open-Meteo's WMO weather codes, bucketed into the categories we care
     /// about for walk-window judgments.
@@ -182,6 +187,7 @@ private struct ForecastResponse: Decodable {
         let precipitation_probability: [Int?]
         let weathercode: [Int]
         let windspeed_10m: [Double]
+        let is_day: [Int]?
     }
     let hourly: Hourly?
 
@@ -214,7 +220,8 @@ private struct ForecastResponse: Decodable {
             temperatureC: h.temperature_2m[safe: index] ?? 0,
             precipitationProbability: h.precipitation_probability[safe: index].flatMap { $0 } ?? 0,
             weatherCodeRaw: h.weathercode[safe: index] ?? 0,
-            windSpeedKmh: h.windspeed_10m[safe: index] ?? 0
+            windSpeedKmh: h.windspeed_10m[safe: index] ?? 0,
+            isDay: (h.is_day?[safe: index] ?? 1) == 1
         )
     }
 }

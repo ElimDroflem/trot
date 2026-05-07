@@ -27,6 +27,10 @@ struct JourneyView: View {
             )
             .ignoresSafeArea()
 
+            // Same atmospheric layer used on the Today tab — swapping tabs
+            // doesn't break the immersion. Renders nothing if no postcode.
+            WeatherMoodLayer()
+
             if let dog = selectedDog {
                 if let route = JourneyService.currentRoute(for: dog) {
                     journeyContent(dog: dog, route: route)
