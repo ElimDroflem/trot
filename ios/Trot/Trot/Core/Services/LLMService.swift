@@ -24,10 +24,10 @@ enum LLMService {
         case recap
         case decay
         case onboardingCard = "onboarding_card"
-        /// Diary entry generated when the user crosses a Moment in their season.
-        /// Reflective, observational dog-voice line ABOUT THE USER — the
-        /// emotional payload of the Journey loop.
-        case momentUnlock = "moment_unlock"
+        /// Home tab personality voice — fun fact, joke, observation, or
+        /// playful question in the dog's voice. Capped at three calls per
+        /// dog per day via slotted caching in `dogChatLine(for:)`.
+        case dogChat = "dog_chat"
     }
 
     // MARK: - Public surfaces
@@ -142,32 +142,61 @@ enum LLMService {
         return text
     }
 
-    /// Diary entry generated when a Moment unlocks in the user's current season.
-    /// The dog-voice reflection that creates the bond — speaks about the user,
-    /// never about the app. No cache — every unlock is its own moment, even when
-    /// the same Moment crosses again across multiple dogs.
+    /// Home-tab personality line — fun fact, joke, observation, or playful
+    /// question in the dog's voice. Cached per (dog × local-day × time-slot)
+    /// so we burn at most three LLM calls per dog per day even if the user
+    /// opens the app dozens of times. The slot key is computed from the
+    /// current local hour: morning (5-12), afternoon (12-17), evening (17-22).
+    /// Outside those windows we reuse the most-recent slot's cache.
     ///
-    /// `headlineMomentTitle` is the principal Moment that this entry represents
-    /// (the latest/furthest along the season if a single walk crossed several).
-    /// `allCrossedTitles` lets the LLM nod to the multi-cross when it happened.
-    /// `lifetimeMinutesWithDog` and `daysSinceFirstWalk` are emotional anchors
-    /// the model uses to scale the diary tone (early walks vs deep history).
-    static func momentUnlockLine(
+    /// `category` is one of "fact", "joke", "observation", "question" — picked
+    /// deterministically from the slot so the user gets variety across the day.
+    static func dogChatLine(
         for dog: Dog,
-        headlineMomentTitle: String,
-        momentDescription: String,
-        allCrossedTitles: [String],
-        lifetimeMinutesWithDog: Int,
-        daysSinceFirstWalk: Int
+        now: Date = .now,
+        calendar: Calendar = .current
     ) async -> String? {
+        let dayKey = Self.localDayKey(now, calendar: calendar)
+        let slot = DogChatSlot.current(now: now, calendar: calendar)
+        let cacheKey = "dogChat.\(dog.persistentModelID.hashValue).\(dayKey).\(slot.rawValue)"
+        if let hit = LLMCache.get(key: cacheKey) { return hit }
+
         let context: [String: any Sendable] = [
-            "headlineMomentTitle": headlineMomentTitle,
-            "momentDescription": momentDescription,
-            "allCrossedTitles": allCrossedTitles,
-            "lifetimeMinutesWithDog": lifetimeMinutesWithDog,
-            "daysSinceFirstWalk": daysSinceFirstWalk,
+            "category": slot.category,
+            "slot": slot.rawValue,
         ]
-        return await request(kind: .momentUnlock, dog: dog, context: context)
+        guard let text = await request(kind: .dogChat, dog: dog, context: context) else { return nil }
+        // 24h cache: by tomorrow's same slot a fresh line will be generated.
+        LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24)
+        return text
+    }
+
+    /// Three time-of-day slots used to cap how often `dogChatLine` hits the
+    /// API — capped at one call per slot per dog per day, three slots per
+    /// day (morning/afternoon/evening) = max three calls per dog per day.
+    /// The night hours (22:00-05:00) reuse the evening slot's cache.
+    enum DogChatSlot: String, Sendable {
+        case morning, afternoon, evening
+
+        static func current(now: Date, calendar: Calendar) -> DogChatSlot {
+            switch calendar.component(.hour, from: now) {
+            case 5..<12: return .morning
+            case 12..<17: return .afternoon
+            default: return .evening
+            }
+        }
+
+        /// Category seed sent to the LLM so the same slot always gets the same
+        /// flavour of message — morning is observational/fact, afternoon is
+        /// playful question, evening is joke/wry. Deterministic so a slot
+        /// retry stays consistent.
+        var category: String {
+            switch self {
+            case .morning:   return "fact"
+            case .afternoon: return "question"
+            case .evening:   return "joke"
+            }
+        }
     }
 
     /// Pre-save onboarding card. Called from `AddDogView` after the user has

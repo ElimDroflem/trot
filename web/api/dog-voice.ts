@@ -30,7 +30,7 @@ type Kind =
     | "recap"
     | "decay"
     | "onboarding_card"
-    | "moment_unlock";
+    | "dog_chat";
 
 interface DogInfo {
     name: string;
@@ -100,7 +100,7 @@ export default async function handler(req: Request): Promise<Response> {
 
 // MARK: - Validation
 
-const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "moment_unlock"];
+const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat"];
 
 function validate(body: RequestBody): string | null {
     if (!body || typeof body !== "object") return "invalid_body";
@@ -255,44 +255,43 @@ Maximum 10 words.`,
             };
         }
 
-        case "moment_unlock": {
-            const headlineMomentTitle = str(context.headlineMomentTitle);
-            const momentDescription = str(context.momentDescription);
-            const allCrossedTitles = arr(context.allCrossedTitles);
-            const lifetimeMinutesWithDog = num(context.lifetimeMinutesWithDog, 0);
-            const daysSinceFirstWalk = num(context.daysSinceFirstWalk, 0);
-            const otherCrossings = allCrossedTitles
-                .filter((t) => t !== headlineMomentTitle)
-                .slice(0, 4);
+        case "dog_chat": {
+            const category = str(context.category) || "fact";
 
-            const lifetimeHours = Math.round(lifetimeMinutesWithDog / 60);
-            const lifetimeLabel = lifetimeMinutesWithDog < 60
-                ? `${lifetimeMinutesWithDog} minutes`
-                : lifetimeHours === 1
-                    ? "about an hour"
-                    : `${lifetimeHours} hours`;
+            const categoryBrief = (() => {
+                switch (category) {
+                    case "fact":
+                        return `A short fun fact tied to the dog's breed (${dog.breed}), age, or species. Lean on what you actually know about ${dog.breed}s — Trot trusts you to be accurate. End with a small first-person aside that adds personality.`;
+                    case "joke":
+                        return `A dry one-liner or short joke. Self-aware, observational, never corny. Think understated UK humour.`;
+                    case "question":
+                        return `A playful question or guessing-game prompt aimed at the user. Specific, not generic. ("Guess where I want to go on Saturday.")`;
+                    case "observation":
+                        return `A small wry observation about being a dog, or about ${dog.name}'s daily life. Specific, not generic.`;
+                    default:
+                        return `A short observation in the dog's voice.`;
+                }
+            })();
 
             return {
                 system: SYSTEM_BASE,
                 user: `${dogContext}
-A Moment just unlocked in the user's current season.
-Moment: "${headlineMomentTitle}" — ${momentDescription}
-${otherCrossings.length > 0 ? `Other moments crossed in the same walk: ${otherCrossings.join(", ")}.` : ""}
-Lifetime walking time with this user: ${lifetimeLabel}.
-Days since the first walk in the diary: ${daysSinceFirstWalk}.
+You are speaking AS ${dog.name}. The user is the human reading this on their phone's home screen — a moment of casual personality, not a lesson.
 
-Write a 1-2 sentence DIARY ENTRY in ${dog.name}'s voice. The dog is reflecting on the moment, speaking ABOUT the user — what they smell like, when they walk, how they walk, something specific. The app is invisible — never mention "Trot", "the app", "tracking", "logged". Don't claim "first ever" of anything (the user may have had this dog for years). Talk about accumulated time and the relationship as it stands. The line should feel like a private observation the dog is making about the human they walk with.
+Today's mode: ${categoryBrief}
 
-Tone: warm, plain, slightly dry. Specific over generic. The line should make the user feel seen.
+Hard rules (in addition to the system rules):
+- One sentence preferred, two maximum.
+- Maximum 30 words.
+- Plain English, slightly dry tone. Never saccharine. Never gushing.
+- No "yay", "OMG", "love love love", baby-talk, or fake enthusiasm.
+- No exclamation marks unless the line genuinely earns one.
+- Specific over generic. Use real numbers and breed-specific details where they help.
+- Never mention "Trot", "the app", "tracking", or "logged".
+- Use ${dog.name}'s name only if it lands naturally.
 
-Examples of the right register:
-- "Your slowest walks. My favourite kind."
-- "You always smell like coffee in the mornings. I wait for it."
-- "Five hours of rain this winter. You towel my chest first, every time."
-- "We've done a lot of walks. You're easier to follow than you think."
-
-Maximum 28 words. No exclamation marks unless the moment is genuinely big.`,
-                maxTokens: 130,
+Output ONLY the line.`,
+                maxTokens: 100,
             };
         }
     }

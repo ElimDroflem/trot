@@ -49,7 +49,6 @@ struct JourneyView: View {
     @ViewBuilder
     private func journeyContent(dog: Dog, route: Route) -> some View {
         let next = JourneyService.nextLandmark(for: dog)
-        let diaryEntries = recentDiaryEntries(for: dog)
 
         ScrollView {
             VStack(spacing: Space.lg) {
@@ -70,14 +69,12 @@ struct JourneyView: View {
                     progressMinutes: dog.routeProgressMinutes
                 )
 
-                if !diaryEntries.isEmpty {
-                    RecentMomentsSection(entries: diaryEntries, dogName: dog.name)
-                }
+                JourneyHighlightsCard(dog: dog, next: next)
 
                 ComingUpSection(currentRouteID: route.id, completedIDs: dog.completedRouteIDs)
 
-                // Extra clearance so the last diary card / coming-up tile
-                // never hides behind the centre walk FAB.
+                // Extra clearance so the last card never hides behind the
+                // centre walk FAB.
                 Color.clear.frame(height: 100)
             }
             .padding(.horizontal, Space.md)
@@ -102,12 +99,6 @@ struct JourneyView: View {
         .padding(Space.xl)
     }
 
-    private func recentDiaryEntries(for dog: Dog) -> [MomentDiaryEntry] {
-        (dog.momentDiary ?? [])
-            .sorted { $0.unlockedAt > $1.unlockedAt }
-            .prefix(8)
-            .map { $0 }
-    }
 }
 
 // MARK: - Hero
@@ -511,78 +502,148 @@ private struct UpNextBlock: View {
     }
 }
 
-// MARK: - Recent Moments (diary entries)
+// MARK: - Highlights
 
-private struct RecentMomentsSection: View {
-    let entries: [MomentDiaryEntry]
-    let dogName: String
+/// "Highlights" card on Journey — replaces the LLM-generated diary entries
+/// that used to live here. Shows real, factual stats about the dog's
+/// walking journey so the section actually pays back: lifetime totals,
+/// longest single walk, distance to the next moment.
+///
+/// Pure-function over `dog.walks` and `next.minutesAway`. Three to four
+/// one-liners with a hint of dry framing where it lands naturally.
+private struct JourneyHighlightsCard: View {
+    let dog: Dog
+    let next: NextLandmark?
+
+    private struct Highlight: Identifiable {
+        let id = UUID()
+        let icon: String
+        let value: String
+        let label: String
+    }
+
+    private var highlights: [Highlight] {
+        let walks = dog.walks ?? []
+        let lifetimeMinutes = walks.reduce(0) { $0 + $1.durationMinutes }
+        let walkCount = walks.count
+        let longest = walks.max(by: { $0.durationMinutes < $1.durationMinutes })
+
+        var items: [Highlight] = [
+            Highlight(
+                icon: "figure.walk",
+                value: walkSummary(walkCount: walkCount, minutes: lifetimeMinutes),
+                label: "Together so far"
+            )
+        ]
+
+        if let longest, longest.durationMinutes > 0 {
+            items.append(
+                Highlight(
+                    icon: "stopwatch.fill",
+                    value: "\(longest.durationMinutes) min",
+                    label: "Longest walk · \(Self.relativeDay(longest.startedAt))"
+                )
+            )
+        }
+
+        if let next {
+            items.append(
+                Highlight(
+                    icon: "arrow.forward.circle.fill",
+                    value: "\(next.minutesAway) min",
+                    label: "From the next moment"
+                )
+            )
+        }
+
+        if let consistencyHour = mostConsistentHour(walks: walks) {
+            items.append(
+                Highlight(
+                    icon: "clock.fill",
+                    value: Self.formatHour(consistencyHour),
+                    label: "Most walks start near"
+                )
+            )
+        }
+
+        return items
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("Diary entries")
+            Text("Highlights")
                 .font(.titleSmall)
                 .foregroundStyle(Color.brandTextPrimary)
 
-            VStack(spacing: Space.sm) {
-                ForEach(entries) { entry in
-                    DiaryEntryCard(entry: entry, dogName: dogName)
+            VStack(spacing: 0) {
+                ForEach(Array(highlights.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(Color.brandDivider.opacity(0.5))
+                            .frame(height: 1)
+                    }
+                    row(for: item)
                 }
             }
+            .background(Color.brandSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+            .brandCardShadow()
         }
     }
-}
 
-private struct DiaryEntryCard: View {
-    let entry: MomentDiaryEntry
-    let dogName: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HStack(spacing: Space.sm) {
-                ZStack {
-                    Circle()
-                        .fill(Color.brandPrimary)
-                    Image(systemName: entry.symbolName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 36, height: 36)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.momentTitle)
-                        .font(.bodyLarge.weight(.semibold))
-                        .foregroundStyle(Color.brandTextPrimary)
-                    Text(Self.dateLabel(entry.unlockedAt))
-                        .font(.caption)
-                        .foregroundStyle(Color.brandTextTertiary)
-                }
-                Spacer()
+    private func row(for highlight: Highlight) -> some View {
+        HStack(spacing: Space.sm) {
+            ZStack {
+                Circle()
+                    .fill(Color.brandPrimaryTint)
+                    .frame(width: 32, height: 32)
+                Image(systemName: highlight.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
             }
-
-            Text("\u{201C}\(entry.dogVoiceLine)\u{201D}")
-                .font(.bodyLarge)
-                .italic()
-                .foregroundStyle(Color.brandTextPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack {
-                Spacer()
-                Text("— \(dogName)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandSecondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(highlight.value)
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+                Text(highlight.label)
+                    .font(.caption)
+                    .foregroundStyle(Color.brandTextSecondary)
             }
+            Spacer()
         }
-        .padding(Space.md)
-        .background(Color.brandSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .brandCardShadow()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.momentTitle), \(Self.dateLabel(entry.unlockedAt)). \(dogName) says: \(entry.dogVoiceLine)")
+        .padding(.horizontal, Space.md)
+        .padding(.vertical, Space.sm)
     }
 
-    private static func dateLabel(_ date: Date) -> String {
+    private func walkSummary(walkCount: Int, minutes: Int) -> String {
+        if walkCount == 0 { return "No walks yet" }
+        let walksPart = walkCount == 1 ? "1 walk" : "\(walkCount) walks"
+        if minutes < 60 { return "\(walksPart) · \(minutes) min" }
+        let h = minutes / 60
+        let m = minutes % 60
+        let durationPart = m == 0 ? "\(h)h" : "\(h)h \(m)m"
+        return "\(walksPart) · \(durationPart)"
+    }
+
+    /// The hour-of-day that contains the most walks, when at least three
+    /// walks share that hour. Returns nil otherwise — a "most consistent"
+    /// claim from one or two walks is just noise.
+    private func mostConsistentHour(walks: [Walk]) -> Int? {
+        guard walks.count >= 3 else { return nil }
+        var byHour: [Int: Int] = [:]
+        for walk in walks {
+            byHour[Calendar.current.component(.hour, from: walk.startedAt), default: 0] += 1
+        }
+        guard let top = byHour.max(by: { $0.value < $1.value }), top.value >= 3 else { return nil }
+        return top.key
+    }
+
+    /// "Today" / "Yesterday" / weekday name within the last week / "5 May"
+    /// past that. Idiomatic for short captions.
+    private static func relativeDay(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if calendar.isDateInToday(date) { return "today" }
+        if calendar.isDateInYesterday(date) { return "yesterday" }
         let days = calendar.dateComponents([.day], from: date, to: .now).day ?? 0
         if days < 7 {
             let formatter = DateFormatter()
@@ -594,6 +655,15 @@ private struct DiaryEntryCard: View {
         formatter.locale = Locale(identifier: "en_GB")
         formatter.dateFormat = "d MMM"
         return formatter.string(from: date)
+    }
+
+    private static func formatHour(_ hour: Int) -> String {
+        switch hour {
+        case 0: return "midnight"
+        case 12: return "noon"
+        case 1...11: return "\(hour)am"
+        default: return "\(hour - 12)pm"
+        }
     }
 }
 
