@@ -41,18 +41,15 @@ struct HomeView: View {
         }
         .tint(.brandPrimary)
         .overlay(alignment: .bottom) {
-            // Strava-style centre FAB. Sits above the tab bar's centre slot —
-            // raised so it reads as a floating primary action rather than a
-            // fifth tab. Visible regardless of which tab is selected because
-            // "walk with your dog" is the app's core verb.
+            // Strava-style centre walk button, integrated INTO the tab bar.
+            // The Liquid Glass capsule sits flush with the tab items (raised
+            // ~6pt for visual emphasis, not floating). Visible on every tab
+            // because "walk with your dog" is the core verb.
             WalkActionFAB(
                 onStartWalk: { showingExpedition = true },
                 onLogPastWalk: { showingLogWalk = true }
             )
-            // Tab-bar height + a lift so the button rises above the bar.
-            // 49pt is the standard iOS tab-bar item height; we add ~22pt of
-            // lift so roughly half the FAB sits above the bar, half over it.
-            .padding(.bottom, 49 - 22)
+            .padding(.bottom, 6)
         }
         .sheet(isPresented: $showingLogWalk) {
             if let dog = selectedDog {
