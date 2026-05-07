@@ -37,7 +37,20 @@ struct TrotApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
+                .onOpenURL { url in
+                    handleIncomingURL(url)
+                }
         }
         .modelContainer(modelContainer)
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        #if DEBUG
+        DebugDeepLinks.handle(
+            url,
+            appState: appState,
+            modelContext: modelContainer.mainContext
+        )
+        #endif
     }
 }

@@ -20,23 +20,29 @@ struct HomeView: View {
     private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
     var body: some View {
-        TabView {
+        @Bindable var appStateBindable = appState
+        TabView(selection: $appStateBindable.selectedTab) {
             todayTab
                 .tabItem { Label("Today", systemImage: "house.fill") }
+                .tag(TrotTab.today)
 
             ActivityView()
                 .tabItem { Label("Activity", systemImage: "calendar") }
+                .tag(TrotTab.activity)
 
             JourneyView()
                 .tabItem { Label("Journey", systemImage: "figure.walk.motion") }
+                .tag(TrotTab.journey)
 
             InsightsView()
                 .tabItem { Label("Insights", systemImage: "lightbulb") }
+                .tag(TrotTab.insights)
 
             DogProfileView()
                 .tabItem {
                     Label(selectedDog?.name ?? "Dog", systemImage: "dog.fill")
                 }
+                .tag(TrotTab.dog)
         }
         .tint(.brandPrimary)
         .sheet(isPresented: $showingLogWalk) {

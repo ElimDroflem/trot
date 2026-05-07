@@ -10,6 +10,17 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
 
+    /// DEBUG-only — pulled into a computed property so Release just reads
+    /// `false` and short-circuits cleanly. The deep-link handler flips this
+    /// for simulator testing.
+    private var debugGateBypassed: Bool {
+        #if DEBUG
+        return appState.debugGateBypassed
+        #else
+        return false
+        #endif
+    }
+
     private var recapDog: Dog? {
         guard let id = appState.pendingRecapDogID else { return nil }
         return activeDogs.first(where: { $0.persistentModelID == id })
@@ -17,7 +28,7 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if !hasContinued {
+            if !hasContinued && !debugGateBypassed {
                 OnboardingGateView(onContinue: { hasContinued = true })
             } else if activeDogs.isEmpty {
                 AddDogView()
@@ -71,7 +82,16 @@ struct RootView: View {
             }
         }
         .task {
+            #if DEBUG
+            // `-DebugSkipNotifications YES` launch arg lets simulator-driven
+            // testing avoid the iOS notification-permission system dialog,
+            // which would otherwise overlay every clean-install screenshot.
+            if !UserDefaults.standard.bool(forKey: "DebugSkipNotifications") {
+                _ = await NotificationService.requestPermission()
+            }
+            #else
             _ = await NotificationService.requestPermission()
+            #endif
             await rescheduleNotificationsIfNeeded()
             checkMilestones()
             checkRecapAutoShow()

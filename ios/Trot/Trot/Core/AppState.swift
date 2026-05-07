@@ -5,9 +5,30 @@ import SwiftData
 /// Tracks the user's currently-selected dog across tabs and a queue of
 /// pending first-week-loop celebrations to surface to the user.
 /// Falls back to the most-recently-active dog when nothing is explicitly selected.
+/// The five primary tabs in HomeView's TabView. Bound to via `AppState.selectedTab`
+/// so DEBUG deep-link navigation (`trot://debug/tab/<name>`) can drive selection.
+enum TrotTab: String, Hashable, Sendable {
+    case today
+    case activity
+    case journey
+    case insights
+    case dog
+}
+
 @Observable
 final class AppState {
     var selectedDogID: PersistentIdentifier?
+
+    /// Currently-selected tab in the bottom tab bar. Defaults to .today;
+    /// updated by user taps via `TabView(selection:)` and (in DEBUG) by
+    /// `trot://debug/tab/<name>` deep links.
+    var selectedTab: TrotTab = .today
+
+    /// DEBUG-only escape hatch for the onboarding gate. Set via deep link
+    /// (`trot://debug/tab/...` flips this true) so simulator-driven testing
+    /// can navigate past the Sign-in screen without UI automation. Treated
+    /// as `false` by default; never read in Release.
+    var debugGateBypassed: Bool = false
 
     /// FIFO queue of milestone celebrations waiting to be shown.
     /// Producer (LogWalkSheet save, RootView .task) pushes new beats from
@@ -31,7 +52,30 @@ final class AppState {
 
     init(selectedDogID: PersistentIdentifier? = nil) {
         self.selectedDogID = selectedDogID
+        #if DEBUG
+        applyLaunchArgumentOverrides()
+        #endif
     }
+
+    #if DEBUG
+    /// Apply DEBUG-only overrides written via UserDefaults launch arguments.
+    /// `xcrun simctl launch --args` injects these for the launch only — they
+    /// don't persist across runs. Used by simulator-driven testing to skip
+    /// the gate and land on a target tab without UI automation.
+    ///
+    ///     xcrun simctl launch --console booted dog.trot.Trot \
+    ///         -DebugGateBypassed YES -DebugTab journey
+    private func applyLaunchArgumentOverrides() {
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: "DebugGateBypassed") {
+            debugGateBypassed = true
+        }
+        if let raw = defaults.string(forKey: "DebugTab"),
+           let tab = TrotTab(rawValue: raw.lowercased()) {
+            selectedTab = tab
+        }
+    }
+    #endif
 
     /// Returns the dog that should be displayed given the current selection and the
     /// available active dogs. If `selectedDogID` is unset or doesn't match any active
