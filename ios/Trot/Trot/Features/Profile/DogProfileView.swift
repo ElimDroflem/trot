@@ -15,6 +15,8 @@ struct DogProfileView: View {
     @State private var showingEdit = false
     @State private var showingAddAnother = false
     @State private var showingArchiveConfirmation = false
+    @State private var showingPostcodeEditor = false
+    @State private var postcode: String = UserPreferences.postcode
     @State private var actionError: String?
 
     private var activeDog: Dog? { appState.selectedDog(from: activeDogs) }
@@ -33,6 +35,7 @@ struct DogProfileView: View {
                         rationaleCard(dog: dog)
                         healthCard(dog: dog)
                         WalkWindowsCard(dog: dog)
+                        postcodeCard
                         addAnotherDogButton
                         archiveButton(dog: dog)
                         Color.clear.frame(height: Space.lg)
@@ -51,6 +54,11 @@ struct DogProfileView: View {
                         .navigationTitle("Edit profile")
                         .navigationBarTitleDisplayMode(.inline)
                 }
+            }
+        }
+        .sheet(isPresented: $showingPostcodeEditor) {
+            PostcodeEditSheet {
+                postcode = UserPreferences.postcode
             }
         }
         .sheet(isPresented: $showingAddAnother) {
@@ -197,6 +205,32 @@ struct DogProfileView: View {
                 }
             }
         }
+    }
+
+    /// Postcode is per-user (not per-dog) so it lives outside the dog model
+    /// cards. Tapping opens the postcode-edit sheet — same flow used from the
+    /// Today tile, so users find it from either entry point.
+    private var postcodeCard: some View {
+        Button { showingPostcodeEditor = true } label: {
+            FormCard(title: "Where you walk") {
+                HStack {
+                    if postcode.isEmpty {
+                        Text("Add a postcode")
+                            .foregroundStyle(Color.brandTextTertiary)
+                    } else {
+                        Text(postcode)
+                            .foregroundStyle(Color.brandTextPrimary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.brandTextTertiary)
+                }
+                .padding(.vertical, Space.xs)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(postcode.isEmpty ? "Add a postcode" : "Postcode: \(postcode). Tap to change.")
     }
 
     private var addAnotherDogButton: some View {

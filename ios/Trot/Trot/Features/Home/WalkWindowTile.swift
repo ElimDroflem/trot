@@ -17,6 +17,7 @@ struct WalkWindowTile: View {
 
     @State private var state: TileState = .loading
     @State private var postcode: String = UserPreferences.postcode
+    @State private var showingPostcodeEditor = false
 
     enum TileState {
         case loading
@@ -29,8 +30,8 @@ struct WalkWindowTile: View {
         Group {
             switch state {
             case .loading:        loadingTile
-            case .noPostcode:     noPostcodeTile
-            case .unavailable:    unavailableTile
+            case .noPostcode:     noPostcodeButton
+            case .unavailable:    unavailableButton
             case .ready(let rec): recommendationTile(rec)
             }
         }
@@ -40,6 +41,13 @@ struct WalkWindowTile: View {
             // postcode added in Profile/Edit lands on the next Home view.
             let current = UserPreferences.postcode
             if current != postcode { postcode = current }
+        }
+        .sheet(isPresented: $showingPostcodeEditor) {
+            PostcodeEditSheet {
+                // Re-read to pick up the new value; .task(id: postcode)
+                // re-fires the load when this changes.
+                postcode = UserPreferences.postcode
+            }
         }
     }
 
@@ -55,24 +63,35 @@ struct WalkWindowTile: View {
         )
     }
 
-    private var noPostcodeTile: some View {
-        tileShell(
-            icon: "location.slash",
-            tint: .brandTextTertiary,
-            title: "Add a postcode for the daily walk forecast.",
-            subtitle: "Profile → Edit profile → Where you walk.",
-            tempPill: nil
-        )
+    /// Tappable — opens the postcode editor sheet inline so the user can fix
+    /// the empty state without spelunking into Profile.
+    private var noPostcodeButton: some View {
+        Button { showingPostcodeEditor = true } label: {
+            tileShell(
+                icon: "location.fill",
+                tint: .brandPrimary,
+                title: "Add a postcode for the daily walk forecast.",
+                subtitle: "Tap to add. Used only for weather, never for live tracking.",
+                tempPill: nil
+            )
+        }
+        .buttonStyle(.plain)
     }
 
-    private var unavailableTile: some View {
-        tileShell(
-            icon: "cloud.slash",
-            tint: .brandTextTertiary,
-            title: "Forecast unavailable.",
-            subtitle: "We'll try again later.",
-            tempPill: nil
-        )
+    /// Tappable — lets the user retry by re-entering / correcting the postcode.
+    /// Most "unavailable" states are a typo in the postcode that the geocoder
+    /// can't resolve; surfacing the editor here is the fast fix.
+    private var unavailableButton: some View {
+        Button { showingPostcodeEditor = true } label: {
+            tileShell(
+                icon: "cloud.slash",
+                tint: .brandTextTertiary,
+                title: "Forecast unavailable.",
+                subtitle: "Tap to check the postcode.",
+                tempPill: nil
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func recommendationTile(_ rec: WalkRecommendationService.Recommendation) -> some View {
