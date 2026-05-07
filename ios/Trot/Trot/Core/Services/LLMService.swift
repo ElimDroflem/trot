@@ -138,11 +138,41 @@ enum LLMService {
         return text
     }
 
+    /// Pre-save onboarding card. Called from `AddDogView` after the user has
+    /// uploaded a photo and entered a name but BEFORE the Dog is persisted to
+    /// SwiftData (so we don't have a `persistentModelID` to cache against).
+    /// No cache — generate fresh each time, since this is the moment-of-meeting
+    /// and the user only sees it once anyway.
+    static func onboardingCardLine(
+        name: String,
+        breedHint: String? = nil,
+        ageHintMonths: Int = 24
+    ) async -> String? {
+        let payload: [String: any Sendable] = [
+            "name": name,
+            "breed": breedHint?.isEmpty == false ? breedHint! : "Mixed",
+            "ageMonths": ageHintMonths,
+            "lifeStage": ageHintMonths < 12 ? "puppy" : (ageHintMonths >= 12 * 8 ? "senior" : "adult"),
+        ]
+        return await request(kind: .onboardingCard, dogPayload: payload, context: [:])
+    }
+
     // MARK: - Internals
 
     private static func request(
         kind: Kind,
         dog: Dog,
+        context: [String: any Sendable]
+    ) async -> String? {
+        await request(kind: kind, dogPayload: dogPayload(dog), context: context)
+    }
+
+    /// Lower-level overload that takes the dog payload dict directly. Used by
+    /// pre-save callers (notably the onboarding-card path, which fires before
+    /// SwiftData has a `Dog` instance to refer to).
+    private static func request(
+        kind: Kind,
+        dogPayload: [String: any Sendable],
         context: [String: any Sendable]
     ) async -> String? {
         let url = proxyBase.appendingPathComponent("api/dog-voice")
@@ -154,7 +184,7 @@ enum LLMService {
         let body: [String: any Sendable] = [
             "installToken": InstallTokenService.token(),
             "kind": kind.rawValue,
-            "dog": dogPayload(dog),
+            "dog": dogPayload,
             "context": context,
         ]
 

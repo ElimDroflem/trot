@@ -2,6 +2,18 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
+/// Multi-step onboarding for adding a dog. New dogs walk through:
+///
+///   1. **Photo & name** — the big emotional anchor. Photo first per the
+///      retention plan ("Show us your dog") so the user has something to
+///      look at before they're asked anything else.
+///   2. **Greeting** — generated dog-voice line ("Hi, I'm Luna. Walk?") via
+///      `LLMService.onboardingCardLine`. Templated fallback on miss.
+///   3. **Details** — breed, DOB, weight, sex, neutered, activity, health.
+///      The full form, but already on the hook from steps 1-2.
+///
+/// Editing an existing dog skips straight to step 3 (no greeting moment for
+/// repeat visits).
 struct AddDogView: View {
     let editingDog: Dog?
     let showsCancelButton: Bool
@@ -14,45 +26,55 @@ struct AddDogView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var saveError: String?
     @State private var showingBreedPicker = false
+    @State private var step: Step
+    @State private var greetingLine: String?
 
     init(editingDog: Dog? = nil, showsCancelButton: Bool = false) {
         self.editingDog = editingDog
         self.showsCancelButton = showsCancelButton
         if let dog = editingDog {
             self._form = State(initialValue: AddDogFormState.from(dog))
+            self._step = State(initialValue: .details)
         } else {
             self._form = State(initialValue: AddDogFormState())
+            self._step = State(initialValue: .photoAndName)
         }
     }
 
     private var isEditing: Bool { editingDog != nil }
     private var showCancel: Bool { isEditing || showsCancelButton }
 
+    enum Step { case photoAndName, greeting, details }
+
     var body: some View {
         ZStack {
             Color.brandSurface.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: Space.lg) {
-                    header
-                    photoSection
-                    basicsCard
-                    bodyCard
-                    activityCard
-                    healthCard
-                    saveButton
-                    Color.clear.frame(height: Space.lg)
-                }
-                .padding(.horizontal, Space.md)
-                .padding(.top, Space.md)
+            switch step {
+            case .photoAndName: photoAndNameStep
+            case .greeting:     greetingStep
+            case .details:      detailsStep
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .toolbar {
-            if showCancel {
+            if showCancel, step == .photoAndName || step == .details && isEditing {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
                         .tint(.brandPrimary)
+                }
+            }
+            if !isEditing, step == .greeting || step == .details {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        withAnimation(.brandDefault) {
+                            step = (step == .greeting) ? .photoAndName : .greeting
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .tint(.brandPrimary)
+                    .accessibilityLabel("Back")
                 }
             }
         }
@@ -71,10 +93,163 @@ struct AddDogView: View {
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Step 1: photo & name
+
+    private var photoAndNameStep: some View {
+        ScrollView {
+            VStack(spacing: Space.lg) {
+                VStack(spacing: Space.sm) {
+                    TrotLogo(size: 32)
+                        .padding(.bottom, Space.xs)
+                    Text("Show us your dog.")
+                        .font(.displayMedium)
+                        .foregroundStyle(Color.brandSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, Space.xl)
+                .padding(.bottom, Space.md)
+
+                photoSection(size: 200)
+
+                FormCard(title: "Name") {
+                    TextField("Luna", text: $form.name)
+                        .font(.titleSmall)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .submitLabel(.next)
+                        .padding(.vertical, Space.xs)
+                }
+
+                Spacer(minLength: Space.lg)
+
+                Button(action: continueFromPhotoAndName) {
+                    Text(continueButtonTitle)
+                        .font(.bodyLarge.weight(.semibold))
+                        .foregroundStyle(Color.brandTextOnPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Space.md)
+                        .background(canContinueFromPhotoAndName ? Color.brandPrimary : Color.brandTextTertiary)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                }
+                .disabled(!canContinueFromPhotoAndName)
+
+                Color.clear.frame(height: Space.lg)
+            }
+            .padding(.horizontal, Space.md)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var canContinueFromPhotoAndName: Bool {
+        !form.trimmedName.isEmpty
+    }
+
+    private var continueButtonTitle: String {
+        let name = form.trimmedName
+        return name.isEmpty ? "Continue" : "Meet \(name)"
+    }
+
+    private func continueFromPhotoAndName() {
+        guard canContinueFromPhotoAndName else { return }
+        withAnimation(.brandDefault) {
+            step = .greeting
+        }
+    }
+
+    // MARK: - Step 2: generated greeting
+
+    private var greetingStep: some View {
+        VStack(spacing: Space.lg) {
+            Spacer()
+
+            photoSection(size: 220)
+
+            VStack(spacing: Space.md) {
+                Text(form.trimmedName)
+                    .font(.displayLarge)
+                    .foregroundStyle(Color.brandSecondary)
+                    .multilineTextAlignment(.center)
+
+                Text(displayedGreeting)
+                    .font(.titleMedium)
+                    .italic()
+                    .foregroundStyle(Color.brandTextPrimary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Space.lg)
+                    .frame(minHeight: 56)
+            }
+
+            Spacer()
+
+            Button(action: continueFromGreeting) {
+                Text("Tell Trot more about \(form.trimmedName)")
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextOnPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Space.md)
+                    .background(Color.brandPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+            .padding(.horizontal, Space.md)
+            .padding(.bottom, Space.lg)
+        }
+        .padding(.horizontal, Space.md)
+        .task(id: form.trimmedName) {
+            await fetchGreeting()
+        }
+    }
+
+    /// Show the LLM line if it returned, otherwise a templated fallback that
+    /// uses the user's actual dog name. Never empty.
+    private var displayedGreeting: String {
+        if let line = greetingLine, !line.isEmpty {
+            return line
+        }
+        return "\u{201C}Hi, I'm \(form.trimmedName). Let's go.\u{201D}"
+    }
+
+    private func fetchGreeting() async {
+        let name = form.trimmedName
+        guard !name.isEmpty else { return }
+        let line = await LLMService.onboardingCardLine(name: name)
+        await MainActor.run {
+            withAnimation(.brandDefault) {
+                greetingLine = line
+            }
+        }
+    }
+
+    private func continueFromGreeting() {
+        withAnimation(.brandDefault) {
+            step = .details
+        }
+    }
+
+    // MARK: - Step 3: details (the rest of the form)
+
+    private var detailsStep: some View {
+        ScrollView {
+            VStack(spacing: Space.lg) {
+                detailsHeader
+                if isEditing {
+                    photoSection(size: 140)
+                    nameCardForEditing
+                }
+                basicsCard
+                bodyCard
+                activityCard
+                healthCard
+                saveButton
+                Color.clear.frame(height: Space.lg)
+            }
+            .padding(.horizontal, Space.md)
+            .padding(.top, Space.md)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
 
     @ViewBuilder
-    private var header: some View {
+    private var detailsHeader: some View {
         if isEditing {
             VStack(spacing: Space.sm) {
                 Text("Edit \(form.trimmedName.isEmpty ? "profile" : form.trimmedName).")
@@ -86,13 +261,11 @@ struct AddDogView: View {
             .padding(.bottom, Space.sm)
         } else {
             VStack(spacing: Space.sm) {
-                TrotLogo(size: 32)
-                    .padding(.bottom, Space.xs)
-                Text("Tell us about your dog.")
+                Text("\(form.trimmedName)'s details")
                     .font(.displayMedium)
                     .foregroundStyle(Color.brandSecondary)
                     .multilineTextAlignment(.center)
-                Text("We'll use this to set a sensible daily walking target.")
+                Text("Helps Trot tailor the daily walk target.")
                     .font(.bodyMedium)
                     .foregroundStyle(Color.brandTextSecondary)
                     .multilineTextAlignment(.center)
@@ -102,23 +275,36 @@ struct AddDogView: View {
         }
     }
 
-    private var photoSection: some View {
+    /// Shown only in editing mode — the new-dog flow has its own dedicated
+    /// name+photo step, so name there isn't part of the details card.
+    private var nameCardForEditing: some View {
+        FormCard(title: "Name") {
+            TextField("Luna", text: $form.name)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.next)
+        }
+    }
+
+    // MARK: - Shared sections
+
+    private func photoSection(size: CGFloat) -> some View {
         PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
             ZStack {
                 Circle()
                     .fill(Color.brandSurfaceSunken)
-                    .frame(width: 140, height: 140)
+                    .frame(width: size, height: size)
 
                 if let data = form.photoData, let image = UIImage(data: data) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 140, height: 140)
+                        .frame(width: size, height: size)
                         .clipShape(Circle())
                 } else {
                     VStack(spacing: Space.xs) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 28))
+                            .font(.system(size: size * 0.2))
                             .foregroundStyle(Color.brandTextTertiary)
                         Text("Add photo")
                             .font(.caption)
@@ -127,7 +313,7 @@ struct AddDogView: View {
                 }
             }
             .overlay {
-                Circle().stroke(Color.brandDivider, lineWidth: 1)
+                Circle().stroke(Color.brandPrimary.opacity(form.photoData == nil ? 0 : 1), lineWidth: 3)
             }
         }
         .accessibilityLabel(form.photoData == nil ? "Add a photo" : "Change photo")
@@ -135,13 +321,6 @@ struct AddDogView: View {
 
     private var basicsCard: some View {
         FormCard(title: "Basics") {
-            FormRow(label: "Name") {
-                TextField("Luna", text: $form.name)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-                    .submitLabel(.next)
-            }
-            FormDivider()
             FormRow(label: "Breed") {
                 Button(action: { showingBreedPicker = true }) {
                     HStack(spacing: Space.xs) {
