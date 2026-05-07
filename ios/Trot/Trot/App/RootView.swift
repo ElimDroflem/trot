@@ -21,6 +21,13 @@ struct RootView: View {
         #endif
     }
 
+    /// True once the user has consented to continue (or DEBUG bypass is set).
+    /// Side effects that require having a user — notification permission
+    /// requests, milestone celebrations, recap auto-show — gate on this.
+    private var isPastGate: Bool {
+        hasContinued || debugGateBypassed
+    }
+
     private var recapDog: Dog? {
         guard let id = appState.pendingRecapDogID else { return nil }
         return activeDogs.first(where: { $0.persistentModelID == id })
@@ -40,7 +47,11 @@ struct RootView: View {
             // Walk-complete dopamine fires FIRST so the immediate "you just walked"
             // moment lands before any milestone celebration that the same save may
             // have triggered.
-            if let event = appState.pendingWalkComplete {
+            //
+            // Both overlays are gated on `isPastGate` defensively so a stale
+            // queued celebration (e.g. notification deep link, unusual race)
+            // never renders on top of the sign-in screen.
+            if isPastGate, let event = appState.pendingWalkComplete {
                 WalkCompleteOverlay(
                     event: event,
                     dog: activeDogs.first(where: { $0.persistentModelID == event.dogID })
@@ -50,7 +61,7 @@ struct RootView: View {
                     }
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            } else if let celebration = appState.pendingCelebration {
+            } else if isPastGate, let celebration = appState.pendingCelebration {
                 CelebrationOverlay(celebration: celebration) {
                     withAnimation(.brandDefault) {
                         appState.consumeCelebration()
@@ -81,7 +92,17 @@ struct RootView: View {
                 }
             }
         }
-        .task {
+        // Permission requests, milestone celebrations, and recap auto-show all
+        // require the user to have crossed the gate. Otherwise the user sees
+        // iOS notification dialogs and in-app celebration overlays (e.g.
+        // firstWalk from a DebugSeed walk) on top of a sign-in screen they
+        // haven't agreed to yet — which is the bug Corey reported.
+        //
+        // Keyed on `isPastGate` so the side effects run BOTH for users who
+        // arrive at Home directly (debugGateBypassed = true on launch) AND for
+        // users who tap Continue (hasContinued flips true mid-session).
+        .task(id: isPastGate) {
+            guard isPastGate else { return }
             #if DEBUG
             // `-DebugSkipNotifications YES` launch arg lets simulator-driven
             // testing avoid the iOS notification-permission system dialog,
@@ -97,7 +118,7 @@ struct RootView: View {
             checkRecapAutoShow()
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
+            if newPhase == .active, isPastGate {
                 Task { await rescheduleNotificationsIfNeeded() }
                 checkMilestones()
                 checkRecapAutoShow()
