@@ -14,12 +14,10 @@ import Foundation
 /// Location is per *user*, not per dog (multi-dog households share a postcode).
 /// Stored in UserDefaults via `UserPreferences`.
 enum WeatherService {
-    /// postcodes.io — free, no key, UK postcode → lat/lon/admin district.
     /// We previously tried Open-Meteo's geocoding endpoint, but that one
     /// resolves *place names* (e.g. "London"), not UK postcodes — every UK
-    /// postcode lookup came back empty. postcodes.io is built for this and
-    /// covers BFPO and crown dependencies.
-    private static let postcodeBase = URL(string: "https://api.postcodes.io/postcodes")!
+    /// postcode lookup came back empty. We now hit postcodes.io directly via
+    /// `URL(string:)` inside `location(for:)`. Free, no key, UK-specific.
     private static let forecastBase = URL(string: "https://api.open-meteo.com/v1/forecast")!
     private static let timeout: TimeInterval = 8
 
@@ -37,12 +35,17 @@ enum WeatherService {
             return cached
         }
 
-        // postcodes.io accepts the postcode in the URL path (with or without
-        // a space). URL-encode whatever the user typed.
-        guard let encoded = trimmed.addingPercentEncoding(
-            withAllowedCharacters: .urlPathAllowed
-        ) else { return nil }
-        let url = postcodeBase.appendingPathComponent(encoded)
+        // postcodes.io accepts the postcode in the URL path with or without an
+        // internal space. We strip it because UK postcodes are A-Z and 0-9 only
+        // once the space is gone — that gives us a guaranteed URL-safe path
+        // component without having to fight Foundation's percent-encoding (
+        // appendingPathComponent will re-encode an already-encoded "%20" into
+        // "%2520", which silently 404s).
+        let pathComponent = trimmed
+            .replacingOccurrences(of: " ", with: "")
+            .uppercased()
+        guard let url = URL(string: "https://api.postcodes.io/postcodes/\(pathComponent)")
+        else { return nil }
 
         var req = URLRequest(url: url)
         req.timeoutInterval = timeout
