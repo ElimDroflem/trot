@@ -1,16 +1,19 @@
 import SwiftUI
 
 /// "What Luna's earned so far" — a visible collection of milestone-derived
-/// traits on the dog's profile. Drives the day-1 unlock-chain dopamine the
-/// retention plan called for: every milestone a user crosses surfaces here,
-/// stays here, and earlier locked tiles tease what's next.
+/// achievements on the dog's profile. Drives the day-1 unlock-chain dopamine
+/// the retention plan called for: every milestone a user crosses surfaces
+/// here, stays here, and locked tiles tease what's next.
 ///
 /// Pure-function over `Dog.firedMilestones` — no schema change. Each
-/// `MilestoneCode` maps to a `Trait` (icon + title + flavour line) via the
-/// extension below. Locked tiles show a lock icon and "???" so the surprise
-/// is preserved.
+/// `MilestoneCode` maps to a `Trait` (icon + title + flavour) via the
+/// extension below. Locked tiles show a lock icon + "???"; tapping any tile
+/// (locked or unlocked) opens `AchievementDetailSheet` with the requirement,
+/// progress bar, and dog-centric body copy.
 struct TraitsCard: View {
     let dog: Dog
+
+    @State private var selectedCode: MilestoneCode?
 
     private let columns = [
         GridItem(.flexible(), spacing: Space.sm),
@@ -25,7 +28,7 @@ struct TraitsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             HStack {
-                Text("TRAITS")
+                Text("ACHIEVEMENTS")
                     .font(.caption.weight(.semibold))
                     .tracking(0.5)
                     .foregroundStyle(Color.brandTextSecondary)
@@ -37,7 +40,12 @@ struct TraitsCard: View {
 
             LazyVGrid(columns: columns, spacing: Space.sm) {
                 ForEach(MilestoneCode.allCases, id: \.self) { code in
-                    TraitTile(code: code, isUnlocked: unlocked.contains(code))
+                    Button {
+                        selectedCode = code
+                    } label: {
+                        TraitTile(code: code, isUnlocked: unlocked.contains(code))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -45,11 +53,23 @@ struct TraitsCard: View {
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
         .brandCardShadow()
+        .sheet(item: $selectedCode) { code in
+            AchievementDetailSheet(
+                code: code,
+                isUnlocked: unlocked.contains(code),
+                dog: dog
+            )
+        }
     }
 }
 
-/// One trait tile — square cell with icon, then a 1-line title underneath.
+extension MilestoneCode: Identifiable {
+    var id: String { rawValue }
+}
+
+/// One achievement tile — square cell with icon and a 1-line title underneath.
 /// Locked tiles show a lock icon + "???" to preserve the unlock surprise.
+/// Tapping (handled by the parent) opens the detail sheet.
 private struct TraitTile: View {
     let code: MilestoneCode
     let isUnlocked: Bool
@@ -83,8 +103,8 @@ private struct TraitTile: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             isUnlocked
-                ? "Trait unlocked: \(code.trait.title). \(code.trait.description)"
-                : "Locked trait."
+                ? "Achievement unlocked: \(code.trait.title). \(code.trait.description). Tap for details."
+                : "Locked achievement. Tap to see what's needed."
         )
     }
 }

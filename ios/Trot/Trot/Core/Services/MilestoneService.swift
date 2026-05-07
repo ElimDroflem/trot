@@ -128,6 +128,119 @@ enum MilestoneService {
     }
 }
 
+// MARK: - Unlock requirement + progress (for the Achievements detail sheet)
+
+/// Current/target progress toward unlocking a milestone. Used by the locked
+/// state of the Achievement detail sheet so the user can see "you're 47 of
+/// 100 minutes" rather than just "locked." Always represents a count, never
+/// a percentage — the view picks the unit string for display.
+struct UnlockProgress: Equatable {
+    let current: Int
+    let target: Int
+    /// The thing being measured, e.g. "minutes", "day streak". Singular form;
+    /// the view pluralises if needed.
+    let unit: String
+
+    var percent: Double {
+        guard target > 0 else { return 0 }
+        return min(1.0, Double(current) / Double(target))
+    }
+
+    var isComplete: Bool { current >= target }
+}
+
+extension MilestoneCode {
+    /// One-line plain-English unlock requirement. Surfaces in the detail
+    /// sheet and is what teases the user toward the next walk.
+    var requirement: String {
+        switch self {
+        case .firstWalk:
+            return "Log your first walk."
+        case .firstHalfTargetDay:
+            return "Hit half of your daily target on any day."
+        case .firstFullTargetDay:
+            return "Hit your full daily target on any day."
+        case .first100LifetimeMinutes:
+            return "Reach 100 minutes walked all-time."
+        case .first3DayStreak:
+            return "Walk three days in a row."
+        case .firstWeek:
+            return "Use Trot for seven days."
+        case .streak7Days:
+            return "Walk seven days in a row."
+        case .streak14Days:
+            return "Walk fourteen days in a row."
+        case .streak30Days:
+            return "Walk thirty days in a row."
+        }
+    }
+
+    /// Current progress toward this unlock, calculated from the dog's history.
+    /// Mirrors the eligibility logic in `MilestoneService.eligible` so the
+    /// progress bar and the unlock event stay in sync — when this returns
+    /// `isComplete`, eligibility will fire on the next save.
+    func progress(
+        for dog: Dog,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) -> UnlockProgress {
+        let walks = dog.walks ?? []
+        let totalMinutes = walks.reduce(0) { $0 + $1.durationMinutes }
+        let target = max(1, dog.dailyTargetMinutes)
+        let streak = StreakService.currentStreak(for: dog, today: today, calendar: calendar)
+
+        switch self {
+        case .firstWalk:
+            return UnlockProgress(current: min(walks.count, 1), target: 1, unit: "walk")
+
+        case .firstHalfTargetDay:
+            let bestDay = bestDayMinutes(walks: walks, calendar: calendar)
+            let half = max(1, target / 2)
+            return UnlockProgress(current: min(bestDay, half), target: half, unit: "minute")
+
+        case .firstFullTargetDay:
+            let bestDay = bestDayMinutes(walks: walks, calendar: calendar)
+            return UnlockProgress(current: min(bestDay, target), target: target, unit: "minute")
+
+        case .first100LifetimeMinutes:
+            return UnlockProgress(current: min(totalMinutes, 100), target: 100, unit: "minute")
+
+        case .first3DayStreak:
+            return UnlockProgress(current: min(streak, 3), target: 3, unit: "day")
+
+        case .firstWeek:
+            let days = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: dog.createdAt),
+                to: calendar.startOfDay(for: today)
+            ).day ?? 0
+            return UnlockProgress(current: min(days, 7), target: 7, unit: "day on Trot")
+
+        case .streak7Days:
+            return UnlockProgress(current: min(streak, 7), target: 7, unit: "day streak")
+
+        case .streak14Days:
+            return UnlockProgress(current: min(streak, 14), target: 14, unit: "day streak")
+
+        case .streak30Days:
+            return UnlockProgress(current: min(streak, 30), target: 30, unit: "day streak")
+        }
+    }
+
+    /// Best-day minutes — the highest single-day total across the dog's history.
+    /// Used by the half/full-target progress bars so a dog who has walked 60
+    /// minutes total spread across 6 days reads as "10/30 minutes" toward the
+    /// half-target unlock, not "60/30."
+    private func bestDayMinutes(walks: [Walk], calendar: Calendar) -> Int {
+        var minutesByDay: [Date: Int] = [:]
+        for walk in walks {
+            let day = calendar.startOfDay(for: walk.startedAt)
+            minutesByDay[day, default: 0] += walk.durationMinutes
+        }
+        return minutesByDay.values.max() ?? 0
+    }
+}
+
 // MARK: - Display copy
 
 extension MilestoneCode {

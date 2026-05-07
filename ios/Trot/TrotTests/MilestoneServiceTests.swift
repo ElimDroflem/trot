@@ -231,4 +231,62 @@ struct MilestoneServiceTests {
         #expect(!eligible.contains(.firstHalfTargetDay))
         #expect(!eligible.contains(.firstFullTargetDay))
     }
+
+    // MARK: - UnlockProgress (powers the Achievements detail sheet)
+
+    @Test("progress: firstWalk reads 0/1 then 1/1")
+    func progressFirstWalk() {
+        let dog = makeDog()
+        var p = MilestoneCode.firstWalk.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(p == UnlockProgress(current: 0, target: 1, unit: "walk"))
+
+        addWalk(daysAgo: 0, minutes: 5, to: dog)
+        p = MilestoneCode.firstWalk.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(p == UnlockProgress(current: 1, target: 1, unit: "walk"))
+        #expect(p.isComplete)
+    }
+
+    @Test("progress: lifetime minutes counts up to 100, doesn't exceed")
+    func progressLifetime100() {
+        let dog = makeDog()
+        addWalk(daysAgo: 1, minutes: 40, to: dog)
+        let mid = MilestoneCode.first100LifetimeMinutes.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(mid.current == 40 && mid.target == 100)
+
+        addWalk(daysAgo: 0, minutes: 200, to: dog)  // way past target
+        let cap = MilestoneCode.first100LifetimeMinutes.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(cap.current == 100, "current is capped at target so the bar doesn't overflow")
+        #expect(cap.isComplete)
+    }
+
+    @Test("progress: firstHalfTargetDay reads the BEST single day, not the lifetime sum")
+    func progressBestDayHalfTarget() {
+        // 60-min target → half-target = 30. Walk 10 minutes a day for 6 days
+        // (60 lifetime, none of them ≥30). best-day = 10, target = 30.
+        let dog = makeDog(targetMinutes: 60)
+        for d in 0..<6 {
+            addWalk(daysAgo: d, minutes: 10, to: dog)
+        }
+        let p = MilestoneCode.firstHalfTargetDay.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(p == UnlockProgress(current: 10, target: 30, unit: "minute"))
+        #expect(!p.isComplete)
+    }
+
+    @Test("progress: percent is clamped between 0 and 1")
+    func progressPercentClamped() {
+        let dog = makeDog()
+        let zero = MilestoneCode.streak30Days.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(zero.percent == 0)
+
+        addWalk(daysAgo: 0, minutes: 30, to: dog)
+        let one = MilestoneCode.firstWalk.progress(for: dog, today: referenceToday, calendar: calendar)
+        #expect(one.percent == 1.0)
+    }
+
+    @Test("requirement strings: every milestone has a non-empty requirement")
+    func everyMilestoneHasRequirement() {
+        for code in MilestoneCode.allCases {
+            #expect(!code.requirement.isEmpty)
+        }
+    }
 }
