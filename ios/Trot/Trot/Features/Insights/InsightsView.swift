@@ -71,7 +71,7 @@ struct InsightsView: View {
                         }
 
                         // Clearance for the centre walk FAB.
-                        Color.clear.frame(height: 100)
+                        Color.clear.frame(height: Space.lg)
                     }
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.md)

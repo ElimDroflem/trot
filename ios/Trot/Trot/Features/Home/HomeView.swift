@@ -15,6 +15,11 @@ struct HomeView: View {
     @State private var showingExpedition = false
     @State private var editingWalk: Walk?
     @State private var showingAddAnotherDog = false
+    /// The walk tab is phantom — selecting it pops a confirmation dialog
+    /// and reverts to whichever tab was active before. We track the
+    /// previous tab so we can restore it when the dialog dismisses.
+    @State private var showingWalkMenu = false
+    @State private var previousTab: TrotTab = .today
 
     private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
@@ -29,6 +34,14 @@ struct HomeView: View {
                 .tabItem { Label("Journey", systemImage: "figure.walk.motion") }
                 .tag(TrotTab.journey)
 
+            // Walk — the app's primary verb. Sits in the centre slot of a
+            // 5-tab bar. The "view" itself is never seen; we intercept
+            // selection in onChange and pop the action menu instead of
+            // navigating.
+            Color.clear
+                .tabItem { Label("Walk", systemImage: "plus.circle.fill") }
+                .tag(TrotTab.walk)
+
             InsightsView()
                 .tabItem { Label("Insights", systemImage: "lightbulb") }
                 .tag(TrotTab.insights)
@@ -40,16 +53,24 @@ struct HomeView: View {
                 .tag(TrotTab.dog)
         }
         .tint(.brandPrimary)
-        .overlay(alignment: .bottom) {
-            // Strava-style centre walk button, integrated INTO the tab bar.
-            // The Liquid Glass capsule sits flush with the tab items (raised
-            // ~6pt for visual emphasis, not floating). Visible on every tab
-            // because "walk with your dog" is the core verb.
-            WalkActionFAB(
-                onStartWalk: { showingExpedition = true },
-                onLogPastWalk: { showingLogWalk = true }
-            )
-            .padding(.bottom, 6)
+        .onChange(of: appState.selectedTab) { oldTab, newTab in
+            if newTab == .walk {
+                // Pop the action menu; revert selection so the phantom tab
+                // is never actually shown.
+                showingWalkMenu = true
+                appState.selectedTab = oldTab == .walk ? .today : oldTab
+            } else {
+                previousTab = newTab
+            }
+        }
+        .confirmationDialog(
+            "Walk with your dog",
+            isPresented: $showingWalkMenu,
+            titleVisibility: .visible
+        ) {
+            Button("Start a walk") { showingExpedition = true }
+            Button("Log a past walk") { showingLogWalk = true }
+            Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $showingLogWalk) {
             if let dog = selectedDog {
@@ -125,7 +146,7 @@ struct HomeView: View {
                         DogChatCard(dog: dog)
                         // Extra clearance so the bottom card never hides
                         // behind the centre walk FAB.
-                        Color.clear.frame(height: 100)
+                        Color.clear.frame(height: Space.lg)
                     }
                     .padding(.horizontal, Space.md)
                     .padding(.top, Space.sm)

@@ -10,6 +10,10 @@ import SwiftData
 enum TrotTab: String, Hashable, Sendable {
     case today
     case journey
+    /// Phantom tab. Selecting it opens the walk-action menu; the selection
+    /// auto-reverts to the previous tab. Sits in the centre slot of the
+    /// bottom bar so the app's primary verb has a permanent home there.
+    case walk
     case insights
     case dog
 }

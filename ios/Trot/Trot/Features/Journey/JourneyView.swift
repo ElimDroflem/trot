@@ -75,7 +75,7 @@ struct JourneyView: View {
 
                 // Extra clearance so the last card never hides behind the
                 // centre walk FAB.
-                Color.clear.frame(height: 100)
+                Color.clear.frame(height: Space.lg)
             }
             .padding(.horizontal, Space.md)
             .padding(.top, Space.md)
