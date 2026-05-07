@@ -27,6 +27,7 @@ struct DogProfileView: View {
                 ScrollView {
                     VStack(spacing: Space.lg) {
                         photoHeader(dog: dog)
+                        TraitsCard(dog: dog)
                         basicsCard(dog: dog)
                         activityCard(dog: dog)
                         rationaleCard(dog: dog)
