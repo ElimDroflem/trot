@@ -14,15 +14,21 @@ import Foundation
 /// Location is per *user*, not per dog (multi-dog households share a postcode).
 /// Stored in UserDefaults via `UserPreferences`.
 enum WeatherService {
-    private static let geocodingBase = URL(string: "https://geocoding-api.open-meteo.com/v1/search")!
+    /// postcodes.io — free, no key, UK postcode → lat/lon/admin district.
+    /// We previously tried Open-Meteo's geocoding endpoint, but that one
+    /// resolves *place names* (e.g. "London"), not UK postcodes — every UK
+    /// postcode lookup came back empty. postcodes.io is built for this and
+    /// covers BFPO and crown dependencies.
+    private static let postcodeBase = URL(string: "https://api.postcodes.io/postcodes")!
     private static let forecastBase = URL(string: "https://api.open-meteo.com/v1/forecast")!
     private static let timeout: TimeInterval = 8
 
     // MARK: - Public
 
-    /// Geocode a postcode into a `WeatherLocation`. UK-biased. Cached after
-    /// first successful lookup. Returns nil on network failure / unknown
-    /// postcode — caller can prompt the user to re-enter.
+    /// Geocode a UK postcode into a `WeatherLocation` via postcodes.io. Cached
+    /// after first successful lookup (postcodes don't move). Returns nil on
+    /// network failure / unknown postcode — caller can prompt the user to
+    /// re-enter.
     static func location(for postcode: String) async -> WeatherLocation? {
         let trimmed = postcode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -31,14 +37,12 @@ enum WeatherService {
             return cached
         }
 
-        var components = URLComponents(url: geocodingBase, resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "name", value: trimmed),
-            URLQueryItem(name: "count", value: "1"),
-            URLQueryItem(name: "country", value: "GB"),
-            URLQueryItem(name: "format", value: "json"),
-        ]
-        guard let url = components.url else { return nil }
+        // postcodes.io accepts the postcode in the URL path (with or without
+        // a space). URL-encode whatever the user typed.
+        guard let encoded = trimmed.addingPercentEncoding(
+            withAllowedCharacters: .urlPathAllowed
+        ) else { return nil }
+        let url = postcodeBase.appendingPathComponent(encoded)
 
         var req = URLRequest(url: url)
         req.timeoutInterval = timeout
@@ -48,16 +52,16 @@ enum WeatherService {
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return nil
             }
-            let decoded = try JSONDecoder().decode(GeocodingResponse.self, from: data)
-            guard let first = decoded.results?.first else { return nil }
+            let decoded = try JSONDecoder().decode(PostcodesIOResponse.self, from: data)
+            guard let result = decoded.result else { return nil }
 
-            let displayName = [first.name, first.admin1, "UK"]
+            let displayName = [result.admin_district, result.region, "UK"]
                 .compactMap { $0?.isEmpty == false ? $0 : nil }
                 .joined(separator: ", ")
             let location = WeatherLocation(
                 postcode: trimmed,
-                latitude: first.latitude,
-                longitude: first.longitude,
+                latitude: result.latitude,
+                longitude: result.longitude,
                 displayName: displayName
             )
             UserPreferences.setCachedLocation(location)
@@ -155,14 +159,17 @@ enum WeatherCategory: String, Codable, Sendable {
 
 // MARK: - Open-Meteo response shapes
 
-private struct GeocodingResponse: Decodable {
+/// postcodes.io response shape. We only care about lat/lon and admin_district
+/// (used in `displayName`); the API returns ~30 fields per postcode.
+private struct PostcodesIOResponse: Decodable {
     struct Result: Decodable {
-        let name: String
         let latitude: Double
         let longitude: Double
-        let admin1: String?
+        let admin_district: String?
+        let region: String?
     }
-    let results: [Result]?
+    let status: Int
+    let result: Result?
 }
 
 private struct ForecastResponse: Decodable {
