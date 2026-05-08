@@ -2,7 +2,7 @@
 import Foundation
 import SwiftData
 
-/// First-launch demo data for DEBUG builds. Seeds Luna + a 7-day backdrop of
+/// First-launch demo data for DEBUG builds. Seeds Bonnie + a 7-day backdrop of
 /// walks so every surface (Today ring, Insights, Daily rhythm, Streak, Journey
 /// progress, Achievements) has data to say something *real* on the first
 /// screenshot — a single seeded walk made averages look broken (one 42-min
@@ -29,8 +29,8 @@ enum DebugSeed {
         let dob = calendar.date(byAdding: .year, value: -3, to: .now)
             ?? Date(timeIntervalSince1970: 0)
 
-        let luna = Dog(
-            name: "Luna",
+        let bonnie = Dog(
+            name: "Bonnie",
             breedPrimary: "Beagle",
             dateOfBirth: dob,
             weightKg: 12,
@@ -39,12 +39,12 @@ enum DebugSeed {
             activityLevel: .moderate,
             dailyTargetMinutes: 60
         )
-        luna.llmRationale = "Beagles do best with a second walk before sundown."
+        bonnie.llmRationale = "Beagles do best with a second walk before sundown."
 
-        context.insert(luna)
+        context.insert(bonnie)
 
-        let morning = WalkWindow(slot: .earlyMorning, enabled: true, dog: luna)
-        let evening = WalkWindow(slot: .evening, enabled: true, dog: luna)
+        let morning = WalkWindow(slot: .earlyMorning, enabled: true, dog: bonnie)
+        let evening = WalkWindow(slot: .evening, enabled: true, dog: bonnie)
         context.insert(morning)
         context.insert(evening)
 
@@ -80,31 +80,31 @@ enum DebugSeed {
                 distanceMeters: estimatedDistance(forMinutes: entry.duration),
                 source: .passive,
                 notes: syntheticNotesTag,
-                dogs: [luna]
+                dogs: [bonnie]
             )
             context.insert(walk)
             totalSeededMinutes += entry.duration
         }
 
         // (Journey infrastructure removed May 2026 — story-mode owns
-        // post-walk progression now. The seed used to advance Luna's
+        // post-walk progression now. The seed used to advance Bonnie's
         // active route here; that's a no-op in the new world.)
         _ = totalSeededMinutes
 
-        // Seed Luna's story so the Story tab opens to a populated state in
+        // Seed Bonnie's story so the Story tab opens to a populated state in
         // DEBUG without burning real LLM calls. Picks Murder Mystery (most
         // visually distinct theme — noir + smoke), seeds one closed
         // chapter for the shelf, and an active chapter at page 3 of 5 so
         // the spine shows past+current+future cleanly.
-        // -DebugSkipStorySeed YES leaves Luna with no story so the genre
+        // -DebugSkipStorySeed YES leaves Bonnie with no story so the genre
         // picker appears on the Story tab — used to QA the picker UI.
         if !UserDefaults.standard.bool(forKey: "DebugSkipStorySeed") {
-            seedStory(for: luna, in: context)
+            seedStory(for: bonnie, in: context)
         }
 
         // Pre-mark milestones the seed walks already satisfy so the user
-        // doesn't see "Luna's first walk" overlay every fresh debug install
-        // — Luna here is a lived-in dog with a 6-walk history, not a
+        // doesn't see "Bonnie's first walk" overlay every fresh debug install
+        // — Bonnie here is a lived-in dog with a 6-walk history, not a
         // brand-new pup. Real first-time users hit these celebrations the
         // honest way (logging their first walk).
         let preFired: [MilestoneCode] = [
@@ -115,7 +115,7 @@ enum DebugSeed {
             .first3DayStreak,
             .firstWeek,
         ]
-        luna.firedMilestones = preFired.map(\.rawValue)
+        bonnie.firedMilestones = preFired.map(\.rawValue)
 
         do {
             try context.save()
@@ -163,11 +163,11 @@ enum DebugSeed {
         let story = Story(genre: .murderMystery)
         story.bible = """
             Setting: Hookwood, a small village in the South Downs. Summer.
-            Characters: Luna (Beagle, food-driven, scent-led, owner-curious). \
-            The narrator (Luna's owner). Mr Pell, the postman who's been \
+            Characters: Bonnie (Beagle, food-driven, scent-led, owner-curious). \
+            The narrator (Bonnie's owner). Mr Pell, the postman who's been \
             acting strangely. Mrs Daunt, the WI chair who saw something at \
             the village hall. Open thread: someone took the trophy from \
-            the Hookwood horticultural show. Luna sniffed the empty plinth \
+            the Hookwood horticultural show. Bonnie sniffed the empty plinth \
             and barked twice — she might know more than she's letting on.
             """
         dog.story = story
@@ -176,7 +176,7 @@ enum DebugSeed {
         // Closed chapter 1 — appears in the chapters shelf.
         let chapter1 = StoryChapter(index: 1)
         chapter1.title = "The Empty Plinth"
-        chapter1.closingLine = "And then Luna sneezed, definitively, on a clue she didn't yet understand."
+        chapter1.closingLine = "And then Bonnie sneezed, definitively, on a clue she didn't yet understand."
         chapter1.closedAt = Date(timeIntervalSinceNow: -7 * 24 * 3600)
         chapter1.story = story
         context.insert(chapter1)
@@ -185,39 +185,39 @@ enum DebugSeed {
             ("""
              The horticultural show was over by four, and the trophy was gone by five. Nobody had quite admitted this yet, but the plinth at the back of the marquee was wearing the particular silence of an object that was supposed to be there and wasn't.
 
-             Luna found me at the edge of the marquee, ear cocked, doing her best impression of someone who hadn't already been near it. Beagles do not have a face for innocence. Beagles have a face for being caught, and a face for not being caught yet, and Luna was wearing the second of these.
+             Bonnie found me at the edge of the marquee, ear cocked, doing her best impression of someone who hadn't already been near it. Beagles do not have a face for innocence. Beagles have a face for being caught, and a face for not being caught yet, and Bonnie was wearing the second of these.
 
              Mrs Padbury was behind the cake stall, telling a child very firmly that the lemon drizzle was finished. The child had never wanted lemon drizzle in his life and was now devastated to learn he could not have it.
              """,
              "Try the empty plinth", "Look outside the marquee"),
             ("""
-             The plinth smelled of polish and biscuit. Luna's nose hovered an inch above it, methodical, as if reading a letter she had been sent and was deciding whether to reply. There was a dent in the green felt where the trophy had stood for the last seven Augusts. The dent was very tidy. Tidier, I thought, than a dent left by a hurried theft.
+             The plinth smelled of polish and biscuit. Bonnie's nose hovered an inch above it, methodical, as if reading a letter she had been sent and was deciding whether to reply. There was a dent in the green felt where the trophy had stood for the last seven Augusts. The dent was very tidy. Tidier, I thought, than a dent left by a hurried theft.
 
              Mr Pell, the postman, stood by the entrance, redirecting children with the air of a man who had not signed up for this and was making the best of it. He did not look up when I came in. He had been not looking up at people for about an hour now, which was, for Mr Pell, unusually long.
 
-             Luna sneezed once. It was, I have to tell you, a deliberate sneeze.
+             Bonnie sneezed once. It was, I have to tell you, a deliberate sneeze.
              """,
-             "Confront Mr Pell", "Follow Luna's nose"),
+             "Confront Mr Pell", "Follow Bonnie's nose"),
             ("""
              Mrs Daunt found me by the bins. She had brought the WI's emergency clipboard, which she carried only in moments she wished to be on the record.
 
              "It was already gone," she said, in the voice people use for things they want to be true. "Before three. I went to look at the dahlias and when I came back, gone." She paused. "I told the Reverend at quarter past."
 
-             Luna sat between us, head down, chewing nothing in the way dogs chew nothing when they are listening to two adults at the same time and choosing which one is lying. Mrs Daunt's gardening gloves were on the bin lid. They did not look like gloves that had been to the dahlias.
+             Bonnie sat between us, head down, chewing nothing in the way dogs chew nothing when they are listening to two adults at the same time and choosing which one is lying. Mrs Daunt's gardening gloves were on the bin lid. They did not look like gloves that had been to the dahlias.
              """,
-             "Press Mrs Daunt", "Walk Luna home"),
+             "Press Mrs Daunt", "Walk Bonnie home"),
             ("""
-             On the path home Luna stopped at a hedge that had bored her completely on the way out, and now did not. She stared. She made the small huff she makes when she is doing arithmetic, which is a sound very specific to beagles and to small accountants.
+             On the path home Bonnie stopped at a hedge that had bored her completely on the way out, and now did not. She stared. She made the small huff she makes when she is doing arithmetic, which is a sound very specific to beagles and to small accountants.
 
              It was a perfectly ordinary hedge. Hawthorn, mostly. Some bramble where the hedge had given up. The lane was quiet, though half-past five on a show day was not normally a quiet time. Somewhere over towards the green I could hear the brass band putting their instruments away, with that long unhappy honk a tuba makes when it knows the day is over.
 
-             Luna was not interested in any of that. Luna was interested in the hedge.
+             Bonnie was not interested in any of that. Bonnie was interested in the hedge.
              """,
              "Look in the hedge", "Carry on home"),
             ("""
              Inside the hedge, snagged on a thorn at about the height of a man's pocket, was a length of green ribbon. Specifically, the green of the ribbon that had been tied around the horticultural trophy when I had last seen it that morning, which was a particular shade not many things in the world are.
 
-             Luna sneezed twice, with feeling, and sat down beside it like a witness who had now formally given her statement and would like a biscuit.
+             Bonnie sneezed twice, with feeling, and sat down beside it like a witness who had now formally given her statement and would like a biscuit.
 
              I did not touch the ribbon. I have read enough books to know what one does and does not touch in this situation, even on a hedge, even on a Tuesday, even when the village band is playing and the trophy has been missing for less than two hours. I went to find the Reverend.
              """,
@@ -252,9 +252,9 @@ enum DebugSeed {
             ("""
              A week after the show, the post had not come. This was, in itself, news. In a village where Mr Pell had not been late with the post since the long winter of '78, a missed delivery was the kind of thing one mentioned at the bus stop, and then mentioned again at the shop, and then went home and mentioned to whichever member of the household was prepared to listen.
 
-             Luna disapproved. Luna had a route, and the route required a postman in it, and without the postman the route was simply a walk, which was a great deal less interesting.
+             Bonnie disapproved. Bonnie had a route, and the route required a postman in it, and without the postman the route was simply a walk, which was a great deal less interesting.
 
-             It was Luna who first noticed Mr Pell's bicycle leaning against the wrong gate. Hookwood had a strict idea about which bicycles leaned against which gates. The wrong gate, in Hookwood, was a kind of statement.
+             It was Bonnie who first noticed Mr Pell's bicycle leaning against the wrong gate. Hookwood had a strict idea about which bicycles leaned against which gates. The wrong gate, in Hookwood, was a kind of statement.
              """,
              "Knock on Mr Pell's door", "Ask about the bicycle"),
             ("""
@@ -262,11 +262,11 @@ enum DebugSeed {
 
              The small dog was not in evidence. Neither, of course, was Mr Pell.
 
-             Luna pointed her nose at the door like a witness who had already given her evidence and did not wish to be asked any more questions about it. The bicycle's basket, when I looked, was empty, except for one thing, which I almost missed: a single green thread, caught on the wicker, the same green as a length of ribbon I had recently seen in a hedge.
+             Bonnie pointed her nose at the door like a witness who had already given her evidence and did not wish to be asked any more questions about it. The bicycle's basket, when I looked, was empty, except for one thing, which I almost missed: a single green thread, caught on the wicker, the same green as a length of ribbon I had recently seen in a hedge.
              """,
              "Pick up the thread", "Walk on, return later"),
             ("""
-             I crouched. Luna crouched, with the dignified slowness of a beagle who knows when crouching is called for and has crouched at funerals.
+             I crouched. Bonnie crouched, with the dignified slowness of a beagle who knows when crouching is called for and has crouched at funerals.
 
              The thread caught the light, and the light caught my hand, and for a long moment we were the only two things on Mr Pell's path that were moving. The cottage was very still. The lane behind us was very still. The brass band was not, this Tuesday, playing.
 
