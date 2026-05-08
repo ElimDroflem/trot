@@ -38,6 +38,34 @@ enum LLMService {
         /// immediately, then a slightly nicer LLM-flavoured caption when
         /// it lands. Cached per (dog × dayKey).
         case bestWindow = "best_window"
+        /// Story-tab page generation. Sonnet 4.6 (the proxy picks the
+        /// model based on kind). Returns a structured JSON payload with
+        /// prose + two path teasers; iOS decodes via `StoryPagePayload`.
+        /// Optional vision: caller can pass an image which the LLM
+        /// analyses and weaves into the prose.
+        case storyPage = "story_page"
+        /// Story-tab chapter close — generates title, closing line,
+        /// updated bible, and the prologue page of the next chapter.
+        /// Returns structured JSON; iOS decodes via `StoryChapterClosePayload`.
+        case storyChapterClose = "story_chapter_close"
+    }
+
+    /// Decoded payload for a `storyPage` response. Filled in by
+    /// `storyPage(...)` after parsing the proxy's JSON text.
+    struct StoryPagePayload: Decodable, Sendable {
+        let prose: String
+        let choiceA: String
+        let choiceB: String
+    }
+
+    /// Decoded payload for a `storyChapterClose` response.
+    struct StoryChapterClosePayload: Decodable, Sendable {
+        let title: String
+        let closingLine: String
+        let bibleUpdate: String
+        let prologueProse: String
+        let choiceA: String
+        let choiceB: String
     }
 
     // MARK: - Public surfaces
@@ -182,6 +210,89 @@ enum LLMService {
         return await request(kind: .chapterMemory, dog: dog, context: context)
     }
 
+    /// Story page generation. Returns a structured payload (prose + two
+    /// path teasers). No iOS-side cache — `StoryService` persists pages
+    /// directly to SwiftData and never re-asks for the same page. Optional
+    /// image data triggers Sonnet vision so the LLM can weave a detail
+    /// from the user's photo into the prose.
+    ///
+    /// On any failure (network, timeout, malformed JSON), returns nil and
+    /// the caller falls back to a templated page. The fallback isn't
+    /// perfect but it preserves the chapter structure so the user can
+    /// retry later.
+    static func storyPage(
+        for dog: Dog,
+        genre: StoryGenre,
+        ownerName: String,
+        bible: String,
+        previousPages: String,
+        walkFacts: String,
+        userChoice: String,
+        userText: String,
+        pageIndexInChapter: Int,
+        isPrologue: Bool,
+        imageJPEG: Data? = nil
+    ) async -> StoryPagePayload? {
+        let context: [String: any Sendable] = [
+            "toneInstruction": genre.toneInstruction,
+            "genreName": genre.displayName,
+            "ownerName": ownerName,
+            "bible": bible,
+            "previousPages": previousPages,
+            "walkFacts": walkFacts,
+            "userChoice": userChoice,
+            "userText": userText,
+            "hasImage": imageJPEG != nil,
+            "isPrologue": isPrologue,
+            "pageIndexInChapter": pageIndexInChapter,
+        ]
+        guard let raw = await request(
+            kind: .storyPage,
+            dog: dog,
+            context: context,
+            imageJPEG: imageJPEG
+        ) else { return nil }
+        return decodeStoryPage(raw)
+    }
+
+    /// Chapter close — wraps the just-finished chapter and generates the
+    /// prologue of the next. Returns the structured payload that
+    /// `StoryService` uses to persist the close + open the new chapter
+    /// + write its first page atomically.
+    static func storyChapterClose(
+        for dog: Dog,
+        genre: StoryGenre,
+        ownerName: String,
+        bible: String,
+        chapterPages: String,
+        chapterIndex: Int
+    ) async -> StoryChapterClosePayload? {
+        let context: [String: any Sendable] = [
+            "toneInstruction": genre.toneInstruction,
+            "genreName": genre.displayName,
+            "ownerName": ownerName,
+            "bible": bible,
+            "chapterPages": chapterPages,
+            "chapterIndex": chapterIndex,
+        ]
+        guard let raw = await request(
+            kind: .storyChapterClose,
+            dog: dog,
+            context: context
+        ) else { return nil }
+        return decodeStoryChapterClose(raw)
+    }
+
+    private static func decodeStoryPage(_ raw: String) -> StoryPagePayload? {
+        guard let data = raw.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(StoryPagePayload.self, from: data)
+    }
+
+    private static func decodeStoryChapterClose(_ raw: String) -> StoryChapterClosePayload? {
+        guard let data = raw.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(StoryChapterClosePayload.self, from: data)
+    }
+
     /// One-shot onboarding "first card" line. Persists indefinitely once
     /// generated — this is a moment, not a refresh.
     static func onboardingCardLine(for dog: Dog) async -> String? {
@@ -293,31 +404,44 @@ enum LLMService {
     private static func request(
         kind: Kind,
         dog: Dog,
-        context: [String: any Sendable]
+        context: [String: any Sendable],
+        imageJPEG: Data? = nil
     ) async -> String? {
-        await request(kind: kind, dogPayload: dogPayload(dog), context: context)
+        await request(
+            kind: kind,
+            dogPayload: dogPayload(dog),
+            context: context,
+            imageJPEG: imageJPEG
+        )
     }
 
     /// Lower-level overload that takes the dog payload dict directly. Used by
     /// pre-save callers (notably the onboarding-card path, which fires before
-    /// SwiftData has a `Dog` instance to refer to).
+    /// SwiftData has a `Dog` instance to refer to). Story-page callers use
+    /// the `imageJPEG` parameter to send a Sonnet-vision request.
     private static func request(
         kind: Kind,
         dogPayload: [String: any Sendable],
-        context: [String: any Sendable]
+        context: [String: any Sendable],
+        imageJPEG: Data? = nil
     ) async -> String? {
         let url = proxyBase.appendingPathComponent("api/dog-voice")
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = timeout
+        // Story kinds use Sonnet on the proxy and may include images;
+        // bump the timeout to give vision responses time to land.
+        req.timeoutInterval = (kind == .storyPage || kind == .storyChapterClose) ? 30 : timeout
 
-        let body: [String: any Sendable] = [
+        var body: [String: any Sendable] = [
             "installToken": InstallTokenService.token(),
             "kind": kind.rawValue,
             "dog": dogPayload,
             "context": context,
         ]
+        if let imageJPEG {
+            body["imageBase64"] = imageJPEG.base64EncodedString()
+        }
 
         guard let payload = try? JSONSerialization.data(withJSONObject: body, options: []) else {
             return nil

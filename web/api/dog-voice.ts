@@ -20,8 +20,9 @@
 export const config = { runtime: "edge" };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-haiku-4-5-20251001";
-const TIMEOUT_MS = 8_000;
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const SONNET_MODEL = "claude-sonnet-4-6";
+const TIMEOUT_MS = 12_000;
 
 type Kind =
     | "daily"
@@ -32,7 +33,22 @@ type Kind =
     | "onboarding_card"
     | "dog_chat"
     | "chapter_memory"
-    | "best_window";
+    | "best_window"
+    | "story_page"
+    | "story_chapter_close";
+
+/// Story kinds use Sonnet for richer prose + comedy. Everything else
+/// stays on Haiku — those surfaces are short factual lines where Haiku
+/// is plenty.
+function modelFor(kind: Kind): string {
+    switch (kind) {
+        case "story_page":
+        case "story_chapter_close":
+            return SONNET_MODEL;
+        default:
+            return HAIKU_MODEL;
+    }
+}
 
 interface DogInfo {
     name: string;
@@ -46,6 +62,10 @@ interface RequestBody {
     kind: Kind;
     dog: DogInfo;
     context?: Record<string, unknown>;
+    /// Optional base64-encoded JPEG/PNG. Only used by `story_page` — the
+    /// LLM analyses the image (Sonnet vision) and weaves a detail from it
+    /// into the next page. Other kinds ignore this field.
+    imageBase64?: string;
 }
 
 interface SuccessResponse {
@@ -82,9 +102,11 @@ export default async function handler(req: Request): Promise<Response> {
 
     const prompt = buildPrompt(body.kind, body.dog, body.context ?? {});
 
+    const model = modelFor(body.kind);
+
     let raw: string;
     try {
-        raw = await callAnthropic(apiKey, prompt);
+        raw = await callAnthropic(apiKey, model, prompt, body.imageBase64);
     } catch (err) {
         const reason = err instanceof Error && err.name === "AbortError" ? "timeout" : "upstream_error";
         console.error("anthropic_call_failed", { reason, kind: body.kind });
@@ -97,12 +119,12 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ error: "llm_output_invalid" }, 502);
     }
 
-    return json({ text: cleaned, modelVersion: MODEL, source: "llm" }, 200);
+    return json({ text: cleaned, modelVersion: model, source: "llm" }, 200);
 }
 
 // MARK: - Validation
 
-const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "chapter_memory", "best_window"];
+const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "chapter_memory", "best_window", "story_page", "story_chapter_close"];
 
 function validate(body: RequestBody): string | null {
     if (!body || typeof body !== "object") return "invalid_body";
@@ -257,6 +279,123 @@ Maximum 10 words.`,
             };
         }
 
+        case "story_page": {
+            const genreTone = str(context.toneInstruction);
+            const genreName = str(context.genreName);
+            const ownerName = str(context.ownerName) || "the human";
+            const bible = str(context.bible);
+            const previousPages = str(context.previousPages);
+            const walkFacts = str(context.walkFacts);
+            const userChoice = str(context.userChoice);
+            const userText = str(context.userText);
+            const hasImage = bool(context.hasImage);
+            const isPrologue = bool(context.isPrologue);
+            const pageIndexInChapter = num(context.pageIndexInChapter, 1);
+            const isFinalPageOfChapter = pageIndexInChapter >= 5;
+
+            const userIntentLine = (() => {
+                if (hasImage) {
+                    return userText
+                        ? `The user uploaded a photo and added: "${userText}". Use a detail from the photo (a colour, the dog's body language, the weather, the place) to ground the next page. Don't describe the photo literally — weave one telling detail in.`
+                        : "The user uploaded a photo. Use a detail from the photo (a colour, the dog's body language, the weather, the place) to ground the next page. Don't describe the photo literally — weave one telling detail in.";
+                }
+                if (userText) {
+                    return `The user wrote: "${userText}". Treat this as their direction for what should happen next.`;
+                }
+                if (userChoice === "a" || userChoice === "b") {
+                    return `The user picked path ${userChoice.toUpperCase()} from the previous page's two options. Follow that thread.`;
+                }
+                return "No specific user direction — pick the most interesting next beat yourself, true to the genre.";
+            })();
+
+            const prologueLine = isPrologue
+                ? `THIS IS THE PROLOGUE — the first page of a brand-new ${genreName} story. Set the scene. Introduce the dog (${dog.name}, a ${dog.breed}) and the human (${ownerName}) as the protagonists, and plant the central tension or mystery of the genre. End on something that pulls the reader forward.`
+                : "";
+
+            const wrapLine = isFinalPageOfChapter
+                ? `THIS IS THE FINAL PAGE OF THE CHAPTER. Pull the threads together — not a full resolution, but a satisfying beat that earns the chapter break. The chapter-close prompt fires next; this page should set up its punchline.`
+                : "";
+
+            const ageLine = `${dog.name} is a ${dog.lifeStage} ${dog.breed}.`;
+
+            return {
+                system: `You are writing one page of an ongoing book. The user is walking with their dog and the book grows by one page per walk — this is page ${pageIndexInChapter} of 5 in the current chapter.
+
+Genre: ${genreName}. Tone: ${genreTone}
+
+Hard rules:
+- Output strict JSON only: {"prose": "...", "choiceA": "...", "choiceB": "..."}. No markdown fences, no commentary, no quotes outside the JSON.
+- "prose" is exactly 40 to 70 words. One paragraph. British English ("realise", "harbour", "grey").
+- Comedy comes from the dog being a ${dog.breed}, not from the narrator winking at the reader. Genre tropes are taken seriously; the dog occasionally punctures them through breed-specific behaviour. NOT every page resolves to "the dog did it" — vary so the reader can't predict.
+- Reference the owner (${ownerName}) sparingly — once every 3-4 pages, not every page. They're a co-protagonist.
+- Use the walk facts (duration, weather, time of day, distance) as concrete texture — never as a stat dump.
+- "choiceA" and "choiceB" are 4-8 word teasers for two possible next pages. Concrete, picture-able, genre-flavoured. Examples: "Follow the smell into the woods" / "Stay on the path and look back". They should feel like genuinely different threads, not rephrasings of the same thing.
+- Em dashes are allowed (this is fiction). No exclamation marks unless the page genuinely earns one.
+- Never break the fourth wall. Never mention "the app", "Trot", "the user", "the page", "the story". Stay inside the world.`,
+                user: `Story so far (the bible — characters, places, current arc):
+${bible || "(blank — this is the first page)"}
+
+Previous pages (verbatim, last two):
+${previousPages || "(none — this is page 1)"}
+
+Today's walk facts:
+${walkFacts}
+
+${ageLine}
+
+${userIntentLine}
+
+${prologueLine}
+
+${wrapLine}
+
+Write the next page now. Return ONLY the JSON.`,
+                maxTokens: 600,
+            };
+        }
+
+        case "story_chapter_close": {
+            const genreTone = str(context.toneInstruction);
+            const genreName = str(context.genreName);
+            const bible = str(context.bible);
+            const chapterPages = str(context.chapterPages);
+            const chapterIndex = num(context.chapterIndex, 1);
+            const ownerName = str(context.ownerName) || "the human";
+
+            return {
+                system: `You are wrapping a chapter and setting up the next one in an ongoing book about ${dog.name} (a ${dog.breed}) and ${ownerName}.
+
+Genre: ${genreName}. Tone: ${genreTone}
+
+Output strict JSON only:
+{
+  "title": "...",
+  "closingLine": "...",
+  "bibleUpdate": "...",
+  "prologueProse": "...",
+  "choiceA": "...",
+  "choiceB": "..."
+}
+
+Field rules:
+- "title": chapter title in title case, 2-5 words. Concrete noun preferred ("The Postman Returns", "What Was in the Hedge"). No clichés ("A New Beginning", "The Journey Continues" — banned).
+- "closingLine": 12-22 words. The last sentence of the chapter — earns the title, leaves a hook for chapter ${chapterIndex + 1}. No exclamation marks.
+- "bibleUpdate": a fresh story bible. 60-100 words of structured prose summarising: characters introduced, current setting, central arc/threat, open threads. Will be the FULL bible for the next chapter (overwrites the previous one). No bullets — flowing prose so the LLM tokenises it cheaply on read.
+- "prologueProse": the FIRST page of chapter ${chapterIndex + 1}. 40-70 words. Set the new scene; raise the stakes one notch.
+- "choiceA" / "choiceB": 4-8 word teasers for what could happen on page 2 of the new chapter.
+
+British English. No fourth-wall. Genre comedy comes from the dog being a ${dog.breed}.`,
+                user: `Story bible at chapter start:
+${bible || "(blank)"}
+
+All pages from the chapter that's just closed:
+${chapterPages}
+
+Wrap this chapter and open the next. Return ONLY the JSON.`,
+                maxTokens: 800,
+            };
+        }
+
         case "best_window": {
             const hourlyTable = str(context.hourlyTable);
             const pickedWindow = str(context.pickedWindow);
@@ -362,10 +501,34 @@ Output ONLY the line.`,
 
 // MARK: - Anthropic call
 
-async function callAnthropic(apiKey: string, prompt: Prompt): Promise<string> {
+async function callAnthropic(
+    apiKey: string,
+    model: string,
+    prompt: Prompt,
+    imageBase64: string | undefined,
+): Promise<string> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
+        // If an image is supplied, send a multi-part user message: image
+        // first (so the model has visual context before reading the text),
+        // text after. We assume JPEG — `data:image/jpeg;base64,` style
+        // uploads from PhotosPicker are stripped by the iOS client before
+        // sending so what arrives is the raw base64 payload.
+        const userContent = imageBase64
+            ? [
+                {
+                    type: "image",
+                    source: {
+                        type: "base64",
+                        media_type: "image/jpeg",
+                        data: imageBase64,
+                    },
+                },
+                { type: "text", text: prompt.user },
+            ]
+            : prompt.user;
+
         const res = await fetch(ANTHROPIC_URL, {
             method: "POST",
             headers: {
@@ -374,10 +537,10 @@ async function callAnthropic(apiKey: string, prompt: Prompt): Promise<string> {
                 "content-type": "application/json",
             },
             body: JSON.stringify({
-                model: MODEL,
+                model,
                 max_tokens: prompt.maxTokens,
                 system: prompt.system,
-                messages: [{ role: "user", content: prompt.user }],
+                messages: [{ role: "user", content: userContent }],
             }),
             signal: controller.signal,
         });
@@ -400,6 +563,18 @@ async function callAnthropic(apiKey: string, prompt: Prompt): Promise<string> {
 /// Strip surrounding quotes/whitespace; reject empty; cap at a defensive max.
 function sanitize(raw: string, kind: Kind): string | null {
     let text = raw.trim();
+
+    // Story kinds return JSON. Don't strip outer quotes, don't replace em
+    // dashes (em dashes are allowed in fiction), don't truncate. Just trim
+    // any markdown-fence wrappers Claude sometimes adds despite the rule.
+    if (kind === "story_page" || kind === "story_chapter_close") {
+        if (text.startsWith("```")) {
+            // Strip ```json fence opening and ``` fence closing if present.
+            text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+        }
+        return text || null;
+    }
+
     // Some models wrap output in quotes despite instructions. Strip a single
     // matched pair only.
     if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {

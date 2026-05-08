@@ -9,7 +9,10 @@ import SwiftData
 /// so DEBUG deep-link navigation (`trot://debug/tab/<name>`) can drive selection.
 enum TrotTab: String, Hashable, Sendable {
     case today
-    case journey
+    /// The book — per-dog AI-generated narrative that grows by one page
+    /// per walk. Was named `.journey` in the v1 build that shipped a
+    /// route-based Journey tab; replaced May 2026 by the Story rebuild.
+    case story
     /// Phantom tab. Selecting it opens the walk-action menu; the selection
     /// auto-reverts to the previous tab. Sits in the centre slot of the
     /// bottom bar so the app's primary verb has a permanent home there.

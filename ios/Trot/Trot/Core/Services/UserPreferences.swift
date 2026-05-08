@@ -6,6 +6,25 @@ import Foundation
 /// trade-off vs introducing a UserSettings @Model just for one field.
 enum UserPreferences {
     private static let postcodeKey = "trot.user.postcode"
+    private static let ownerNameKey = "trot.user.ownerName"
+
+    /// First name (or chosen handle) used by the Story tab when the LLM
+    /// names the human protagonist alongside the dog. Empty by default —
+    /// the LLM falls back to "the human" if so. Set during the Story
+    /// genre-picker flow if the user wants to be named.
+    static var ownerName: String {
+        get {
+            UserDefaults.standard.string(forKey: ownerNameKey) ?? ""
+        }
+        set {
+            let cleaned = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleaned.isEmpty {
+                UserDefaults.standard.removeObject(forKey: ownerNameKey)
+            } else {
+                UserDefaults.standard.set(cleaned, forKey: ownerNameKey)
+            }
+        }
+    }
     private static let cachedLocationKey = "trot.user.cachedLocation"
 
     /// Latest postcode the user typed in onboarding or Profile. Whitespace-

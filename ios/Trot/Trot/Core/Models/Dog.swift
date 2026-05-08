@@ -60,6 +60,14 @@ final class Dog {
 
     var walks: [Walk]? = []
 
+    /// One-shot reference to this dog's narrative book. `nil` until the
+    /// user picks a genre on the Story tab — that pick creates the Story
+    /// + the first chapter + the prologue page in one transaction.
+    /// Cascade-delete so archiving a dog cleans up their book; one dog,
+    /// one story, lifetime.
+    @Relationship(deleteRule: .cascade)
+    var story: Story?
+
     init(
         name: String,
         breedPrimary: String,

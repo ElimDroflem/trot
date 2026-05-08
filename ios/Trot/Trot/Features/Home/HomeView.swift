@@ -41,9 +41,9 @@ struct HomeView: View {
                 .tabItem { Label("Today", systemImage: "house.fill") }
                 .tag(TrotTab.today)
 
-            JourneyView()
-                .tabItem { Label("Journey", systemImage: "figure.walk.motion") }
-                .tag(TrotTab.journey)
+            StoryView()
+                .tabItem { Label("Story", systemImage: "book.fill") }
+                .tag(TrotTab.story)
 
             // Walk — the app's primary verb. The "view" itself is never
             // shown: tabBinding's setter intercepts the selection, opens
