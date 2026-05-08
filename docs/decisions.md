@@ -361,6 +361,15 @@ The following decisions came out of a structured pressure-test of the project pl
 
 **Rationale:** Three options were considered: hide the buttons until unlocked (anticipation lost), show them disabled with no explainer (users would assume bug), show them with explainer (chosen). The dimmed-with-explainer pattern gives users the *tease* of what's coming + the *exact rule* for unlocking it, reinforcing the "walk the dog → next page" loop.
 
+### Pre-launch schema cleanup: destructive in-place V1 edit — 2026-05-08
+**Decision:** When dropping persisted SwiftData properties pre-launch, edit `TrotSchemaV1` in place + bump `versionIdentifier` (e.g. `1.0.0` → `1.1.0`) and rely on SwiftData's lightweight migration. Do NOT snapshot the old class as a `DogV1`/`WalkV1`/etc. historical type into a frozen V1, define a parallel V2, and plumb a `MigrationStage` — that ceremony is reserved for the first schema change after CloudKit / TestFlight has shipped real user data.
+
+The first application of this rule was the `firedMilestones` add (2026-05-06), where bumping V1→V2 hit *"Duplicate version checksums detected"* because both versions referenced the same live `Dog.self`. The second was this session's removal of `activeRouteID` / `routeProgressMinutes` / `completedRouteIDs` (refactor.md item 1), confirmed working — SwiftData lightweight-migrated the existing simulator store, dropped the three columns, and preserved Luna's row + every other field intact (verified by sqlite inspection of `default.store`'s `ZDOG` table).
+
+**Rationale:** Pre-launch trigger conditions: `cloudKitDatabase: .none`, no TestFlight, population = developer's simulator + personal device. Risk of additive-then-subtractive is paying a couple of hours of ceremony for data preservation on devices that get wiped routinely anyway. Risk of in-place edit is a one-time fresh install if lightweight migration declines — cheap. Lightweight migration handles property removal automatically when the schema checksum bumps. The rule expires the moment CloudKit gets switched on or TestFlight ships; from that point forward all schema changes go through proper versioned migrations.
+
+**Mechanics that work:** delete the property, bump `Schema.Version`, leave `TrotMigrationPlan.stages` empty, `MigrationPlan.schemas` stays `[TrotSchemaV1.self]`. A `Mirror`-based test in `TrotTests/DogModelTests.swift` acts as a tripwire if anyone reintroduces a removed field by accident.
+
 ---
 
 ## Open

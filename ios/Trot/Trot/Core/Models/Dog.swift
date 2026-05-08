@@ -37,20 +37,6 @@ final class Dog {
     /// Sunday evening. Per-dog so multi-dog households don't have to share the flag.
     var lastRecapSeenWeekStart: Date?
 
-    // MARK: - Journey state (DEPRECATED — pending SwiftData migration)
-    //
-    // These three fields belonged to the v1 Journey/Route progression that
-    // shipped before May 2026 and was replaced by the story-mode
-    // milestone system. The fields linger because removing persisted
-    // SwiftData properties is a schema migration (and a risk for
-    // CloudKit-synced installs already in the wild). Listed in
-    // `docs/refactor.md` for proper migration in a follow-up. Nothing
-    // in the running app reads these any more.
-
-    var activeRouteID: String = "trot-first-walk"
-    var routeProgressMinutes: Int = 0
-    var completedRouteIDs: [String] = []
-
     @Relationship(deleteRule: .cascade, inverse: \WalkWindow.dog)
     var walkWindows: [WalkWindow]? = []
 
