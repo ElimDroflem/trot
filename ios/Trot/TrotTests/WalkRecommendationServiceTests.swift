@@ -135,14 +135,19 @@ struct WalkRecommendationServiceTests {
         #expect(pickedHour == 7 || pickedHour == 8, "should pick the cooler morning window")
     }
 
-    @Test("respects user's enabled walk windows")
-    func respectsWindows() {
+    @Test("sunshine beats overcast even outside enabled walk windows")
+    func sunshineBeatsOvercast() {
         let now = date(year: 2026, month: 5, day: 11, hour: 6)
         // Only evening is enabled.
         let d = dog(windows: [.evening])
 
-        // Afternoon hours are objectively nicer (clear, mild) but disabled.
-        // Evening is enabled but cloudier.
+        // Afternoon is clear and mild (out of window). Evening is overcast
+        // (in window). Per the May 2026 revision: walk windows are a hint,
+        // not a hard cap. People in the UK will choose sunshine over a
+        // stated preference. Earlier this test asserted the opposite —
+        // that windows hard-capped the recommendation — and the result
+        // felt anti-engagement (the user complained the tile picked an
+        // overcast evening when 10am-7pm was sunny).
         let snaps: [HourlySnapshot] = [
             snapshot(hour: 14, tempC: 16, precip: 0, code: 0),  // afternoon, clear
             snapshot(hour: 15, tempC: 16, precip: 0, code: 0),
@@ -158,7 +163,35 @@ struct WalkRecommendationServiceTests {
         )
         #expect(rec != nil)
         let pickedHour = calendar.component(.hour, from: rec!.start)
-        #expect((18...20).contains(pickedHour), "should stick inside the enabled window")
+        #expect((14...15).contains(pickedHour), "sunshine wins regardless of windows")
+    }
+
+    @Test("long sunny stretch beats a short top-scoring slice")
+    func longSunnyStretchWins() {
+        let now = date(year: 2026, month: 5, day: 11, hour: 9)
+        // Evening is enabled — gets the +1 in-window bonus on top of the
+        // weather-driven score. Without the new tolerance-based bestRun,
+        // the four enabled-evening hours would beat the eight-hour
+        // afternoon stretch despite the afternoon being equally sunny.
+        // Tests the May 2026 fix: long decent stretches dominate.
+        let d = dog(windows: [.evening])
+        var snaps: [HourlySnapshot] = []
+        for h in 10...17 {
+            snaps.append(snapshot(hour: h, tempC: 16, precip: 0, code: 0))   // 8h clear, out of window
+        }
+        for h in 18...19 {
+            snaps.append(snapshot(hour: h, tempC: 15, precip: 0, code: 0))   // 2h clear, in window
+        }
+        let rec = WalkRecommendationService.recommend(
+            for: d,
+            forecast: forecast(snaps),
+            now: now,
+            calendar: calendar
+        )
+        #expect(rec != nil)
+        let pickedHour = calendar.component(.hour, from: rec!.start)
+        #expect(pickedHour == 10, "should pick the long sunny stretch starting at 10am")
+        #expect(rec!.durationHours >= 6, "should keep the run long, not collapse to the in-window slice")
     }
 
     @Test("dog with no configured windows still gets a recommendation")

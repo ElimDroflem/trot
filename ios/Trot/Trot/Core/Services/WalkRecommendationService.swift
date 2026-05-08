@@ -3,9 +3,16 @@ import Foundation
 /// Combines a dog's walk windows + the day's hourly forecast into a single
 /// "best window today" recommendation. Pure scoring, no networking.
 ///
-/// Scoring per hour (recommendation framing: "best sunny window today, as
-/// long as it's not too hot"):
-///   +5  inside one of the dog's enabled walk windows (intent matters)
+/// Philosophy (May 2026 revision): walk windows are a *hint*, not a hard
+/// cap. People in the UK will choose sunshine over a stated preference
+/// every time. So sunshine outside the user's window beats overcast inside
+/// it, and the picker rewards a long contiguous run of decent weather over
+/// a short run of best weather — a four-hour evening slot can't win over a
+/// nine-hour clear stretch through the middle of the day, even if every
+/// evening hour scores marginally higher.
+///
+/// Scoring per hour:
+///   +1  inside one of the dog's enabled walk windows (token preference)
 ///   +4  clear sky (the bias toward sunny hours)
 ///   +2  partly cloudy
 ///   +3  temperature in the dog's comfort band
@@ -20,9 +27,11 @@ import Foundation
 ///   -6  thunder or snow category penalty
 ///   -1  fog category penalty
 ///
-/// We pick the *contiguous run* of best-scoring hours (≥2h) to recommend, with
-/// the single best hour as the start. Falls back to the single best hour if no
-/// run qualifies.
+/// Recommendation = the longest contiguous run of hours where score is
+/// within 4 of the top score AND ≥ 5. Falls back to the single best hour if
+/// no run qualifies. Length wins on ties (a six-hour decent window beats a
+/// six-hour decent window starting later in the day, but a short
+/// excellent window can still win if everything else is poor).
 ///
 /// The reason string is templated, deterministic, and short — designed to read
 /// well at a glance on a Today-tab tile. LLM flavour can layer on later.
@@ -62,22 +71,57 @@ enum WalkRecommendationService {
 
         // Pick the contiguous run of the highest-scoring hours (≥2h). Ties resolved
         // by earliest start so users get told to walk *now* when possible.
-        guard let best = bestRun(in: scores, minLength: 2) ?? bestSingleHour(in: scores) else {
+        guard let bestUntrimmed = bestRun(in: scores, minLength: 2) ?? bestSingleHour(in: scores) else {
             return nil
         }
+        // Cap the window length so a uniformly-excellent day produces a
+        // believable "window" rather than "Best 10am to 12am" (which the
+        // user reads as "all day" — and "all day" is not a window). Nine
+        // hours matches the natural UK reading: 10am-7pm style.
+        let maxRunLength = 9
+        let best = Array(bestUntrimmed.prefix(maxRunLength))
 
         let first = best.first!.0
         let dur = best.count
         let end = calendar.date(byAdding: .hour, value: dur, to: first.time) ?? first.time
+
+        // Use the modal category and median temperature across the whole
+        // run for the displayed headline, not just the first hour. Without
+        // this, a 9-hour run that starts partly-cloudy and goes clear
+        // would say "Bright, 14°" when the user's actually getting a
+        // mostly-sunny window — a misleading framing for the same data.
+        let modalCategory = mode(of: best.map { $0.0.category }) ?? first.category
+        let displayTemp = median(of: best.map { $0.0.temperatureC }) ?? first.temperatureC
+
         return Recommendation(
             start: first.time,
             end: end,
             durationHours: dur,
-            category: first.category,
-            temperatureC: first.temperatureC,
-            headline: headline(start: first.time, end: end, durationHours: dur, category: first.category, temperatureC: first.temperatureC, now: now, calendar: calendar),
+            category: modalCategory,
+            temperatureC: displayTemp,
+            headline: headline(
+                start: first.time,
+                end: end,
+                durationHours: dur,
+                category: modalCategory,
+                temperatureC: displayTemp,
+                now: now,
+                calendar: calendar
+            ),
             detail: detail(for: first, dog: dog)
         )
+    }
+
+    private static func mode<T: Hashable>(of values: [T]) -> T? {
+        var counts: [T: Int] = [:]
+        for v in values { counts[v, default: 0] += 1 }
+        return counts.max(by: { $0.value < $1.value })?.key
+    }
+
+    private static func median(of values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
     }
 
     // MARK: - Scoring
@@ -86,7 +130,12 @@ enum WalkRecommendationService {
         var s = 0
 
         if isInsideEnabledWindow(hour: hour, for: dog, calendar: calendar) {
-            s += 5
+            // Token nudge — earlier this was +5 and dominated weather, so a
+            // four-hour "in window" cloudy stretch could beat a nine-hour
+            // sunny clear-sky stretch. The user's intent is "best sunny
+            // window today, with my windows as a tiebreaker," not "stay in
+            // my window even if the weather is dim."
+            s += 1
         }
 
         let comfort = comfortBand(for: dog)
@@ -129,19 +178,43 @@ enum WalkRecommendationService {
         return s
     }
 
-    /// Find the longest run of consecutive top-scoring hours (length ≥ minLength).
-    /// "Top-scoring" = the maximum score in the slice; ties go to the earliest run.
+    /// Find the longest contiguous run of "decent" hours.
+    ///
+    /// "Decent" = score is within `tolerance` of the top AND meets a
+    /// minimum quality bar (`minQuality`). The tolerance lets a long
+    /// stretch of slightly-lower-scoring hours win over a short stretch of
+    /// top-scoring hours — which is the right shape for a "best walk
+    /// window today" recommendation: a nine-hour clear-sky window through
+    /// the middle of the day should beat a four-hour clear-sky window
+    /// just because the four-hour slot happens to fall inside the user's
+    /// preferred slot.
+    ///
+    /// The minimum-quality floor prevents the run from including hours that
+    /// only look decent because the rest of the day is awful. If the best
+    /// hour today scores +6, a run of +2 hours doesn't qualify just because
+    /// they're "within tolerance" — they're not actually nice walking
+    /// weather, they're just less bad. Without the floor, a grim
+    /// rain-and-cold day would still pick a 6-hour "best window" of dim
+    /// hours and pretend that's a recommendation.
+    ///
+    /// Length wins on ties; on a tie of equal length, the earlier run wins
+    /// so users get told to walk sooner when possible.
     private static func bestRun(
         in scores: [(HourlySnapshot, Int)],
-        minLength: Int
+        minLength: Int,
+        tolerance: Int = 4,
+        minQuality: Int = 5
     ) -> [(HourlySnapshot, Int)]? {
-        guard let topScore = scores.map(\.1).max(), topScore > 0 else { return nil }
+        guard let topScore = scores.map(\.1).max(), topScore >= minQuality else {
+            return nil
+        }
+        let threshold = max(topScore - tolerance, minQuality)
 
         var bestRun: [(HourlySnapshot, Int)] = []
         var current: [(HourlySnapshot, Int)] = []
 
         for entry in scores {
-            if entry.1 == topScore {
+            if entry.1 >= threshold {
                 current.append(entry)
                 if current.count > bestRun.count { bestRun = current }
             } else {

@@ -221,6 +221,25 @@ struct WalkWindowTile: View {
             llmHeadline = nil
         }
 
+        // DEBUG override: when a forced weather category is set in Profile
+        // → Debug Tools, synthesise an all-day forecast of that category so
+        // the WalkWindowTile end-to-end matches the WeatherMoodLayer's
+        // forced sky. Otherwise the mood layer shows clear sun while the
+        // tile reads the real (probably cloudy) forecast and the QA story
+        // becomes inconsistent.
+        #if DEBUG
+        if let forced = DebugOverrides.weatherCategory {
+            let synthetic = Self.syntheticForecast(category: forced)
+            if let rec = WalkRecommendationService.recommend(for: dog, forecast: synthetic) {
+                await update(.ready(rec))
+                await refreshLLMHeadline(forecast: synthetic, rec: rec)
+            } else {
+                await update(.unavailable)
+            }
+            return
+        }
+        #endif
+
         let trimmed = UserPreferences.postcode
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -247,6 +266,47 @@ struct WalkWindowTile: View {
             await update(.unavailable)
         }
     }
+
+    #if DEBUG
+    /// Build a 24-hour synthetic forecast where every hour shares the same
+    /// category and a sensible default temperature. Used by the debug
+    /// weather override so simulator screenshots show the tile reacting to
+    /// the same sky the WeatherMoodLayer is rendering.
+    private static func syntheticForecast(category: WeatherCategory) -> WeatherForecast {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: .now)
+        let (code, tempC, precip): (Int, Double, Int) = {
+            switch category {
+            case .clear:        return (0, 17, 0)
+            case .partlyCloudy: return (2, 16, 5)
+            case .cloudy:       return (3, 14, 20)
+            case .fog:          return (45, 9, 10)
+            case .drizzle:      return (51, 11, 60)
+            case .rain:         return (63, 10, 90)
+            case .snow:         return (73, 1, 80)
+            case .thunder:      return (95, 14, 95)
+            }
+        }()
+        let snapshots: [HourlySnapshot] = (0..<24).compactMap { hour in
+            guard let time = calendar.date(byAdding: .hour, value: hour, to: dayStart) else { return nil }
+            return HourlySnapshot(
+                time: time,
+                temperatureC: tempC,
+                precipitationProbability: precip,
+                weatherCodeRaw: code,
+                windSpeedKmh: 8,
+                isDay: hour >= 6 && hour < 21
+            )
+        }
+        let location = WeatherLocation(
+            postcode: "DEBUG",
+            latitude: 0,
+            longitude: 0,
+            displayName: "Debug"
+        )
+        return WeatherForecast(location: location, hourly: snapshots, fetchedAt: .now)
+    }
+    #endif
 
     @MainActor
     private func update(_ next: TileState) {
