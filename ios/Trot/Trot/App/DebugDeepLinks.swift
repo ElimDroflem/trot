@@ -55,10 +55,11 @@ enum DebugDeepLinks {
         }
     }
 
-    /// Synthesises a `PendingWalkComplete` and pushes it onto AppState so the
-    /// `WalkCompleteOverlay` renders. Doesn't insert a walk — pure visual
-    /// QA. `?minutes=42&route=true` drives the headline tier and whether the
-    /// route bar shows.
+    /// Synthesises a `PendingWalkComplete` and pushes it onto AppState so
+    /// the `WalkCompleteOverlay` renders. Doesn't insert a walk — pure
+    /// visual QA. `?minutes=42&unlock=page1` drives a milestone-crossed
+    /// stamp; `unlock=page2` does the same for the second page; `unlock=`
+    /// (or omitted) renders the bar advance only.
     private static func handleFireCelebration(
         url: URL,
         appState: AppState,
@@ -67,26 +68,41 @@ enum DebugDeepLinks {
         let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let minutesString = comps?.queryItems?.first(where: { $0.name == "minutes" })?.value ?? "42"
         let minutes = max(1, Int(minutesString) ?? 42)
-        let withRoute = (comps?.queryItems?.first(where: { $0.name == "route" })?.value ?? "true") == "true"
+        let unlock = comps?.queryItems?.first(where: { $0.name == "unlock" })?.value ?? ""
 
         guard let dog = firstActiveDog(in: modelContext) else { return false }
 
-        let dogName = dog.name.isEmpty ? "Your dog" : dog.name
-        let routeName: String? = withRoute ? "Finding your rhythm" : nil
-        let routeTotal: Int? = withRoute ? 240 : nil
+        // Manufacture old/new minutes-today so the requested unlock
+        // milestone gets crossed by the synthesised walk.
+        let target = max(1, dog.dailyTargetMinutes)
+        let half = max(1, target / 2)
+        let oldMinutes: Int
+        let newMinutes: Int
+        let pagesAlready: Int
+        switch unlock {
+        case "page1":
+            oldMinutes = max(0, half - 5)
+            newMinutes = max(half, oldMinutes + minutes)
+            pagesAlready = 0
+        case "page2":
+            oldMinutes = max(0, target - 5)
+            newMinutes = max(target, oldMinutes + minutes)
+            pagesAlready = 1
+        default:
+            oldMinutes = 0
+            newMinutes = minutes
+            pagesAlready = 0
+        }
+
         let event = PendingWalkComplete(
             dogID: dog.persistentModelID,
-            dogName: dogName,
+            dogName: dog.name.isEmpty ? "Your dog" : dog.name,
             minutes: minutes,
             isFirstWalk: false,
-            minutesAdded: withRoute ? minutes : 0,
-            oldProgressMinutes: withRoute ? 60 : 0,
-            newProgressMinutes: withRoute ? min(60 + minutes, 240) : 0,
-            routeName: routeName,
-            routeTotalMinutes: routeTotal,
-            landmarksCrossed: [],
-            nextLandmarkName: nil,
-            routeCompleted: nil
+            oldMinutesToday: oldMinutes,
+            newMinutesToday: newMinutes,
+            targetMinutes: target,
+            pagesAlreadyToday: pagesAlready
         )
         appState.pendingWalkCompletes.append(event)
         return true

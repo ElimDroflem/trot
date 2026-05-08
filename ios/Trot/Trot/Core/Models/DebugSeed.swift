@@ -86,13 +86,10 @@ enum DebugSeed {
             totalSeededMinutes += entry.duration
         }
 
-        // Apply the lifetime seed minutes to Luna's active route so the
-        // Journey tab reflects the same walk history as Today/Insights.
-        // Without this, route progress stays at zero while Highlights happily
-        // shows "6 walks · 3h 55m" — the data inconsistency the user reported.
-        // We don't keep the WalkApplication result — landmark celebrations
-        // belong to real walks, not lived-in seed.
-        _ = JourneyService.applyWalk(minutes: totalSeededMinutes, to: luna)
+        // (Journey infrastructure removed May 2026 — story-mode owns
+        // post-walk progression now. The seed used to advance Luna's
+        // active route here; that's a no-op in the new world.)
+        _ = totalSeededMinutes
 
         // Seed Luna's story so the Story tab opens to a populated state in
         // DEBUG without burning real LLM calls. Picks Murder Mystery (most

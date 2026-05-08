@@ -28,11 +28,6 @@ enum LLMService {
         /// playful question in the dog's voice. Capped at three calls per
         /// dog per day via slotted caching in `dogChatLine(for:)`.
         case dogChat = "dog_chat"
-        /// Journey-tab chapter epitaph — fires once when a route completes,
-        /// generates a single sentence in the dog's voice that summarises
-        /// the season the user just walked through. Cached forever in
-        /// UserDefaults via `ChapterMemoryService`.
-        case chapterMemory = "chapter_memory"
         /// Today-tab walk-window rationale. Layered on top of the
         /// deterministic scorer so the user sees a glanceable headline
         /// immediately, then a slightly nicer LLM-flavoured caption when
@@ -91,21 +86,20 @@ enum LLMService {
         return text
     }
 
-    /// Post-walk celebration line. No cache — each walk save is a fresh call.
+    /// Post-walk celebration line. No cache — each walk save is a fresh
+    /// call. `pageUnlocked` flips a story-mode hint into the prompt when
+    /// this walk crossed the half- or full-target line ("page 1 unlocked"
+    /// or "page 2 unlocked"); the proxy can lean on it for a richer line.
     static func walkCompleteLine(
         for dog: Dog,
         minutes: Int,
         isFirstWalk: Bool,
-        landmarksHit: [String],
-        routeName: String?,
-        nextLandmarkName: String?
+        pageUnlocked: String?
     ) async -> String? {
         let context: [String: any Sendable] = [
             "minutes": minutes,
             "isFirstWalk": isFirstWalk,
-            "landmarksHit": landmarksHit,
-            "routeName": routeName ?? "",
-            "nextLandmarkName": nextLandmarkName ?? "",
+            "pageUnlocked": pageUnlocked ?? "",
         ]
         return await request(kind: .walkComplete, dog: dog, context: context)
     }
@@ -189,25 +183,6 @@ enum LLMService {
         guard let text = await request(kind: .bestWindow, dog: dog, context: context) else { return nil }
         LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24)
         return text
-    }
-
-    /// Chapter epitaph for a just-completed route. Single sentence in the
-    /// dog's voice — *"We learned the loop together. The bench at the
-    /// corner became ours."* No iOS-side cache; `ChapterMemoryService`
-    /// owns the persistent storage in UserDefaults so the memory survives
-    /// app reinstalls scoped to the dog.
-    static func chapterMemory(
-        for dog: Dog,
-        routeName: String,
-        routeTotalMinutes: Int,
-        landmarkNames: [String]
-    ) async -> String? {
-        let context: [String: any Sendable] = [
-            "routeName": routeName,
-            "routeTotalMinutes": routeTotalMinutes,
-            "landmarkNames": landmarkNames,
-        ]
-        return await request(kind: .chapterMemory, dog: dog, context: context)
     }
 
     /// Story page generation. Returns a structured payload (prose + two

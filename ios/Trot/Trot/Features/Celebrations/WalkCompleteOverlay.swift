@@ -9,14 +9,19 @@ import UIKit
 ///   3. Headline pops in — "X minutes with Luna!" in display type.
 ///   4. Generated dog-voice line in italics ("Sniffed everything past the
 ///      duck pond!") — fetched from `LLMService` on appear; absent on miss.
-///   5. Route progress mini-bar that animates from oldFraction → newFraction.
-///   6. Optional landmark stamps if any landmarks were crossed.
-///   7. Optional "[Route name] complete!" line if a route finished.
+///   5. Story progress bar — minutes-today out of daily target with notches
+///      at half and full target. Animates from old → new minutes.
+///   6. PAGE 1 / PAGE 2 UNLOCKED stamp when this walk crossed a milestone.
+///   7. Caption: "X min to today's first/second page" or "Two pages today,
+///      back tomorrow."
 ///   8. Continue button.
 ///
 /// New brand voice: celebration carve-out applies. Loud, share-worthy,
 /// exclamation marks. The dopamine comes from staggered springs, haptic
 /// feedback, and the dog-voice line naming something specific from the walk.
+///
+/// Replaced May 2026 — earlier shape rendered a route progress bar +
+/// landmark stamps from the now-removed Journey-mode progression.
 struct WalkCompleteOverlay: View {
     let event: PendingWalkComplete
     /// Optional — needed for the LLM dog-voice fetch. When nil (rare: dog
@@ -28,7 +33,7 @@ struct WalkCompleteOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
     @State private var ringFraction: Double = 0
-    @State private var routeFraction: Double = 0
+    @State private var storyFraction: Double = 0
     @State private var dogVoiceLine: String?
     @State private var photoScale: CGFloat = 0.65
     @State private var headlineScale: CGFloat = 0.85
@@ -61,19 +66,20 @@ struct WalkCompleteOverlay: View {
                         .transition(.opacity)
                 }
 
-                if event.hasRouteContext {
-                    routeBar
+                storyProgressBar
+                    .padding(.horizontal, Space.lg)
+
+                if event.crossedHalfTarget || event.crossedFullTarget {
+                    pageUnlockStamp
                         .padding(.horizontal, Space.lg)
                 }
 
-                if !event.landmarksCrossed.isEmpty {
-                    landmarkStamps
-                        .padding(.horizontal, Space.lg)
-                }
-
-                if let routeFinished = event.routeCompleted {
-                    routeCompletedLine(routeFinished)
-                }
+                Text(event.progressCaption)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Space.lg)
+                    .padding(.top, 2)
 
                 Spacer()
 
@@ -103,7 +109,7 @@ struct WalkCompleteOverlay: View {
         if reduceMotion {
             appeared = true
             ringFraction = 1
-            routeFraction = event.newFraction
+            storyFraction = event.newFraction
             photoScale = 1
             headlineScale = 1
             headlineOpacity = 1
@@ -139,14 +145,11 @@ struct WalkCompleteOverlay: View {
             headlineOpacity = 1
         }
 
-        // Route bar advance — only animated when there's actually a route.
-        // Initialise at the OLD position so the animate-to-new produces a
-        // visible bar advance.
-        if event.hasRouteContext {
-            routeFraction = event.oldFraction
-            withAnimation(.brandDefault.delay(0.5)) {
-                routeFraction = event.newFraction
-            }
+        // Story progress bar advance — initialise at the OLD position so
+        // the animate-to-new produces a visible advance.
+        storyFraction = event.oldFraction
+        withAnimation(.brandDefault.delay(0.5)) {
+            storyFraction = event.newFraction
         }
     }
 
@@ -158,15 +161,16 @@ struct WalkCompleteOverlay: View {
     private func fetchDogVoice() {
         guard let dog else { return }
         let event = self.event
+        let unlocked: String? =
+            event.crossedFullTarget ? "page 2"
+            : event.crossedHalfTarget ? "page 1"
+            : nil
         Task {
-            let landmarkNames = event.landmarksCrossed.map(\.name)
             let line = await LLMService.walkCompleteLine(
                 for: dog,
                 minutes: event.minutes,
                 isFirstWalk: event.isFirstWalk,
-                landmarksHit: landmarkNames,
-                routeName: event.routeName ?? "",
-                nextLandmarkName: event.nextLandmarkName
+                pageUnlocked: unlocked
             )
             await MainActor.run {
                 withAnimation(.brandDefault) {
@@ -228,70 +232,73 @@ struct WalkCompleteOverlay: View {
             .accessibilityLabel("\(event.dogName) says: \(line)")
     }
 
-    private var routeBar: some View {
+    /// Story-mode progress bar. Width = today's minutes / daily target,
+    /// with the half-target line marked at 50% and the full-target line
+    /// at 100%. Animates from `oldFraction` → `newFraction` so the user
+    /// sees the bar advance with this walk. Notches sit ON the bar so
+    /// the milestone positions are unambiguous.
+    private var storyProgressBar: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             HStack {
-                Text((event.routeName ?? "ROUTE").uppercased())
+                Text("MINUTES TODAY")
                     .font(.caption.weight(.semibold))
                     .tracking(0.5)
                     .foregroundStyle(Color.brandTextTertiary)
                 Spacer()
-                Text("+\(event.minutesAdded) min")
+                Text("\(event.newMinutesToday) / \(event.targetMinutes) min")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.brandPrimary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
+                    // Track
                     Capsule()
                         .fill(Color.brandDivider.opacity(0.6))
+                    // Fill (animates with `storyFraction`)
                     Capsule()
                         .fill(Color.brandPrimary)
-                        .frame(width: geo.size.width * routeFraction)
+                        .frame(width: geo.size.width * storyFraction)
+                    // Half-target tick — vertical line at the midpoint
+                    Rectangle()
+                        .fill(Color.brandTextTertiary.opacity(0.6))
+                        .frame(width: 1.5, height: 14)
+                        .offset(x: geo.size.width * 0.5 - 0.75, y: -3)
+                    // Full-target tick at the right edge — sits at 100%
+                    // exactly so it visually "caps" the bar.
+                    Rectangle()
+                        .fill(Color.brandTextTertiary.opacity(0.6))
+                        .frame(width: 1.5, height: 14)
+                        .offset(x: geo.size.width - 1.5, y: -3)
                 }
             }
             .frame(height: 8)
         }
     }
 
-    private var landmarkStamps: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            Text(event.landmarksCrossed.count == 1 ? "MOMENT UNLOCKED" : "MOMENTS UNLOCKED")
-                .font(.caption.weight(.semibold))
-                .tracking(0.5)
+    /// PAGE 1 / PAGE 2 UNLOCKED stamp. Renders only when this walk
+    /// crossed a milestone (`crossedHalfTarget` or `crossedFullTarget`).
+    /// Same visual rhythm as the old landmark stamp it replaces — typewriter
+    /// caps, tinted accent fill — so the celebration's "you got something"
+    /// energy is preserved.
+    private var pageUnlockStamp: some View {
+        let label = event.crossedFullTarget ? "PAGE 2 UNLOCKED" : "PAGE 1 UNLOCKED"
+        return HStack(spacing: Space.sm) {
+            Image(systemName: "book.fill")
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.brandPrimary)
-            VStack(spacing: Space.xs) {
-                ForEach(event.landmarksCrossed) { landmark in
-                    HStack(spacing: Space.sm) {
-                        Image(systemName: landmark.symbolName)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.brandPrimary)
-                            .frame(width: 28, height: 28)
-                            .background(Color.brandPrimaryTint)
-                            .clipShape(Circle())
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(landmark.name)
-                                .font(.bodyMedium.weight(.semibold))
-                                .foregroundStyle(Color.brandTextPrimary)
-                            if !landmark.description.isEmpty {
-                                Text(landmark.description)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.brandTextSecondary)
-                            }
-                        }
-                        Spacer()
-                    }
-                }
+                .frame(width: 28, height: 28)
+                .background(Color.brandPrimaryTint)
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.caption.weight(.bold))
+                    .tracking(1.5)
+                    .foregroundStyle(Color.brandPrimary)
+                Text("Open the Story tab to read it.")
+                    .font(.caption)
+                    .foregroundStyle(Color.brandTextSecondary)
             }
-        }
-    }
-
-    private func routeCompletedLine(_ routeName: String) -> some View {
-        HStack(spacing: Space.xs) {
-            Image(systemName: "flag.checkered")
-                .foregroundStyle(Color.brandSecondary)
-            Text("\(routeName) complete!")
-                .font(.bodyLarge.weight(.semibold))
-                .foregroundStyle(Color.brandSecondary)
+            Spacer()
         }
     }
 

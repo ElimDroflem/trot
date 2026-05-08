@@ -300,6 +300,67 @@ The following decisions came out of a structured pressure-test of the project pl
 
 **Implementation note:** these are surfaced in-app, not as push notifications. The existing 7/14/30-day streak-milestone notification (from `spec.md` notifications section) sits on top of this ladder, not in place of it. A new `MilestoneService` (or extension of `StreakService`) computes which beats have fired and which are still owed, persisted on `Dog` (probably as a `Set<MilestoneCode>` or per-flag Bools — implementation detail).
 
+### Story tab as the post-walk progression spine — 2026-05-08
+**Decision:** Story mode replaces the Journey/Route system entirely as the v1 post-walk progression. Each dog gets one AI-written book that grows by one page per walk, with two pages per local day max (page 1 unlocks at 50% of dailyTarget; page 2 at 100%). Six genres, locked per dog. Genre-themed atmosphere, page header strip, prose treatment, swipe reader. Author-channelling LLM prompt per genre.
+
+**Rationale:** The Journey/Route system was a generic "minutes accumulating toward a named distance" loop — emotionally thin once the user realised the routes were not real walks they were doing. The story-per-dog model puts the dog in a continuous co-authored narrative the user has direct input on (path A/B + write/photo). Per-walk content + genre identity + author voice are far stronger retention levers than landmark-counting on a map. Decided after a working prototype showed the novelty wore off the route bar within two weeks of seed-data testing.
+
+**Implementation:** `StoryService.currentState` is the state machine (noStory / awaitingFirstWalk / pageReady / caughtUp(.needMoreMinutes | .dailyCapHit) / chapterClosed). Pages persist as `StoryPage` SwiftData with a `Story` parent (one per dog), one `StoryChapter` per 5 pages. LLM via `LLMService.storyPage` (Sonnet 4.6 on the proxy) returns `{prose, choiceA, choiceB}`. Fallback to a templated prologue per genre when offline.
+
+### Page cap: 2 per local day, milestone-gated — 2026-05-08
+**Decision:** A user can generate at most two story pages in any local calendar day. Page 1 unlocks at minutes-walked-today >= 50% of dog's dailyTargetMinutes; page 2 at 100%. Beyond that, additional walks have no story-progression effect.
+
+**Rationale:** Anti-grind. Without a cap, a 6-hour Saturday walk could generate dozens of pages, blowing the LLM budget AND emotionally cheapening the loop (one page per walk, dog-led pace). Tying page unlocks to the dog's actual exercise needs makes the story-mode reinforce rather than substitute the daily-target loop. 50%/100% are the same thresholds as the streak-day rule (≥50% of target counts as walked).
+
+**Edge case:** a single big walk that crosses both thresholds at once unlocks both pages back-to-back — user picks page 1's path → page 2 generates → user picks page 2's path → daily cap. Decisions are visible-but-locked when below threshold (not hidden) so the user sees what's coming.
+
+### LLM page length: 140-180 words / one iPhone screen — 2026-05-08
+**Decision:** `story_page` prose target is 140-180 words, 2-3 paragraphs separated by `\n`. `max_tokens` 800. Prompt instructs the LLM to fit "exactly one iPhone screen of reading at body font."
+
+**Rationale:** Two recalibrations to land here. Original 40-70 words was a teaser, not a page (user feedback: "this is one paragraph"). 220-280 words spilled past the iPhone screen and forced scrolling. 140-180 is the sweet spot — page card on the Story tab clamps to 4 lines for a teaser; tapping "Read more" opens a full-screen reader that fills the iPhone screen without scrolling. Six fallback prologues + chapter-close prologue use the same length spec.
+
+### Author-channelling per genre — 2026-05-08
+**Decision:** Each `StoryGenre.toneInstruction` ends with *"Channel <Author>'s voice: <one-line style note>. Don't mimic, don't pastiche — channel."* Picks: Christie (murder mystery), King (horror), Martin (fantasy), Herbert/Dune (sci-fi), Osman/Thursday Murder Club (cosy), Macfarlane (adventure).
+
+**Rationale:** User feedback that the LLM-fallback prologues read as "structurally fantasy but vague" prompted a sharper voice anchor. Author cues give the LLM a recognisable register without forcing pastiche. The "Don't mimic" guard stops the model doing parody. Picks were user-confirmed; Macfarlane chosen over Bryson/Fermor for adventure because the modern-British-landscape register suits the "outdoor adventure across UK landscapes" brief.
+
+### Picker calm + live atmosphere preview — 2026-05-08
+**Decision:** Genre picker cards are uniform cream — same surface, same hairline border, one accent-tinted icon per card. The atmosphere layer behind the picker swaps to the highlighted genre when a card is tapped (selection lifted to `StoryView` via `@Binding`). Full genre theming (drop caps, scanlines, parchment, etc.) only blooms after Begin commits.
+
+**Rationale:** First iteration painted every card with its full book chrome. User pushback: "looks like a complete mish-mash, way too much going on." The cards are a calm shelf, the *background* does the talking. Tap-to-preview gives the user a sense of choosing a world before committing. Reveal of the full book is the reward for picking.
+
+### "Read more" pill + cross-chapter swipe reader — 2026-05-08
+**Decision:** Story tab's page card shows a 4-line preview of the prose + a per-genre "Read more" pill. Tapping opens `StoryFullPageReader` — a `TabView .page` style swipe stack across every page in the story (not chapter-confined). Spine rows on the live tab are tappable into the same reader at that page's index.
+
+**Rationale:** Page card on the Story tab needs to leave room for the chapter spine, decisions footer, and chapter shelf — clamped prose keeps the layout compact. The full reading experience is the iPhone-screen-sized reader. Cross-chapter swipe matches the user's mental model: "the book is one continuous thing, not a chaptered structure." Closed chapters retain their existing `StoryChapterReader` (vertical scroll all pages of one chapter) for cover-to-cover rereading.
+
+### Walk-complete celebration enqueue-before-dismiss — 2026-05-08
+**Decision:** `LogWalkSheet.save` and `ExpeditionView.finishWalk` enqueue the celebration onto `appState.pendingWalkCompletes` BEFORE calling `dismiss()`. The previous pattern (dismiss + `Task { sleep 350ms; enqueue }`) is removed.
+
+**Rationale:** The 350ms-after-dismiss approach was a workaround for the SwiftUI z-order trap where the overlay (which lives on RootView) is hidden by a still-presenting sheet during dismiss animation. The trade-off was 350ms of dead air that read as *"the celebration only came after I closed the logging page."* New approach: enqueue first, sheet animates away, overlay is revealed from underneath in one continuous motion. Same total time-to-celebration; user perceives it as "tap save, see celebration."
+
+### Story-mode walk-complete overlay — 2026-05-08
+**Decision:** `WalkCompleteOverlay` renders **story progress** (minutes-today vs dog's dailyTarget with notches at 50%/100%) and a **PAGE 1 / PAGE 2 UNLOCKED stamp** when this walk crossed a milestone. Replaces the old route bar + landmark stamps + route-completed line.
+
+**Rationale:** Once story mode owns post-walk progression, the celebration overlay must reflect that. The route bar showing "Finding your rhythm: 60/240 min" is meaningless under the new model. New shape on `PendingWalkComplete` carries `oldMinutesToday`, `newMinutesToday`, `targetMinutes`, `pagesAlreadyToday` — same compute as `StoryService.currentState` so the overlay's stamp logic mirrors the gating logic exactly.
+
+### Journey/Route infrastructure deleted — 2026-05-08
+**Decision:** All Journey/Route iOS code deleted: `JourneyView`, `JourneyService`, `JourneyService+Routes`, `ChapterMemoryService`, `DistanceTranslator`, `LandmarkRevealView`, `Routes.json`, `UKLandmarks.json`, `JourneyServiceTests`. Plus `LLMService.chapterMemory` and the matching `chapter_memory` proxy case.
+
+**Rationale:** All five callers (AppState, LogWalkSheet, ExpeditionView, WalkCompleteOverlay, DebugSeed) rewired for story-mode in this session. JourneyView itself had been orphaned since the tab rename Journey → Story. Audit confirmed zero outside-tests references to the deleted symbols. Deleted in one commit so the diff is reviewable.
+
+**Left for follow-up SwiftData migration:** `Dog.activeRouteID`, `routeProgressMinutes`, `completedRouteIDs`. Removing persisted fields is a CloudKit-aware schema change; deferred to refactor item 1.
+
+### Never surface stored secrets to stdout — 2026-05-08
+**Decision:** New rule in CLAUDE.md Security section: never run `git credential fill`, `cat .env`, `security find-generic-password -w`, or any command whose effect is to print a stored credential to stdout. Use metadata-only debugging when auth-requiring commands hang.
+
+**Rationale:** During a `git push` debug, ran `git credential fill` to "verify creds were stored." That command's whole purpose is to write the secret to stdout for git's helpers — and so it leaked the user's GitHub OAuth token into the conversation transcript. Token had to be rotated. The rule + memory entry are durable backstops; CLAUDE.md spells out the metadata-only debug pattern so future sessions don't reach for the wrong tool when an auth-requiring command stalls.
+
+### Decisions panel locked-but-visible — 2026-05-08
+**Decision:** When a milestone hasn't been crossed yet, the decisions panel on the latest page renders the path buttons VISIBLE but DIMMED (45% opacity, padlock glyph replaces the per-genre path icon, tap is suppressed) plus a one-line lock explainer underneath: *"Walk Luna 18 more minutes to unlock the next page."*
+
+**Rationale:** Three options were considered: hide the buttons until unlocked (anticipation lost), show them disabled with no explainer (users would assume bug), show them with explainer (chosen). The dimmed-with-explainer pattern gives users the *tease* of what's coming + the *exact rule* for unlocking it, reinforcing the "walk the dog → next page" loop.
+
 ---
 
 ## Open

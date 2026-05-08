@@ -158,30 +158,46 @@ struct RootView: View {
     }
 
     #if DEBUG
-    /// Honours `-DebugCelebrationMinutes N [-DebugCelebrationRoute YES]` —
+    /// Honours `-DebugCelebrationMinutes N [-DebugCelebrationUnlock page1|page2]` —
     /// pushes a synthetic walk-complete event onto AppState so the overlay
-    /// renders on first paint. Lets simulator testing QA the overlay without
-    /// driving the LogWalkSheet UI.
+    /// renders on first paint. Lets simulator testing QA the overlay
+    /// without driving the LogWalkSheet UI.
     private func fireDebugCelebrationIfRequested() {
         guard let minutes = appState.pendingDebugCelebrationMinutes,
               let dog = activeDogs.first else { return }
-        let withRoute = appState.pendingDebugCelebrationWithRoute
+        let target = max(1, dog.dailyTargetMinutes)
+        let half = max(1, target / 2)
+        let unlock = appState.pendingDebugCelebrationUnlock
+        let oldMinutes: Int
+        let newMinutes: Int
+        let pagesAlready: Int
+        switch unlock {
+        case .page1:
+            oldMinutes = max(0, half - 5)
+            newMinutes = max(half, oldMinutes + minutes)
+            pagesAlready = 0
+        case .page2:
+            oldMinutes = max(0, target - 5)
+            newMinutes = max(target, oldMinutes + minutes)
+            pagesAlready = 1
+        case .none:
+            oldMinutes = 0
+            newMinutes = minutes
+            pagesAlready = 0
+        }
         let event = PendingWalkComplete(
             dogID: dog.persistentModelID,
             dogName: dog.name.isEmpty ? "Your dog" : dog.name,
             minutes: minutes,
             isFirstWalk: false,
-            minutesAdded: withRoute ? minutes : 0,
-            oldProgressMinutes: withRoute ? 60 : 0,
-            newProgressMinutes: withRoute ? min(60 + minutes, 240) : 0,
-            routeName: withRoute ? "Finding your rhythm" : nil,
-            routeTotalMinutes: withRoute ? 240 : nil,
-            landmarksCrossed: [],
-            nextLandmarkName: nil,
-            routeCompleted: nil
+            oldMinutesToday: oldMinutes,
+            newMinutesToday: newMinutes,
+            targetMinutes: target,
+            pagesAlreadyToday: pagesAlready
         )
         appState.pendingWalkCompletes.append(event)
         appState.pendingDebugCelebrationMinutes = nil
+        appState.pendingDebugCelebrationUnlock = .none
     }
     #endif
 

@@ -8,6 +8,75 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-08 — Story tab rebuild end-to-end + journey rip-out + handoff prep
+
+A long single session. The Story tab went from "loosely scaffolded" to "fully functional with milestone gating, atmosphere, swipe reader, error/loading banners, page-cap anti-grind, author-channelling LLM prompts, and live deploy of the proxy." Mid-session the Journey/route system (which was the previous progression spine) got fully ripped out and replaced by story-mode milestones. End of session is a deliberate handoff to a fresh chat for refactor work — see `docs/refactor.md` (new this session).
+
+**Done this session — Story tab core:**
+
+- **Per-genre book theming** (`GenreOverlay`, `GenrePageHeader`, `GenreProseView`, `GenreBookCard`). Six visual languages: noir film grain + EXHIBIT stamp + monospaced typewriter prose + magnifying-glass corner ornament; horror vignette + handwritten header + scratched underline; fantasy parchment foxing + ornate diamond divider + drop cap; sci-fi scan-lines + bracketed file slug + terminal `> ` prefix + blinking cursor; cosy warm afternoon-glow + italic serif + leaf ornament + drop cap; adventure kraft fibre cross-hatch + DAY/LEG stamp + compass ornament. Each card carries the genre's surface, border, corner ornament, and genre-tinted shadow.
+- **`StoryFullPageReader` with cross-chapter swipe** — TabView `.page` style, every page in the story is one swipe stop, opens at any page (from the Read-the-File pill OR from a tap on a chapter-spine row). Cross-chapter navigation enabled.
+- **`ChapterSpine` row tappability** — `.past` and `.current` rows wrap in a Button that opens `StoryFullPageReader` at that page; future rows stay non-interactive.
+- **Calm picker with live atmosphere preview.** Picker cards are uniform cream — same surface, same hairline border, one accent-tinted icon per card. The atmosphere layer behind the picker swaps to the highlighted genre on each card tap (selected state lifted from `StoryGenrePicker` to `StoryView` via `@Binding`). "Begin <Genre>" CTA at the bottom commits.
+- **`StoryGenerationProgress` writing-state view** — appears immediately on Begin tap so the picker doesn't sit visually frozen during the LLM round-trip; genre-flavoured headline + atmosphere already painting.
+- **Author-channelling per genre.** Each `StoryGenre.toneInstruction` gained a *"Channel <Author>'s voice: <one-line style note>. Don't mimic, don't pastiche — channel."* cue. Christie / King / Martin / Herbert (Dune) / Osman / Macfarlane.
+- **Milestone-gated decisions + 2-page-per-day cap.** `StoryService.currentState` extended with `PageLock` enum (`.needMoreMinutes`, `.dailyCapHit`) and `Milestone` (.halfTarget, .fullTarget). Page 1 unlocks at 50% of dog's daily target; page 2 at 100%; max 2 pages per local day regardless of additional walks. Locked decisions render as dimmed buttons with a one-line "Walk Luna 18 more minutes…" explainer + padlock glyph; daily cap shows a calm "Two pages today" footer.
+- **Generation feedback owned by `StoryView`.** `isGeneratingPage` lifted from the reader so it survives view re-renders during the LLM call and reliably resets on success OR failure. `pageGenerationError: String?` surfaces a `GenerationErrorBanner` with **Try again** that re-fires the same `(choice, text, photo)` payload via `lastPickArgs`. Inline `GenerationStatusBanner` shows genre-flavoured *"Inking the next page…"* / *"Pouring the next page…"* etc. while waiting.
+- **Page length recalibrated TWICE.** Initial bump 40-70 → 220-280 words (too long, spilled past iPhone screen). Final 140-180 words / 2-3 paragraphs / max_tokens 800. Card preview clamps at `lineLimit(4)` with tail truncation; full prose only in the swipe reader. Six fallback prologues retightened from ~250 → ~160 words each in author voice. Same recalibration applied to `story_chapter_close.prologueProse` (max_tokens 1600 → 1000).
+- **`DebugSeed` chapter 1 + 2 pages rewritten** to ~160 words / 2-3 paragraphs in Christie voice. Chapter 1 pages backdated 8-12 days so milestone-gating doesn't see them as "today" pages and trigger the daily cap. Same plot beats so the existing `userChoice` trail is preserved.
+
+**Done this session — Journey infrastructure rip-out:**
+
+The old Journey/Route system (routes, landmarks, route progress, chapter memory) was the v1 progression spine. Story-mode replaces it. After a meticulous audit, the following were deleted as 100% dead:
+
+- `JourneyView.swift` — orphan, no callers since the tab was renamed to Story
+- `ChapterMemoryService.swift` — only consumer was JourneyView
+- `DistanceTranslator.swift` — only consumer was JourneyView
+- `LandmarkRevealView.swift` — only consumer was ExpeditionView's mid-walk landmark toast (replaced by `StoryMilestoneToastView`)
+- `JourneyService.swift` + `JourneyService+Routes.swift` — last consumers (AppState, LogWalkSheet, ExpeditionView, WalkCompleteOverlay, DebugSeed) all rewired for story
+- `Routes.json` + `UKLandmarks.json` — data files for the deleted services
+- `JourneyServiceTests.swift` — tests die with the service
+- `LLMService.chapterMemory(...)` static func + `Kind.chapterMemory` case + matching `chapter_memory` proxy case
+
+**Left for refactor (SwiftData migration):** `Dog.activeRouteID` / `routeProgressMinutes` / `completedRouteIDs` are persisted fields on the SwiftData model. Removing persisted fields is a schema migration with CloudKit-sync risk; they remain in the model with a DEPRECATED comment block and are listed as item 1 in `docs/refactor.md`.
+
+**Done this session — Walk-complete overlay rebuilt for story mode:**
+
+- `PendingWalkComplete` struct rewritten. Old shape: `routeName`, `routeTotalMinutes`, `landmarksCrossed`, `routeCompleted`, `nextLandmarkName`, `oldProgressMinutes`, `newProgressMinutes`. New shape: `oldMinutesToday`, `newMinutesToday`, `targetMinutes`, `pagesAlreadyToday`. Computed: `halfTargetMinutes`, `oldFraction`, `newFraction`, `crossedHalfTarget`, `crossedFullTarget`, `progressCaption`.
+- `WalkCompleteOverlay` renders `storyProgressBar` (today's minutes vs target with notches at 50% and 100%) and `pageUnlockStamp` (PAGE 1 / PAGE 2 UNLOCKED, fired only when this walk crossed a milestone). `progressCaption` strips the bar with one-liner: *"X min to today's first page"*, *"X min to today's second page"*, or *"Two pages today. The book waits for tomorrow."*
+- `LLMService.walkCompleteLine` simplified: `pageUnlocked: String?` parameter replaces the old `landmarksHit` / `routeName` / `nextLandmarkName` trio. Proxy's `walk_complete` case takes the new hint.
+
+**Done this session — ExpeditionView rewired for story:**
+
+- "X min to ???" line gone. Replaced with `storyProgress` block that shows the current minutes-walked-today vs daily target, captioned *"X min to today's first/second page"* or *"Two pages today. Walk for the love of it."* and a bar that anchors against the next milestone.
+- Mid-walk landmark toasts (`visibleLandmark` + `LandmarkRevealView`) replaced with `visibleMilestone` (`StoryMilestoneToast` enum: `.halfTarget` → "PAGE 1 UNLOCKED", `.fullTarget` → "PAGE 2 UNLOCKED") + `StoryMilestoneToastView`. Toast fires once per session per milestone via `firedMilestones: Set<StoryMilestoneToast>`.
+- `ExpeditionView.finishWalk()` story-mode payload + enqueue-before-dismiss (mirror of last turn's `LogWalkSheet` fix). The dismiss + 350ms sleep + enqueue dead-air is gone — overlay is queued the moment Save fires, sheet animation reveals it from underneath.
+- `ExpeditionState.firedLandmarkIDs` / `markLandmarkFired` deleted (logic moved into the view's `firedMilestones`).
+
+**Done this session — gotchas hit and resolved:**
+
+- **macOS Tahoe codesign provenance issue.** Sticky `com.apple.provenance` xattr re-applies after `xattr -cr`, blocking simulator codesign. Workaround: `CODE_SIGNING_ALLOWED=NO` for sim builds. Saved as memory: `feedback_codesign_provenance_workaround.md`.
+- **Vercel deploy gap.** Story-related kinds (`story_page`, `story_chapter_close`) added to `ALLOWED_KINDS` in commit `456bcfb` but Vercel never redeployed since. Every path-pick was bouncing with HTTP 400 `invalid_kind`. Diagnosed by hitting the proxy with curl. Fixed by pushing `09e5697` (which also carries the page-length recalibration), Vercel auto-deployed, verified live with a real `story_page` curl returning Sonnet 4.6 prose.
+- **Notification permission alert was looping on fresh installs.** Pre-firing the `firstWalk` milestone in `DebugSeed` triggered `UNUserNotificationCenter.requestAuthorization` on every reinstall. Visible in screenshots as a black alert covering the centre of the screen. Eventually auto-grants and stops; not blocking, just noisy. Added `-DebugSkipNotifications YES` launch arg.
+- **Chapter-close overlay re-firing on fresh installs.** UserDefaults seen-key keyed by `chapter.persistentModelID.hashValue` — the hash changes each install, so the overlay sees the chapter as unseen and re-fires. Listed in refactor.md.
+- **GitHub OAuth token leaked in transcript.** While diagnosing a hung `git push`, ran `git credential fill` to "verify creds were stored." That command's purpose is to print the secret to stdout, which it did. The token was rotated by the user via `gh auth logout` + `gh auth login`. Added a `Never surface stored secrets to stdout` rule to `CLAUDE.md` Security section + memory entry. Concrete bans: `git credential fill`, `cat .env`, `security find-generic-password -w`, etc. + the metadata-only debug pattern for hung auth-requiring commands.
+
+**Committed this session:**
+
+- `f342f39` — Story tab: per-genre book theming, swipe reader, milestone gating
+- `09e5697` — Story proxy: real-page length + author-channelling tone (deployed)
+- (about to commit) — Story-mode walk-complete overlay + ExpeditionView rewire + journey rip-out
+
+Plus 7 commits from earlier in the same conversation (pre-Story-mode era, but same chat session) — Today/Walk-window/Today-reorg/Journey-rebuild/etc.
+
+**Next session — refactor focus:**
+
+Read `docs/refactor.md` (created this session, prioritised backlog) and `docs/decisions.md` (10 architectural decisions appended this session). Item 1 is the SwiftData migration to drop the now-orphaned `Dog.activeRouteID` / `routeProgressMinutes` / `completedRouteIDs` fields cleanly.
+
+**Blockers / open:** none. Build clean (zero errors, zero warnings excluding the harmless AppIntents-not-needed system note). Vercel proxy live. Story tab fully functional end-to-end.
+
+---
+
 ## 2026-05-06 (late evening) — Recap loop, streak tiers, breed table to 60, picker UX
 
 **Done this session:**

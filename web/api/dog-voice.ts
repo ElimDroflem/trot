@@ -32,7 +32,6 @@ type Kind =
     | "decay"
     | "onboarding_card"
     | "dog_chat"
-    | "chapter_memory"
     | "best_window"
     | "story_page"
     | "story_chapter_close";
@@ -124,7 +123,7 @@ export default async function handler(req: Request): Promise<Response> {
 
 // MARK: - Validation
 
-const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "chapter_memory", "best_window", "story_page", "story_chapter_close"];
+const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "best_window", "story_page", "story_chapter_close"];
 
 function validate(body: RequestBody): string | null {
     if (!body || typeof body !== "object") return "invalid_body";
@@ -190,20 +189,22 @@ Maximum 12 words.`,
         case "walk_complete": {
             const minutes = num(context.minutes, 0);
             const isFirstWalk = bool(context.isFirstWalk);
-            const landmarksHit = arr(context.landmarksHit);
-            const routeName = str(context.routeName);
-            const nextLandmark = str(context.nextLandmarkName);
+            const pageUnlocked = str(context.pageUnlocked);
+
+            const unlockHint = pageUnlocked === "page 1"
+                ? "This walk just unlocked TODAY'S FIRST PAGE of the dog's story — half of the day's exercise target reached. Hint at it (without naming the app or breaking the fourth wall)."
+                : pageUnlocked === "page 2"
+                    ? "This walk just unlocked TODAY'S SECOND PAGE of the dog's story — full daily exercise target reached. Lean into the win."
+                    : "";
 
             return {
                 system: SYSTEM_BASE,
                 user: `${dogContext}
 Just finished a ${minutes}-minute walk.
 ${isFirstWalk ? "This is the FIRST walk with Trot — make it cinematic." : ""}
-${landmarksHit.length > 0 ? `Landmarks crossed: ${landmarksHit.join(", ")}.` : ""}
-${routeName ? `Route: ${routeName}.` : ""}
-${nextLandmark ? `Next landmark coming up: ${nextLandmark}.` : ""}
+${unlockHint}
 
-Write a 1-2 sentence celebration in ${dog.name}'s voice for the post-walk overlay. Speak as ${dog.name} in FIRST PERSON ("I sniffed", "we passed", never "Luna did" or "she walked"). Loud, warm, share-worthy. Exclamation marks ALLOWED here. Reference a specific landmark or moment if one is given. Do not refer to ${dog.name} by name in the line — the user already knows.
+Write a 1-2 sentence celebration in ${dog.name}'s voice for the post-walk overlay. Speak as ${dog.name} in FIRST PERSON ("I sniffed", "we passed", never "Luna did" or "she walked"). Loud, warm, share-worthy. Exclamation marks ALLOWED here. Reference a specific texture or moment from the walk if one fits. Do not refer to ${dog.name} by name in the line — the user already knows.
 Maximum 25 words.`,
                 maxTokens: 100,
             };
@@ -428,31 +429,6 @@ Output ONLY the sentence.`,
             };
         }
 
-        case "chapter_memory": {
-            const routeName = str(context.routeName);
-            const routeTotalMinutes = num(context.routeTotalMinutes, 0);
-            const landmarkNames = arr(context.landmarkNames);
-            const hours = Math.round(routeTotalMinutes / 60);
-            const landmarkSampler = landmarkNames.length > 0
-                ? `Moments crossed along the way included: ${landmarkNames.slice(0, 4).join(", ")}.`
-                : "";
-
-            return {
-                system: SYSTEM_BASE,
-                user: `${dogContext}
-${dog.name} and the user just finished a chapter of their walking life called "${routeName}".
-This chapter took roughly ${hours} hours of cumulative walking.
-${landmarkSampler}
-
-Write ONE warm sentence in ${dog.name}'s voice that closes this chapter as a memory the user can re-read months later. The sentence should:
-- Speak in first person ("we", not "Luna and Corey").
-- Reference one specific texture or moment of the chapter (a place, a feeling, a small victory) — never generic ("we walked a lot together"). Pull a detail from the chapter name and landmarks if you can.
-- Land like the last line of a short paragraph in a diary, not a brag. Quiet pride, not exclamation.
-
-Maximum 22 words. No exclamation marks. Exactly one sentence.`,
-                maxTokens: 100,
-            };
-        }
 
         case "dog_chat": {
             const category = str(context.category) || "fact";

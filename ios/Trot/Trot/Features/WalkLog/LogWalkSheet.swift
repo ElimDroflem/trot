@@ -196,15 +196,12 @@ struct LogWalkSheet: View {
             // simple duration tweak would feel dishonest. Per Corey's
             // 2026-05-07 plan, edits stay quiet by design.
             if isNewWalk {
-                let payloads = applyJourneyProgressAndCapture(minutes: form.durationMinutes)
+                let payloads = captureWalkCompletePayloads(minutes: form.durationMinutes)
                 // Enqueue the celebration BEFORE dismiss so the overlay
                 // is already queued on `appState` by the time the sheet
                 // starts animating away. As the sheet slides off, the
                 // overlay is revealed from underneath in one continuous
-                // motion — no "dead air" gap. (Earlier code did the
-                // opposite: dismiss + 350ms wait + enqueue, which felt
-                // like the celebration only arrived "after I closed the
-                // logging page.")
+                // motion — no "dead air" gap.
                 for payload in payloads {
                     appState.pendingWalkCompletes.append(
                         payload.makeEvent(minutes: form.durationMinutes)
@@ -219,51 +216,45 @@ struct LogWalkSheet: View {
         }
     }
 
-    /// Advances each affected dog along their active route by the walk's
-    /// duration and returns lightweight payloads for the post-dismiss
-    /// enqueue. Returning value-typed payloads (rather than holding SwiftData
-    /// `Dog` refs) keeps the post-dismiss Task safe from object-deletion
-    /// races.
+    /// Captures a story-mode walk-complete payload per dog. Returning
+    /// value-typed payloads (rather than holding SwiftData `Dog` refs)
+    /// keeps the post-dismiss Task safe from object-deletion races.
     ///
-    /// Routeless dogs still produce a payload — `routeName` / `routeTotalMinutes`
-    /// are nil and the overlay collapses the route bar.
-    private func applyJourneyProgressAndCapture(minutes: Int) -> [PendingWalkCompletePayload] {
+    /// `oldMinutesToday` and `pagesAlreadyToday` are read BEFORE this walk
+    /// is counted — at this point in `save()` the new `Walk` has already
+    /// been inserted, so we subtract its duration from "today's total" to
+    /// reconstruct the pre-save snapshot. Same logic for `pagesAlreadyToday`
+    /// (story pages aren't created by walk save, so the count is the same
+    /// before and after — captured directly).
+    private func captureWalkCompletePayloads(minutes: Int) -> [PendingWalkCompletePayload] {
         guard minutes > 0 else { return [] }
+        let calendar = Calendar.current
+        let now = Date.now
         var payloads: [PendingWalkCompletePayload] = []
         for dog in dogs {
+            // Total minutes today INCLUDING this just-saved walk → subtract
+            // to get the pre-save snapshot the overlay needs for its
+            // bar-advance animation.
+            let totalToday = (dog.walks ?? [])
+                .filter { calendar.isDate($0.startedAt, inSameDayAs: now) }
+                .reduce(0) { $0 + $1.durationMinutes }
+            let oldMinutesToday = max(0, totalToday - minutes)
+            let pagesAlreadyToday = (dog.story?.chapters ?? [])
+                .flatMap { $0.pages ?? [] }
+                .filter { calendar.isDate($0.createdAt, inSameDayAs: now) }
+                .count
+            // First-walk = was empty before THIS save (so currently has 1).
             let isFirstWalk = (dog.walks ?? []).count == 1
-            let nextLandmarkName = JourneyService.nextLandmark(for: dog)?.landmark.name
-            if let route = JourneyService.currentRoute(for: dog) {
-                let oldMinutes = dog.routeProgressMinutes
-                let application = JourneyService.applyWalk(minutes: minutes, to: dog)
-                payloads.append(PendingWalkCompletePayload(
-                    dogID: dog.persistentModelID,
-                    dogName: dog.name.isEmpty ? "Your dog" : dog.name,
-                    isFirstWalk: isFirstWalk,
-                    oldProgressMinutes: oldMinutes,
-                    newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
-                    routeName: route.name,
-                    routeTotalMinutes: route.totalMinutes,
-                    minutesAdded: application.minutesAdded,
-                    landmarksCrossed: application.landmarksCrossed,
-                    routeCompletedName: application.routeCompleted?.name,
-                    nextLandmarkName: nextLandmarkName
-                ))
-            } else {
-                payloads.append(PendingWalkCompletePayload(
-                    dogID: dog.persistentModelID,
-                    dogName: dog.name.isEmpty ? "Your dog" : dog.name,
-                    isFirstWalk: isFirstWalk,
-                    oldProgressMinutes: 0,
-                    newProgressMinutes: 0,
-                    routeName: nil,
-                    routeTotalMinutes: nil,
-                    minutesAdded: 0,
-                    landmarksCrossed: [],
-                    routeCompletedName: nil,
-                    nextLandmarkName: nil
-                ))
-            }
+
+            payloads.append(PendingWalkCompletePayload(
+                dogID: dog.persistentModelID,
+                dogName: dog.name.isEmpty ? "Your dog" : dog.name,
+                isFirstWalk: isFirstWalk,
+                oldMinutesToday: oldMinutesToday,
+                newMinutesToday: totalToday,
+                targetMinutes: max(1, dog.dailyTargetMinutes),
+                pagesAlreadyToday: pagesAlreadyToday
+            ))
         }
         try? modelContext.save()
         return payloads

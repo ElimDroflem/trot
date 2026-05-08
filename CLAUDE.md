@@ -77,6 +77,18 @@ Session log lives at `docs/log.md` (not auto-loaded). Read it on demand when res
 - Secrets in .env files, never committed. .env in .gitignore from day one.
 - Validate user input before persisting it.
 
+### Never surface stored secrets to stdout
+
+Never run any command whose purpose or side-effect is to read a stored credential, token, key, or password back out and print it. This applies during debugging just as much as during normal work. Specifically:
+- **Never run `git credential fill`** or any other `git credential` subcommand that emits a secret. If you need to know whether credentials are stored, check the helper config (`git config credential.helper`) — that's metadata, not the secret itself.
+- **Never `cat`, `echo`, or `printenv`** an `.env` file, a `~/.netrc`, `~/.ssh/*` private key, a Keychain item, or any file matching `*.pem`, `*.key`, `*.token`, `*credentials*`, `*.kdbx`. Read structure if needed (`ls -la`, `head -1` of a non-secret file), never contents.
+- **Never `security find-generic-password`** with `-w` or any flag that prints the password.
+- **Never extract an Anthropic / OpenAI / Vercel / GitHub / Sentry token** from any file or env var into a shell command's stdout, even to verify "is it set" — use `[ -n "$VAR" ]` style checks that return only true/false.
+- If a `git push`, `vercel deploy`, or similar auth-requiring command hangs, **investigate via metadata** (`git remote -v`, `git config`, network connectivity probes like `git ls-remote`, `curl -I` against the host, `ps`/`lsof` to see what the process is blocked on). Do not query the credential store directly to "check it has the right value."
+- If a hung command needs creds and you can't progress without surfacing them, ask the user to run the command themselves, or to refresh the keychain entry via the OS UI. Don't print to "see what's wrong."
+
+The conversation transcript is durable — anything that prints to stdout in a tool call is now in a transcript that may be reviewed, retained, or shared. Treat every printed line as if it could be screenshotted. Token-shaped strings (`gho_`, `sk-`, `ghp_`, `glpat-`, `xoxb-`, etc.) leaving a process's stdout is an incident, full stop, regardless of whether anyone "actually" reads them.
+
 ## Persistence
 
 - SwiftData with CloudKit sync. CloudKit schema must be deployed to the Production environment in the CloudKit Console before each App Store release — silent sync failure otherwise.

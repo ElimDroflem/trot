@@ -5,12 +5,16 @@ import Combine
 /// Live-walk sheet — the heart of expedition mode. Replaces "Log a past walk"
 /// for new walks. While open, a 1Hz timer drives:
 ///   - the elapsed-time display
-///   - the live "X minutes to ???" countdown to the next landmark
-///   - mid-walk landmark celebration toasts when the dog crosses a landmark
+///   - the live "X min to today's first/second page" countdown to the next
+///     story milestone (50% target → page 1, 100% → page 2, then capped)
+///   - mid-walk PAGE UNLOCKED toasts when this walk crosses a milestone
 ///
-/// Time-based throughout — landmarks unlock by accumulated minutes, not by
-/// estimated distance. Wall-clock time means backgrounding doesn't lose
-/// progress.
+/// Time-based throughout — milestones unlock by accumulated minutes today,
+/// not by estimated distance. Wall-clock time means backgrounding doesn't
+/// lose progress.
+///
+/// Replaced May 2026 — earlier shape was driven by the now-removed Journey/
+/// route system (landmarks unlocking with route progress).
 struct ExpeditionView: View {
     let dog: Dog
 
@@ -22,8 +26,14 @@ struct ExpeditionView: View {
     @State private var showingFinishConfirm = false
     @State private var showingDiscardConfirm = false
     @State private var showingLogPast = false
-    @State private var visibleLandmark: Landmark?
-    @State private var landmarkVisibleSince: Date?
+    /// Mid-walk milestone toast state. Holds the milestone the user just
+    /// crossed (`.halfTarget` for "PAGE 1 UNLOCKED", `.fullTarget` for
+    /// "PAGE 2 UNLOCKED"). Cleared after a few seconds by the tick handler.
+    @State private var visibleMilestone: StoryMilestoneToast?
+    @State private var milestoneVisibleSince: Date?
+    /// Set of milestone toasts already fired in this session, so we don't
+    /// re-fire them every tick once the threshold's been crossed.
+    @State private var firedMilestones: Set<StoryMilestoneToast> = []
 
     /// 1Hz tick — refreshes elapsedSeconds for the UI.
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -39,7 +49,7 @@ struct ExpeditionView: View {
 
                     if state.hasStarted {
                         timerBlock
-                        landmarkProgress
+                        storyProgress
                     } else {
                         readyBlock
                     }
@@ -57,8 +67,8 @@ struct ExpeditionView: View {
                     }
                 }
 
-                if let visibleLandmark {
-                    LandmarkRevealView(landmark: visibleLandmark)
+                if let visibleMilestone {
+                    StoryMilestoneToastView(milestone: visibleMilestone)
                         .padding(.horizontal, Space.md)
                         .padding(.top, Space.sm)
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -219,34 +229,99 @@ struct ExpeditionView: View {
         }
     }
 
+    /// Story-mode progress strip during a live walk. Shows the current
+    /// minutes-walked-today vs the dog's daily target with a single line
+    /// caption naming the next milestone. Bar fills toward the next
+    /// milestone (half-target until page 1; full-target until page 2;
+    /// full once both pages today are accounted for).
     @ViewBuilder
-    private var landmarkProgress: some View {
-        if let next = nextLandmark {
-            VStack(alignment: .leading, spacing: Space.sm) {
-                HStack {
-                    Image(systemName: "lock.fill")
-                        .foregroundStyle(Color.brandTextTertiary)
-                    Text("\(next.minutesAway) min to ???")
-                        .font(.bodyLarge.weight(.semibold))
-                        .foregroundStyle(Color.brandTextPrimary)
-                    Spacer()
-                }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.brandDivider.opacity(0.6))
-                        Capsule()
-                            .fill(Color.brandPrimary)
-                            .frame(width: geo.size.width * landmarkProgressFraction(next))
-                    }
-                }
-                .frame(height: 8)
+    private var storyProgress: some View {
+        let minutesNow = liveMinutesToday
+        let target = max(1, dog.dailyTargetMinutes)
+        let halfTarget = max(1, target / 2)
+        let pagesToday = pagesGeneratedToday
+
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack {
+                Image(systemName: storyProgressIcon)
+                    .foregroundStyle(Color.brandTextTertiary)
+                Text(storyProgressCaption(
+                    minutesNow: minutesNow,
+                    target: target,
+                    halfTarget: halfTarget,
+                    pagesToday: pagesToday
+                ))
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+                Spacer()
             }
-            .padding(.horizontal, Space.lg)
-        } else {
-            Text("Final stretch.")
-                .font(.bodyLarge.weight(.semibold))
-                .foregroundStyle(Color.brandSecondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.brandDivider.opacity(0.6))
+                    Capsule()
+                        .fill(Color.brandPrimary)
+                        .frame(width: geo.size.width * storyProgressFraction(
+                            minutesNow: minutesNow,
+                            target: target,
+                            halfTarget: halfTarget,
+                            pagesToday: pagesToday
+                        ))
+                }
+            }
+            .frame(height: 8)
         }
+        .padding(.horizontal, Space.lg)
+    }
+
+    /// Icon for the story-progress caption. Lock when the next page is
+    /// still gated, book once both are unlocked.
+    private var storyProgressIcon: String {
+        let minutesNow = liveMinutesToday
+        let target = max(1, dog.dailyTargetMinutes)
+        if pagesGeneratedToday >= 2 || (pagesGeneratedToday >= 1 && minutesNow >= target) {
+            return "book.fill"
+        }
+        return "lock.fill"
+    }
+
+    private func storyProgressCaption(
+        minutesNow: Int,
+        target: Int,
+        halfTarget: Int,
+        pagesToday: Int
+    ) -> String {
+        if pagesToday >= 2 || (pagesToday >= 1 && minutesNow >= target) {
+            return "Two pages today. Walk for the love of it."
+        }
+        if pagesToday == 0 {
+            if minutesNow < halfTarget {
+                return "\(halfTarget - minutesNow) min to today's first page"
+            }
+            // First page is already earnable; the second milestone is full.
+            let needed = max(0, target - minutesNow)
+            return "\(needed) min to today's second page"
+        }
+        // pagesToday == 1 — chasing page 2
+        let needed = max(0, target - minutesNow)
+        return "\(needed) min to today's second page"
+    }
+
+    /// Bar fraction. Anchors against the *next* milestone — fills toward
+    /// half-target until that's hit, then full-target. After both pages
+    /// are done, sits at 100%.
+    private func storyProgressFraction(
+        minutesNow: Int,
+        target: Int,
+        halfTarget: Int,
+        pagesToday: Int
+    ) -> Double {
+        if pagesToday >= 2 || (pagesToday >= 1 && minutesNow >= target) {
+            return 1.0
+        }
+        if pagesToday == 0 && minutesNow < halfTarget {
+            return min(1, max(0, Double(minutesNow) / Double(halfTarget)))
+        }
+        return min(1, max(0, Double(minutesNow) / Double(target)))
     }
 
     private var finishButton: some View {
@@ -263,34 +338,56 @@ struct ExpeditionView: View {
         .opacity(state.elapsedSeconds < 5 ? 0.5 : 1)
     }
 
-    // MARK: - Tick handler (live progression + mid-walk landmark fires)
+    // MARK: - Tick handler (live progression + mid-walk milestone fires)
 
     private func handleTick() {
         // Skip everything until the user has tapped Start. Otherwise we'd
-        // fire landmark toasts during the ready state with no walk logged.
+        // fire milestone toasts during the ready state with no walk logged.
         guard state.hasStarted else { return }
         state.tick()
 
-        // Auto-dismiss landmark toast after ~3s.
-        if let since = landmarkVisibleSince, Date.now.timeIntervalSince(since) >= 3 {
+        // Auto-dismiss milestone toast after ~3s.
+        if let since = milestoneVisibleSince, Date.now.timeIntervalSince(since) >= 3 {
             withAnimation(.brandDefault) {
-                visibleLandmark = nil
-                landmarkVisibleSince = nil
+                visibleMilestone = nil
+                milestoneVisibleSince = nil
             }
         }
 
-        // Mid-walk landmark detection: live position is the dog's saved
-        // progress on the route + the minutes elapsed in this session.
-        guard let route = JourneyService.currentRoute(for: dog) else { return }
-        let live = dog.routeProgressMinutes + state.elapsedMinutes
-        for landmark in route.landmarks where landmark.minutesFromStart > dog.routeProgressMinutes {
-            if landmark.minutesFromStart <= live, !state.firedLandmarkIDs.contains(landmark.id) {
-                state.markLandmarkFired(landmark.id)
-                withAnimation(.brandCelebration) {
-                    visibleLandmark = landmark
-                    landmarkVisibleSince = .now
-                }
-                break  // one toast at a time
+        // Mid-walk milestone detection: live minutes-today (logged today
+        // + minutes elapsed in this live session) crosses a story
+        // threshold → fire the matching toast once.
+        let minutesNow = liveMinutesToday
+        let target = max(1, dog.dailyTargetMinutes)
+        let halfTarget = max(1, target / 2)
+        let pagesToday = pagesGeneratedToday
+
+        // Page 1 — fires when the user crosses half-target AND no pages
+        // have been generated today yet (otherwise the threshold has
+        // already been earned, e.g. user generated page 1 yesterday-end
+        // / today-morning before the live walk).
+        if pagesToday == 0,
+           minutesNow >= halfTarget,
+           !firedMilestones.contains(.halfTarget) {
+            firedMilestones.insert(.halfTarget)
+            withAnimation(.brandCelebration) {
+                visibleMilestone = .halfTarget
+                milestoneVisibleSince = .now
+            }
+            return
+        }
+
+        // Page 2 — fires when the user crosses full-target AND has
+        // already generated page 1 today (otherwise full-target on a
+        // single big walk just unlocks page 1; page 2 needs a separate
+        // commit-and-walk-on cycle).
+        if pagesToday >= 1,
+           minutesNow >= target,
+           !firedMilestones.contains(.fullTarget) {
+            firedMilestones.insert(.fullTarget)
+            withAnimation(.brandCelebration) {
+                visibleMilestone = .fullTarget
+                milestoneVisibleSince = .now
             }
         }
     }
@@ -303,6 +400,16 @@ struct ExpeditionView: View {
         // `now` as a reasonable fallback so we save something rather than
         // crashing.
         let minutes = max(1, state.elapsedMinutes)
+
+        // Snapshot story-mode state BEFORE we insert the walk. The
+        // celebration overlay needs old vs new minutes-today so the bar
+        // can animate the advance, and `pagesAlreadyToday` so the
+        // PAGE UNLOCKED stamp distinguishes page 1 from page 2.
+        let oldMinutesToday = minutesAlreadyToday
+        let target = max(1, dog.dailyTargetMinutes)
+        let pagesAlreadyToday = pagesGeneratedToday
+        let isFirstWalk = (dog.walks ?? []).isEmpty
+
         let walk = Walk(
             startedAt: state.startedAt ?? .now,
             durationMinutes: minutes,
@@ -315,7 +422,7 @@ struct ExpeditionView: View {
         do {
             try modelContext.save()
         } catch {
-            // Save failed — bail without applying journey progress
+            // Save failed — bail without enqueueing anything.
             dismiss()
             return
         }
@@ -328,82 +435,116 @@ struct ExpeditionView: View {
             appState.enqueueCelebrations(new, for: dog)
         }
 
-        // Build the celebration payload BEFORE the sheet dismiss so we can
-        // schedule the enqueue post-dismiss without carrying a SwiftData ref.
-        // Routeless dogs still produce a payload — the overlay collapses the
-        // route bar cleanly.
-        let isFirstWalk = (dog.walks ?? []).count == 1
-        let nextLandmarkName = JourneyService.nextLandmark(for: dog)?.landmark.name
-        let payload: PendingWalkCompletePayload
-        if let route = JourneyService.currentRoute(for: dog) {
-            let oldMinutes = dog.routeProgressMinutes
-            let application = JourneyService.applyWalk(minutes: minutes, to: dog)
-            payload = PendingWalkCompletePayload(
-                dogID: dog.persistentModelID,
-                dogName: dog.name.isEmpty ? "Your dog" : dog.name,
-                isFirstWalk: isFirstWalk,
-                oldProgressMinutes: oldMinutes,
-                newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
-                routeName: route.name,
-                routeTotalMinutes: route.totalMinutes,
-                minutesAdded: application.minutesAdded,
-                landmarksCrossed: application.landmarksCrossed,
-                routeCompletedName: application.routeCompleted?.name,
-                nextLandmarkName: nextLandmarkName
-            )
-        } else {
-            payload = PendingWalkCompletePayload(
-                dogID: dog.persistentModelID,
-                dogName: dog.name.isEmpty ? "Your dog" : dog.name,
-                isFirstWalk: isFirstWalk,
-                oldProgressMinutes: 0,
-                newProgressMinutes: 0,
-                routeName: nil,
-                routeTotalMinutes: nil,
-                minutesAdded: 0,
-                landmarksCrossed: [],
-                routeCompletedName: nil,
-                nextLandmarkName: nil
-            )
-        }
-        try? modelContext.save()
+        let payload = PendingWalkCompletePayload(
+            dogID: dog.persistentModelID,
+            dogName: dog.name.isEmpty ? "Your dog" : dog.name,
+            isFirstWalk: isFirstWalk,
+            oldMinutesToday: oldMinutesToday,
+            newMinutesToday: oldMinutesToday + minutes,
+            targetMinutes: target,
+            pagesAlreadyToday: pagesAlreadyToday
+        )
 
-        // Dismiss FIRST, then enqueue the celebration ~350ms later so the
-        // overlay lands on a clean Home view rather than behind the
-        // dismissing Expedition sheet.
+        // Enqueue BEFORE dismiss so the overlay is already queued by the
+        // time the sheet animates away — the dismissal reveals it from
+        // underneath in one continuous motion. (Earlier code did
+        // dismiss + 350ms wait + enqueue, which felt like the
+        // celebration only arrived after the sheet had closed.)
+        appState.pendingWalkCompletes.append(payload.makeEvent(minutes: minutes))
         dismiss()
-        let appState = self.appState
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            appState.pendingWalkCompletes.append(payload.makeEvent(minutes: minutes))
-        }
     }
 
     // MARK: - Helpers
 
-    private var nextLandmark: NextLandmark? {
-        // Compute against the LIVE position (logged progress + minutes elapsed
-        // in this session). NEVER mutate `dog` here — it's a @Model reference
-        // and mutating from a computed property triggers a render-loop freeze.
-        guard let route = JourneyService.currentRoute(for: dog) else { return nil }
-        return JourneyService.nextLandmark(
-            in: route,
-            progressMinutes: dog.routeProgressMinutes + state.elapsedMinutes
-        )
+    /// Minutes already walked today across all walks (excluding this live
+    /// session). Read off `dog.walks`. Used to compute story-mode
+    /// thresholds during the live tick AND for the celebration payload.
+    private var minutesAlreadyToday: Int {
+        let calendar = Calendar.current
+        let now = Date.now
+        return (dog.walks ?? [])
+            .filter { calendar.isDate($0.startedAt, inSameDayAs: now) }
+            .reduce(0) { $0 + $1.durationMinutes }
     }
 
-    /// Fill the bar based on how close the user is to the next landmark.
-    /// Anchor at "30 minutes away" → 0%, "0 min" → 100%. Clamp. 30 minutes is
-    /// chosen because the longest gap between landmarks on the bigger routes
-    /// is roughly that, so the bar reaches near-empty at the start of a leg.
-    private func landmarkProgressFraction(_ next: NextLandmark) -> Double {
-        let m = Double(next.minutesAway)
-        return max(0, min(1, 1.0 - (m / 30.0)))
+    /// Total minutes today INCLUDING the in-progress live session. This
+    /// is what drives the live story-progress strip + mid-walk milestone
+    /// toast detection.
+    private var liveMinutesToday: Int {
+        minutesAlreadyToday + state.elapsedMinutes
+    }
+
+    /// Story pages already generated today. Drives the milestone gating
+    /// logic (page 1 = first half-target crossing; page 2 = full target
+    /// AFTER page 1 already exists).
+    private var pagesGeneratedToday: Int {
+        let calendar = Calendar.current
+        let now = Date.now
+        let pages = (dog.story?.chapters ?? []).flatMap { $0.pages ?? [] }
+        return pages.filter { calendar.isDate($0.createdAt, inSameDayAs: now) }.count
     }
 
     private func formatTime(_ seconds: Int) -> String {
         let m = seconds / 60
         let s = seconds % 60
         return String(format: "%d:%02d", m, s)
+    }
+}
+
+// MARK: - Story milestone toast
+
+/// Mid-walk celebration toast. Distinguishes which milestone was just
+/// crossed so the toast headline is right ("PAGE 1 UNLOCKED" vs "PAGE 2
+/// UNLOCKED"). Replaces the old landmark-name reveal toast.
+enum StoryMilestoneToast: Hashable {
+    case halfTarget
+    case fullTarget
+
+    var headline: String {
+        switch self {
+        case .halfTarget: return "PAGE 1 UNLOCKED"
+        case .fullTarget: return "PAGE 2 UNLOCKED"
+        }
+    }
+
+    var subline: String {
+        switch self {
+        case .halfTarget: return "Open the Story tab to read it."
+        case .fullTarget: return "Both of today's pages are in."
+        }
+    }
+}
+
+private struct StoryMilestoneToastView: View {
+    let milestone: StoryMilestoneToast
+
+    var body: some View {
+        HStack(spacing: Space.md) {
+            ZStack {
+                Circle()
+                    .fill(Color.brandPrimaryTint)
+                    .frame(width: 44, height: 44)
+                Image(systemName: "book.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(milestone.headline)
+                    .font(.caption.weight(.bold))
+                    .tracking(1.5)
+                    .foregroundStyle(Color.brandPrimary)
+                Text(milestone.subline)
+                    .font(.caption)
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(Space.md)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        .brandCardShadow()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(milestone.headline). \(milestone.subline)")
     }
 }

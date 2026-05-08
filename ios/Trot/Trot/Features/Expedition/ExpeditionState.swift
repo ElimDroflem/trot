@@ -17,9 +17,6 @@ import Foundation
 final class ExpeditionState {
     private(set) var startedAt: Date?
     private(set) var elapsedSeconds: Int = 0
-    /// IDs of landmarks that have already had their mid-walk toast shown,
-    /// so a single landmark doesn't re-fire if the user lingers near it.
-    private(set) var firedLandmarkIDs: Set<String> = []
 
     var hasStarted: Bool { startedAt != nil }
 
@@ -38,9 +35,5 @@ final class ExpeditionState {
 
     var elapsedMinutes: Int {
         Int(round(Double(elapsedSeconds) / 60.0))
-    }
-
-    func markLandmarkFired(_ id: String) {
-        firedLandmarkIDs.insert(id)
     }
 }

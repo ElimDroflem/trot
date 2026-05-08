@@ -91,22 +91,38 @@ final class AppState {
            let tab = TrotTab(rawValue: raw.lowercased()) {
             selectedTab = tab
         }
-        // -DebugCelebrationMinutes N → enqueue a synthetic walk-complete event
-        // so the WalkCompleteOverlay renders on first paint. Used by simulator
-        // testing to QA the overlay without firing a real walk save (which
-        // requires UI driving the LogWalkSheet or ExpeditionView). The dog ID
-        // is filled in lazily by RootView once active dogs are queried.
+        // -DebugCelebrationMinutes N [-DebugCelebrationUnlock page1|page2]
+        // → enqueue a synthetic walk-complete event so the
+        // WalkCompleteOverlay renders on first paint. Used by simulator
+        // testing to QA the overlay without firing a real walk save
+        // (which requires UI driving the LogWalkSheet or ExpeditionView).
+        // The dog ID is filled in lazily by RootView once active dogs
+        // are queried.
         let celebrationMinutes = defaults.integer(forKey: "DebugCelebrationMinutes")
         if celebrationMinutes > 0 {
             pendingDebugCelebrationMinutes = celebrationMinutes
-            pendingDebugCelebrationWithRoute = defaults.bool(forKey: "DebugCelebrationRoute")
+            switch defaults.string(forKey: "DebugCelebrationUnlock") ?? "" {
+            case "page1": pendingDebugCelebrationUnlock = .page1
+            case "page2": pendingDebugCelebrationUnlock = .page2
+            default:      pendingDebugCelebrationUnlock = .none
+            }
         }
     }
 
-    /// Captured launch-arg state for the synthetic celebration. RootView reads
-    /// these once active dogs are available, builds the event, and clears.
+    /// Captured launch-arg state for the synthetic celebration. RootView
+    /// reads these once active dogs are available, builds the event, and
+    /// clears.
     var pendingDebugCelebrationMinutes: Int?
-    var pendingDebugCelebrationWithRoute: Bool = false
+    var pendingDebugCelebrationUnlock: DebugCelebrationUnlock = .none
+
+    /// Which milestone the synthetic celebration should claim was crossed
+    /// (drives the PAGE UNLOCKED stamp). `.none` renders just the bar
+    /// advance.
+    enum DebugCelebrationUnlock {
+        case none
+        case page1
+        case page2
+    }
     #endif
 
     /// Returns the dog that should be displayed given the current selection and the
@@ -141,38 +157,31 @@ final class AppState {
         pendingCelebrations.removeFirst()
     }
 
-    /// Append a walk-complete event for the given walk save. Built from the
-    /// `WalkApplication` returned by `JourneyService.applyWalk(...)` so the
-    /// overlay can render route advance + landmark stamps.
-    ///
-    /// `application`, `oldProgressMinutes`, `newProgressMinutes`, `routeName`,
-    /// and `routeTotalMinutes` are nil when the dog has no active route — the
-    /// overlay hides the route bar / landmark / completion sections cleanly
-    /// in that case so the celebration still fires.
+    /// Append a walk-complete event for a walk that was just saved. Carries
+    /// the snapshot the `WalkCompleteOverlay` needs to render *story-mode*
+    /// progress: minutes-today before/after this walk, the dog's daily
+    /// target, and how many story pages the user has already generated
+    /// today. From those, the overlay draws the progress bar with notches
+    /// at half- and full-target, the next-page caption, and the
+    /// PAGE UNLOCKED stamp when this walk crossed a milestone.
     func enqueueWalkComplete(
         dog: Dog,
         minutes: Int,
         isFirstWalk: Bool,
-        application: WalkApplication?,
-        oldProgressMinutes: Int = 0,
-        newProgressMinutes: Int = 0,
-        routeName: String? = nil,
-        routeTotalMinutes: Int? = nil
+        oldMinutesToday: Int,
+        newMinutesToday: Int,
+        targetMinutes: Int,
+        pagesAlreadyToday: Int
     ) {
-        let nextLandmark = JourneyService.nextLandmark(for: dog)?.landmark.name
         let event = PendingWalkComplete(
             dogID: dog.persistentModelID,
             dogName: dog.name.isEmpty ? "Your dog" : dog.name,
             minutes: minutes,
             isFirstWalk: isFirstWalk,
-            minutesAdded: application?.minutesAdded ?? 0,
-            oldProgressMinutes: oldProgressMinutes,
-            newProgressMinutes: newProgressMinutes,
-            routeName: routeName,
-            routeTotalMinutes: routeTotalMinutes,
-            landmarksCrossed: application?.landmarksCrossed ?? [],
-            nextLandmarkName: nextLandmark,
-            routeCompleted: application?.routeCompleted?.name
+            oldMinutesToday: oldMinutesToday,
+            newMinutesToday: newMinutesToday,
+            targetMinutes: targetMinutes,
+            pagesAlreadyToday: pagesAlreadyToday
         )
         pendingWalkCompletes.append(event)
     }
@@ -197,14 +206,20 @@ struct PendingCelebration: Identifiable, Equatable, Sendable {
 }
 
 /// A walk has just been saved. Carries the data the `WalkCompleteOverlay`
-/// needs to render: dopamine headline + (optional) route bar advance +
-/// (optional) landmark stamps + (rare) route-completion line.
+/// needs to render: dopamine headline + story-mode progress bar + (when
+/// crossed) PAGE UNLOCKED stamp.
 ///
-/// Route fields are optional because not every dog has an active route — the
-/// overlay degrades cleanly to "headline + photo + dog-voice line + confetti"
-/// for routeless walks, which still reads as a celebration. (Earlier the
-/// enqueue was gated on having a route, which silently swallowed celebrations
-/// for any dog who'd finished their last route or never started one.)
+/// Story-mode progress is computed from `oldMinutesToday`, `newMinutesToday`,
+/// `targetMinutes`, and `pagesAlreadyToday`:
+///   - bar fills from old/target → new/target with notches at 0.5 and 1.0
+///   - "X min to today's first/second page" caption derived from current vs
+///     half- vs full-target thresholds
+///   - PAGE 1 / PAGE 2 UNLOCKED stamps fire when this walk crossed the
+///     half- or full-target line
+///
+/// Replaced May 2026 — earlier shape carried route name, route total, and
+/// landmark stamps from the old Journey-mode progression. That whole
+/// concept has been removed; story milestones now own post-walk progress.
 struct PendingWalkComplete: Identifiable, Sendable {
     let id = UUID()
     /// The dog that was walked. Carried through so `WalkCompleteOverlay` can
@@ -212,28 +227,25 @@ struct PendingWalkComplete: Identifiable, Sendable {
     /// query.
     let dogID: PersistentIdentifier
     let dogName: String
+    /// Duration of the walk that just landed.
     let minutes: Int
     /// True when this was the dog's first-ever logged walk. Used to push the
     /// LLM toward a more cinematic post-walk line. The visual milestone
     /// celebration for "first walk" rides on top via `MilestoneService`.
     let isFirstWalk: Bool
-    /// Minutes credited to the active route by this walk. Equal to `minutes`
-    /// in normal cases; differs only on degenerate edge cases (zero-minute
-    /// walks return 0 added). Zero when there's no active route.
-    let minutesAdded: Int
-    let oldProgressMinutes: Int
-    let newProgressMinutes: Int
-    /// Nil when the dog has no active route. Overlay hides the route bar.
-    let routeName: String?
-    /// Nil when the dog has no active route.
-    let routeTotalMinutes: Int?
-    let landmarksCrossed: [Landmark]
-    /// Name of the very next landmark the dog hasn't reached yet, if any.
-    /// Lets the LLM hint at what's coming ("Tea Hut next time?").
-    let nextLandmarkName: String?
-    /// Non-nil if this walk closed out a route. The overlay swaps in a special
-    /// "route finished" treatment in that case.
-    let routeCompleted: String?
+    /// Minutes the dog had walked today BEFORE this save.
+    let oldMinutesToday: Int
+    /// Minutes the dog has walked today AFTER this save (= old + this walk's
+    /// duration, clamped to 0).
+    let newMinutesToday: Int
+    /// Dog's daily target. Drives the bar's full width and the half/full
+    /// milestone notches.
+    let targetMinutes: Int
+    /// Story pages already generated today before this walk's save. 0, 1,
+    /// or 2 — the daily cap is two. Used by the overlay's caption to
+    /// distinguish "first page coming" from "second page coming" from
+    /// "back tomorrow."
+    let pagesAlreadyToday: Int
 
     /// Variable headline bank picked deterministically from the walk's
     /// minutes + dog id — the user sees a different opener walk-to-walk
@@ -282,23 +294,56 @@ struct PendingWalkComplete: Identifiable, Sendable {
         }
     }
 
-    /// True when the route bar should render — both fields populated AND a
-    /// non-zero total. Lets the overlay collapse cleanly for routeless walks.
-    var hasRouteContext: Bool {
-        guard let total = routeTotalMinutes, let name = routeName else { return false }
-        return total > 0 && !name.isEmpty
+    // MARK: - Story-mode progress derivations
+
+    /// Half the daily target, clamped >= 1. Drives the page-1 notch and the
+    /// "X min to today's first page" caption.
+    var halfTargetMinutes: Int { max(1, targetMinutes / 2) }
+
+    /// Bar fraction (0...1) at the moment of save — capped at full-target.
+    var oldFraction: Double { fraction(for: oldMinutesToday) }
+    var newFraction: Double { fraction(for: newMinutesToday) }
+
+    private func fraction(for minutes: Int) -> Double {
+        guard targetMinutes > 0 else { return 0 }
+        return min(1, max(0, Double(minutes) / Double(targetMinutes)))
     }
 
-    /// 0...1 progress on the active route AT THE MOMENT the walk landed.
-    /// Used by the overlay to animate the route bar from old to new.
-    var oldFraction: Double {
-        guard let total = routeTotalMinutes, total > 0 else { return 0 }
-        return min(1, max(0, Double(oldProgressMinutes) / Double(total)))
+    /// True if this walk pushed the user from below half-target to at-or-
+    /// above. Drives the PAGE 1 UNLOCKED stamp on the celebration overlay.
+    var crossedHalfTarget: Bool {
+        oldMinutesToday < halfTargetMinutes && newMinutesToday >= halfTargetMinutes
     }
 
-    var newFraction: Double {
-        guard let total = routeTotalMinutes, total > 0 else { return 0 }
-        return min(1, max(0, Double(newProgressMinutes) / Double(total)))
+    /// True if this walk pushed the user from below full-target to at-or-
+    /// above AND there was already a page generated today (so the user is
+    /// crossing into page-2 territory, not just "100% target reached for
+    /// the first page"). Drives the PAGE 2 UNLOCKED stamp.
+    var crossedFullTarget: Bool {
+        oldMinutesToday < targetMinutes
+            && newMinutesToday >= targetMinutes
+            && pagesAlreadyToday >= 1
+    }
+
+    /// What the celebration's progress caption should say. Branches on the
+    /// post-save state — minutes still under half / between half and full /
+    /// at-or-over full / cap hit. Phrased as one tight sentence each.
+    var progressCaption: String {
+        if pagesAlreadyToday >= 2 || (pagesAlreadyToday >= 1 && newMinutesToday >= targetMinutes) {
+            return "Two pages today. The book waits for tomorrow."
+        }
+        if newMinutesToday < halfTargetMinutes {
+            let needed = halfTargetMinutes - newMinutesToday
+            return "\(needed) min to today's first page."
+        }
+        if newMinutesToday < targetMinutes {
+            let needed = targetMinutes - newMinutesToday
+            return "\(needed) min to today's second page."
+        }
+        // At-or-over full target with 0 pages today (single big walk that
+        // crossed both thresholds). The user can pick page 1 *and* page 2
+        // back-to-back on the Story tab.
+        return "Both of today's pages are ready."
     }
 }
 
@@ -311,14 +356,10 @@ struct PendingWalkCompletePayload: Sendable {
     let dogID: PersistentIdentifier
     let dogName: String
     let isFirstWalk: Bool
-    let oldProgressMinutes: Int
-    let newProgressMinutes: Int
-    let routeName: String?
-    let routeTotalMinutes: Int?
-    let minutesAdded: Int
-    let landmarksCrossed: [Landmark]
-    let routeCompletedName: String?
-    let nextLandmarkName: String?
+    let oldMinutesToday: Int
+    let newMinutesToday: Int
+    let targetMinutes: Int
+    let pagesAlreadyToday: Int
 
     func makeEvent(minutes: Int) -> PendingWalkComplete {
         PendingWalkComplete(
@@ -326,14 +367,10 @@ struct PendingWalkCompletePayload: Sendable {
             dogName: dogName,
             minutes: minutes,
             isFirstWalk: isFirstWalk,
-            minutesAdded: minutesAdded,
-            oldProgressMinutes: oldProgressMinutes,
-            newProgressMinutes: newProgressMinutes,
-            routeName: routeName,
-            routeTotalMinutes: routeTotalMinutes,
-            landmarksCrossed: landmarksCrossed,
-            nextLandmarkName: nextLandmarkName,
-            routeCompleted: routeCompletedName
+            oldMinutesToday: oldMinutesToday,
+            newMinutesToday: newMinutesToday,
+            targetMinutes: targetMinutes,
+            pagesAlreadyToday: pagesAlreadyToday
         )
     }
 }
