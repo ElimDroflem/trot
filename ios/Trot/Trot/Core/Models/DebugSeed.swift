@@ -185,15 +185,45 @@ enum DebugSeed {
         context.insert(chapter1)
 
         let c1Pages = [
-            ("The horticultural show was over by four. The trophy was gone by five. Luna found me at the edge of the marquee, ear cocked, doing her best impression of someone who hadn't already been near it.",
+            ("""
+             The horticultural show was over by four, and the trophy was gone by five. Nobody had quite admitted this yet, but the plinth at the back of the marquee was wearing the particular silence of an object that was supposed to be there and wasn't.
+
+             Luna found me at the edge of the marquee, ear cocked, doing her best impression of someone who hadn't already been near it. Beagles do not have a face for innocence. Beagles have a face for being caught, and a face for not being caught yet, and Luna was wearing the second of these.
+
+             Mrs Padbury was behind the cake stall, telling a child very firmly that the lemon drizzle was finished. The child had never wanted lemon drizzle in his life and was now devastated to learn he could not have it.
+             """,
              "Try the empty plinth", "Look outside the marquee"),
-            ("The plinth smelled of polish and biscuit. Luna's nose hovered an inch from it, methodical, as if reading a letter she'd been sent. Mr Pell stood by the entrance, redirecting children. He didn't look up when I came in.",
+            ("""
+             The plinth smelled of polish and biscuit. Luna's nose hovered an inch above it, methodical, as if reading a letter she had been sent and was deciding whether to reply. There was a dent in the green felt where the trophy had stood for the last seven Augusts. The dent was very tidy. Tidier, I thought, than a dent left by a hurried theft.
+
+             Mr Pell, the postman, stood by the entrance, redirecting children with the air of a man who had not signed up for this and was making the best of it. He did not look up when I came in. He had been not looking up at people for about an hour now, which was, for Mr Pell, unusually long.
+
+             Luna sneezed once. It was, I have to tell you, a deliberate sneeze.
+             """,
              "Confront Mr Pell", "Follow Luna's nose"),
-            ("Mrs Daunt found me by the bins. \"It was already gone,\" she said, in the way people say things they want to be true. \"Before three.\" Luna sat between us, head down, chewing nothing.",
+            ("""
+             Mrs Daunt found me by the bins. She had brought the WI's emergency clipboard, which she carried only in moments she wished to be on the record.
+
+             "It was already gone," she said, in the voice people use for things they want to be true. "Before three. I went to look at the dahlias and when I came back, gone." She paused. "I told the Reverend at quarter past."
+
+             Luna sat between us, head down, chewing nothing in the way dogs chew nothing when they are listening to two adults at the same time and choosing which one is lying. Mrs Daunt's gardening gloves were on the bin lid. They did not look like gloves that had been to the dahlias.
+             """,
              "Press Mrs Daunt", "Walk Luna home"),
-            ("On the path home, Luna stopped at a hedge that hadn't interested her this morning. She stared. She made the small huff she makes when she's doing maths.",
+            ("""
+             On the path home Luna stopped at a hedge that had bored her completely on the way out, and now did not. She stared. She made the small huff she makes when she is doing arithmetic, which is a sound very specific to beagles and to small accountants.
+
+             It was a perfectly ordinary hedge. Hawthorn, mostly. Some bramble where the hedge had given up. The lane was quiet, though half-past five on a show day was not normally a quiet time. Somewhere over towards the green I could hear the brass band putting their instruments away, with that long unhappy honk a tuba makes when it knows the day is over.
+
+             Luna was not interested in any of that. Luna was interested in the hedge.
+             """,
              "Look in the hedge", "Carry on home"),
-            ("Inside the hedge, snagged on a thorn, was a length of green ribbon — the same green that had been tied around the trophy. Luna sneezed, twice, with feeling.",
+            ("""
+             Inside the hedge, snagged on a thorn at about the height of a man's pocket, was a length of green ribbon. Specifically, the green of the ribbon that had been tied around the horticultural trophy when I had last seen it that morning, which was a particular shade not many things in the world are.
+
+             Luna sneezed twice, with feeling, and sat down beside it like a witness who had now formally given her statement and would like a biscuit.
+
+             I did not touch the ribbon. I have read enough books to know what one does and does not touch in this situation, even on a hedge, even on a Tuesday, even when the village band is playing and the trophy has been missing for less than two hours. I went to find the Reverend.
+             """,
              "Tell the WI", "Save the ribbon"),
         ]
         for (i, entry) in c1Pages.enumerated() {
@@ -203,6 +233,14 @@ enum DebugSeed {
             page.pathChoiceB = entry.2
             page.userChoice = i < 4 ? "a" : ""
             page.chapter = chapter1
+            // Backdate the chapter-1 pages well into the past — chapter
+            // 1 itself is `closedAt = -7 days`, and these pages were
+            // written across the days leading up to the close. Without
+            // this, the default `createdAt = .now` makes the new
+            // milestone gating count five "today" pages and lock the
+            // user out as if the daily cap had been hit.
+            let daysAgo = 12 - i  // chapter 1 spans ~12d ago → ~8d ago
+            page.createdAt = Date().addingTimeInterval(-Double(daysAgo) * 24 * 3600)
             context.insert(page)
         }
 
@@ -214,11 +252,29 @@ enum DebugSeed {
         context.insert(chapter2)
 
         let c2Pages = [
-            ("Chapter 2 opened on a Tuesday and Luna disapproved. The post hadn't come. Mr Pell's bicycle was leaning against the wrong gate, which was a thing in a village where bicycles meant biographies.",
+            ("""
+             A week after the show, the post had not come. This was, in itself, news. In a village where Mr Pell had not been late with the post since the long winter of '78, a missed delivery was the kind of thing one mentioned at the bus stop, and then mentioned again at the shop, and then went home and mentioned to whichever member of the household was prepared to listen.
+
+             Luna disapproved. Luna had a route, and the route required a postman in it, and without the postman the route was simply a walk, which was a great deal less interesting.
+
+             It was Luna who first noticed Mr Pell's bicycle leaning against the wrong gate. Hookwood had a strict idea about which bicycles leaned against which gates. The wrong gate, in Hookwood, was a kind of statement.
+             """,
              "Knock on Mr Pell's door", "Ask about the bicycle"),
-            ("Mr Pell's window was open. Inside, faintly, a kettle. Luna pointed her nose at the door like a witness who'd already given evidence and didn't want to be asked again. The bicycle's basket was empty except for a single green thread.",
+            ("""
+             Mr Pell's window was open at the top, the way you leave a window when you have stepped out for a moment and intend to come back. The cottage smelled, faintly, of a kettle that had been on once today and turned off again. There was no other smell. There ought to have been the smell of toast, or pipe smoke, or a small dog, because Mr Pell had a small dog.
+
+             The small dog was not in evidence. Neither, of course, was Mr Pell.
+
+             Luna pointed her nose at the door like a witness who had already given her evidence and did not wish to be asked any more questions about it. The bicycle's basket, when I looked, was empty, except for one thing, which I almost missed: a single green thread, caught on the wicker, the same green as a length of ribbon I had recently seen in a hedge.
+             """,
              "Pick up the thread", "Walk on, return later"),
-            ("I crouched. Luna crouched. The thread caught the light. Behind us, somewhere, a back door clicked shut.",
+            ("""
+             I crouched. Luna crouched, with the dignified slowness of a beagle who knows when crouching is called for and has crouched at funerals.
+
+             The thread caught the light, and the light caught my hand, and for a long moment we were the only two things on Mr Pell's path that were moving. The cottage was very still. The lane behind us was very still. The brass band was not, this Tuesday, playing.
+
+             Behind us, somewhere — not at Mr Pell's gate but a gate or two along, near the row of cottages that backed onto the allotments — a back door clicked shut. It was a very small click. It was the click of a door being closed by someone who had heard us, decided, and acted, all in the space of about a second and a half.
+             """,
              "Turn and look", "Stay still and listen"),
         ]
         for (i, entry) in c2Pages.enumerated() {

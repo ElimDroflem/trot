@@ -451,12 +451,20 @@ enum LLMService {
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                let bodyPreview = String(data: data.prefix(200), encoding: .utf8) ?? "(non-utf8)"
+                print("LLMService.\(kind.rawValue) HTTP \(status): \(bodyPreview)")
                 return nil
             }
             let decoded = try JSONDecoder().decode(SuccessResponse.self, from: data)
             let trimmed = decoded.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            if trimmed.isEmpty {
+                print("LLMService.\(kind.rawValue) empty response")
+                return nil
+            }
+            return trimmed
         } catch {
+            print("LLMService.\(kind.rawValue) error: \(error.localizedDescription)")
             return nil
         }
     }

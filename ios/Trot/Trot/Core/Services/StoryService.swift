@@ -35,8 +35,28 @@ enum StoryService {
         case noStory
         case awaitingFirstWalk(latestPage: StoryPage)
         case pageReady(latestPage: StoryPage)
-        case caughtUp(latestPage: StoryPage)
+        case caughtUp(latestPage: StoryPage, lock: PageLock)
         case chapterClosed(closedChapter: StoryChapter, prologuePage: StoryPage)
+    }
+
+    /// Why the user can't advance from `caughtUp` right now. Drives the
+    /// copy under the (still-visible but disabled) path-choice buttons.
+    enum PageLock: Equatable {
+        /// User has walked today but not yet hit the milestone needed
+        /// for the next page. `minutesNeeded` is what's left to walk.
+        case needMoreMinutes(minutesNeeded: Int, milestone: Milestone)
+        /// User has already generated both of today's pages — cap is two
+        /// per local day. Resets at the next local midnight.
+        case dailyCapHit
+    }
+
+    /// Two milestones gate the day's two pages. Page 1 unlocks at half
+    /// the dog's daily target, page 2 at the full target. Anti-grind:
+    /// regardless of how many walks the user logs, they cannot exceed
+    /// two pages in a calendar day.
+    enum Milestone {
+        case halfTarget
+        case fullTarget
     }
 
     /// Result of an attempted generation — either the new page (or close
@@ -65,38 +85,54 @@ enum StoryService {
             return .noStory
         }
 
-        // Has a chapter just closed? `chapterClosed` is technically a
-        // transient state — the close already wrote the prologue of the
-        // next chapter, so the latest page IS the new prologue. We
-        // detect "just closed" by: user is on the prologue page of a
-        // chapter (index 1) AND a previous chapter has a non-empty title.
-        // The UI consumes this state once via a flag (see
-        // `consumeChapterClosedFlag`).
-
+        // Walks today + cumulative minutes. Drives milestone checks.
         let walksToday = (dog.walks ?? []).filter {
             calendar.isDate($0.startedAt, inSameDayAs: now)
         }
-        let hasWalkToday = !walksToday.isEmpty
-        let pageWrittenToday = calendar.isDate(latest.createdAt, inSameDayAs: now)
+        let minutesToday = walksToday.reduce(0) { $0 + $1.durationMinutes }
+        let everWalked = !(dog.walks ?? []).isEmpty
 
-        if !hasWalkToday {
-            // No walks today; the latest page is whatever it was. If it's
-            // the prologue (globalIndex == 1) and there are zero walks
-            // ever, we're in the awaitingFirstWalk state.
-            let everWalked = !(dog.walks ?? []).isEmpty
-            if !everWalked {
-                return .awaitingFirstWalk(latestPage: latest)
-            }
-            // Walks have happened in the past but not today. The user
-            // could still generate a page for "today" once they walk; for
-            // now show the caught-up reader so they re-read recent pages.
-            return .caughtUp(latestPage: latest)
+        // Pages already generated today across the whole story. Anti-
+        // grind cap is 2 per local day regardless of how many walks the
+        // user logs.
+        let pagesGeneratedToday = allPages.filter {
+            calendar.isDate($0.createdAt, inSameDayAs: now)
+        }.count
+
+        // Daily target + the two milestone thresholds. `dailyTargetMinutes`
+        // is per-dog and editable, so the gate adapts to the actual
+        // exercise need (60 min beagle vs 90 min collie etc.).
+        let target = max(1, dog.dailyTargetMinutes)
+        let halfTarget = max(1, target / 2)
+
+        // Pre-walk: never walked at all. Show the prologue with a calm
+        // "first walk unlocks page 2" pull, no decisions panel.
+        if !everWalked {
+            return .awaitingFirstWalk(latestPage: latest)
         }
 
-        if pageWrittenToday {
-            return .caughtUp(latestPage: latest)
+        // Daily cap hit — both of today's pages already generated. Lock
+        // out for the rest of the day. The UI reads this as "Two pages
+        // today, the rest is for tomorrow."
+        if pagesGeneratedToday >= 2 {
+            return .caughtUp(latestPage: latest, lock: .dailyCapHit)
         }
-        return .pageReady(latestPage: latest)
+
+        // Which milestone unlocks the *next* page. If no pages today
+        // yet, the half-target unlocks page 1; if one page has been
+        // generated, the full target unlocks page 2.
+        let nextMilestone: Milestone = pagesGeneratedToday == 0 ? .halfTarget : .fullTarget
+        let neededMinutes = nextMilestone == .halfTarget ? halfTarget : target
+
+        if minutesToday >= neededMinutes {
+            return .pageReady(latestPage: latest)
+        }
+
+        let minutesNeeded = max(1, neededMinutes - minutesToday)
+        return .caughtUp(
+            latestPage: latest,
+            lock: .needMoreMinutes(minutesNeeded: minutesNeeded, milestone: nextMilestone)
+        )
     }
 
     /// True if the latest page closed a chapter that hasn't been "seen"
@@ -223,7 +259,7 @@ enum StoryService {
             .map(\.prose)
             .joined(separator: "\n\n")
 
-        guard let payload = await LLMService.storyPage(
+        let payload = await LLMService.storyPage(
             for: dog,
             genre: genre,
             ownerName: ownerName,
@@ -235,14 +271,26 @@ enum StoryService {
             pageIndexInChapter: nextIndex,
             isPrologue: isPrologue,
             imageJPEG: imageJPEG
-        ) else {
+        )
+
+        // For the prologue specifically we MUST persist a page even on
+        // LLM failure — `currentState(for:)` interprets a story with zero
+        // pages as `.noStory`, which silently drops the user back on the
+        // genre picker after they tapped Begin. Falling back to a
+        // templated prologue keeps them on the book.
+        let resolvedPayload: LLMService.StoryPagePayload
+        if let payload {
+            resolvedPayload = payload
+        } else if isPrologue {
+            resolvedPayload = fallbackPrologue(for: dog, genre: genre)
+        } else {
             return .failed("Couldn't reach the storyteller. Try again.")
         }
 
         let page = StoryPage(index: nextIndex, globalIndex: nextGlobalIndex)
-        page.prose = payload.prose
-        page.pathChoiceA = payload.choiceA
-        page.pathChoiceB = payload.choiceB
+        page.prose = resolvedPayload.prose
+        page.pathChoiceA = resolvedPayload.choiceA
+        page.pathChoiceB = resolvedPayload.choiceB
         page.chapter = chapter
         modelContext.insert(page)
         try? modelContext.save()
@@ -324,6 +372,87 @@ enum StoryService {
             newChapter: nextChapter,
             prologue: prologue
         )
+    }
+
+    /// Templated prologue used when the LLM is unreachable on the very
+    /// first page. Each entry is ~160 words, 2-3 paragraphs, sized to
+    /// fit one iPhone screen at body font. Channelled author voices —
+    /// Christie, King, Martin, Herbert, Osman, Macfarlane — so the
+    /// offline experience is recognisably the chosen book. The next
+    /// walk's page will be LLM-generated; this fallback only ever
+    /// shows on a connectivity-poor first launch.
+    private static func fallbackPrologue(
+        for dog: Dog,
+        genre: StoryGenre
+    ) -> LLMService.StoryPagePayload {
+        let dogName = dog.name.isEmpty ? "the dog" : dog.name
+        let breed = dog.breedPrimary.isEmpty ? "dog" : dog.breedPrimary.lowercased()
+        let prose: String
+        let choiceA: String
+        let choiceB: String
+        switch genre {
+        case .murderMystery: // Channelling Agatha Christie.
+            prose = """
+            It began, as these things so often do, at the village hall on a Tuesday. The bunting was up for the horticultural show, the urn had been on since nine, and the Reverend Halliday was telling Mrs Padbury about his runner beans, who did not care for them in the slightest and was nodding at exactly the right moments.
+
+            \(dogName), the \(breed), cared for a smell coming from beneath the trestle table at the back of the hall. A smell that ought not to have been there.
+
+            By the time the trophy was missed, three people had lied without meaning to and one had lied on purpose. \(dogName) had positioned itself between the side door and the tea urn, in the way of a creature that had decided to be a witness.
+            """
+            choiceA = "Slip out the side door"
+            choiceB = "Stay near the trestle"
+        case .horror: // Channelling Stephen King.
+            prose = """
+            The cul-de-sac had been quiet since Tuesday. Not the ordinary quiet of a place where people kept their televisions low, but the other kind — the kind where the wood pigeons stopped halfway through a call and forgot to start again.
+
+            \(dogName) wouldn't go past the third lamp post. The \(breed) sat down on the wet pavement and looked at me the way dogs look at people when they are trying very hard not to say I told you so. The lamp at the end of the road had been on since yesterday afternoon. Lamps weren't supposed to be on at four o'clock.
+
+            Up in the house at the bend, a curtain that had been still all morning twitched once. Not a draught twitch. A held-breath twitch.
+            """
+            choiceA = "Walk past the lamp post"
+            choiceB = "Turn around and head home"
+        case .fantasy: // Channelling George RR Martin.
+            prose = """
+            The bell at St Cuthwine's rang seven and stopped, which was wrong. It should have rung eight. The man who pulled the rope was old and reliable and not given to mistakes, which meant the bell itself had decided. Bells, in this part of the country, were allowed to decide.
+
+            \(dogName) heard it before I did. The \(breed) had been asleep on the flagstones, one ear back, and now both ears were forward. Not afraid. Listening. There is a difference, and any dog will teach you that difference if you watch them long enough.
+
+            The lane to the river was older than the village. \(dogName) stood up, shook off, and looked at the door.
+            """
+            choiceA = "Take the lane to the river"
+            choiceB = "Go up to the church first"
+        case .sciFi: // Channelling Frank Herbert (Dune).
+            prose = """
+            Three nights running, the dish on the next farm had turned itself to a corner of the sky where there was nothing to receive. Each evening I had told myself it was the wind. There had been no wind.
+
+            \(dogName) knew before I did. The \(breed) had stopped going into the back garden after dark on the second night, and now sat at the threshold with the patient, attentive stillness of an animal listening to a frequency I could not name.
+
+            At seven minutes to four the kitchen radio cut out for the length of one held breath and resumed mid-word. \(dogName) stood, shook himself once, and walked to the front door. He did not look back to see if I was following.
+            """
+            choiceA = "Follow the dog out the front"
+            choiceB = "Stay inside, watch the dish"
+        case .cosyMystery: // Channelling Richard Osman.
+            prose = """
+            The trouble started, as trouble in our village invariably does, at the WI summer fête. The lemon drizzle had sold out by ten past two. The egg-and-spoon had been cancelled because of the egg shortage, which is a sentence I never expected to write.
+
+            \(dogName) was, of course, in attendance. A \(breed) at a village fête is approximately as inconspicuous as a brass band, and \(dogName) had been working the back of the cake stall with the quiet persistence of a small, food-motivated detective.
+
+            Then \(dogName) sniffed a handbag belonging to a woman who hadn't arrived, sat down beside it, and refused to move. "Right," said Mrs Daunt, in the voice she uses for matters of consequence. "Whose is that?"
+            """
+            choiceA = "Wait with the dog and the bag"
+            choiceB = "Go and find Mrs Daunt"
+        case .adventure: // Channelling Robert Macfarlane.
+            prose = """
+            The morning came in cold off the moor, the kind of cold that smells faintly of stone. There had been rain in the night and the lane was running, a thin braid of water down the chalk, finding the camber the road builders had set there a hundred and forty years ago and forgotten.
+
+            \(dogName) was already at the door. The \(breed) had its own opinions about mornings — chiefly, that they were happening, and that they ought to be moving.
+
+            Above the village the mist had settled in the high coombe, lying along the flank of the hill the way an animal lies along a wall. We had a choice this morning, \(dogName) and I. Neither of us had decided yet. The decision, I suspected, would be the dog's.
+            """
+            choiceA = "Take the high path"
+            choiceB = "Take the river path"
+        }
+        return LLMService.StoryPagePayload(prose: prose, choiceA: choiceA, choiceB: choiceB)
     }
 
     private static func fallbackClose(

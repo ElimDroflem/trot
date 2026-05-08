@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Horizontal scroll of completed chapters as themed book-spread cards.
 /// Tap a chapter → full-screen reader. Replaces the v1 "Chapters walked"

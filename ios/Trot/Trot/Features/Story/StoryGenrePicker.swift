@@ -3,21 +3,29 @@ import SwiftUI
 /// First impression of the Story tab. Shown only until the user picks a
 /// genre — after that, it never returns (genre is locked per dog).
 ///
-/// Each genre card takes up its own block, themed with the genre's
-/// primary colour and accent. The visual signal: this isn't a settings
-/// menu, it's the spine of a small bookshop. Display type for the genre
-/// name, italic serif body for the tease, accent-coloured icon block.
+/// **Design intent:** the picker is a calm shelf. All six cards share the
+/// same cream surface, the same hairline border, the same body font.
+/// The only per-genre signal on each card is a small accent-coloured
+/// icon. The full book treatment — themed surfaces, drop caps, scanlines,
+/// ornate dividers — only appears AFTER the user has picked, so the
+/// reveal feels like opening the book rather than walking through a
+/// showroom of every binding at once. (Earlier iteration painted every
+/// card with its own surface/border/font; that read as "mish-mash". This
+/// version trades that loudness for anticipation.)
 struct StoryGenrePicker: View {
+    /// Two-way binding so the parent (`StoryView`) can observe the
+    /// currently-highlighted card and crossfade the atmosphere layer
+    /// behind the picker. Highlighting a card is *preview*; picking a
+    /// genre is committed by tapping "Begin <Genre>" at the bottom.
+    @Binding var selected: StoryGenre?
     let onPick: (StoryGenre) -> Void
-
-    @State private var selected: StoryGenre?
 
     var body: some View {
         ScrollView {
             VStack(spacing: Space.lg) {
                 header
 
-                VStack(spacing: Space.md) {
+                VStack(spacing: Space.sm) {
                     ForEach(StoryGenre.allCases) { genre in
                         genreCard(for: genre)
                     }
@@ -26,13 +34,18 @@ struct StoryGenrePicker: View {
 
                 if let selected {
                     Button(action: { onPick(selected) }) {
-                        Text("Begin \(selected.displayName)")
-                            .font(.bodyLarge.weight(.semibold))
-                            .foregroundStyle(Color.brandTextOnPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, Space.md)
-                            .background(selected.primaryColor)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        HStack(spacing: Space.xs) {
+                            Image(systemName: selected.symbol)
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Begin \(selected.displayName)")
+                                .font(.bodyLarge.weight(.semibold))
+                        }
+                        .foregroundStyle(Color.brandTextOnPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Space.md)
+                        .background(selected.primaryColor)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        .shadow(color: selected.primaryColor.opacity(0.35), radius: 12, y: 6)
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, Space.md)
@@ -52,7 +65,7 @@ struct StoryGenrePicker: View {
                 .font(.displayLarge)
                 .atmosphereTextPrimary()
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Six worlds. Same dog. The book grows by a page each walk — comedy comes from being a dog in the wrong place.")
+            Text("Six worlds. Same dog. The book grows by a page each walk.")
                 .font(.bodyMedium)
                 .atmosphereTextSecondary()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,25 +77,26 @@ struct StoryGenrePicker: View {
     private func genreCard(for genre: StoryGenre) -> some View {
         let isSelected = selected == genre
         Button {
-            withAnimation(.brandCelebration) { selected = genre }
+            // Animate the highlight + the atmosphere swap together so
+            // the bloom feels like a single gesture.
+            withAnimation(.brandDefault) { selected = genre }
         } label: {
-            HStack(alignment: .top, spacing: Space.md) {
+            HStack(alignment: .center, spacing: Space.md) {
                 ZStack {
                     Circle()
-                        .fill(genre.primaryColor.opacity(0.20))
-                        .frame(width: 52, height: 52)
+                        .fill(genre.accentColor.opacity(0.18))
+                        .frame(width: 44, height: 44)
                     Image(systemName: genre.symbol)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(genre.primaryColor)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(genre.accentColor)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(genre.displayName)
-                        .font(.titleMedium.weight(.semibold))
+                        .font(.titleSmall.weight(.semibold))
                         .foregroundStyle(Color.brandTextPrimary)
                     Text(genre.tease)
                         .font(.bodyMedium)
-                        .italic()
                         .foregroundStyle(Color.brandTextSecondary)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -92,13 +106,13 @@ struct StoryGenrePicker: View {
             .padding(Space.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.brandSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(isSelected ? genre.accentColor : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? genre.accentColor : Color.brandDivider, lineWidth: isSelected ? 2 : 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
             .brandCardShadow()
-            .scaleEffect(isSelected ? 1.02 : 1.0)
+            .scaleEffect(isSelected ? 1.01 : 1.0)
         }
         .buttonStyle(.plain)
     }

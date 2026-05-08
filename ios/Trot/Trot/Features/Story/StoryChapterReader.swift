@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Full-screen presentation of a completed chapter — every page in
 /// reading order, with photos inline if the user attached any. Themed
@@ -22,6 +23,11 @@ struct StoryChapterReader: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
+
+            // Same medium overlay as the live story page — film grain,
+            // scanlines, etc. — so the chapter-reader sheet feels like
+            // turning back the same physical book.
+            GenreOverlay(genre: genre)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.lg) {
@@ -72,15 +78,13 @@ struct StoryChapterReader: View {
 
     private func pageBlock(_ page: StoryPage) -> some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("Page \(page.index)")
-                .font(.caption.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(genre.accentColor)
-            Text(page.prose)
-                .font(.system(.body, design: genre.bodyFontDesign))
-                .foregroundStyle(Color.brandTextPrimary)
-                .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true)
+            GenrePageHeader(
+                genre: genre,
+                pageGlobalIndex: page.globalIndex,
+                chapterIndex: chapter.index,
+                pageInChapter: page.index
+            )
+            GenreProseView(genre: genre, prose: page.prose)
             if let data = page.photo, let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
@@ -88,13 +92,14 @@ struct StoryChapterReader: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 220)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(genre.bookBorder, lineWidth: 1)
+                    )
             }
         }
-        .padding(Space.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.brandSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .brandCardShadow()
+        .genreBookCard(genre)
     }
 
     private var closing: some View {

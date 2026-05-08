@@ -46,6 +46,10 @@ enum DebugDeepLinks {
             return handleClearOverlays(appState: appState)
         case "fire-celebration":
             return handleFireCelebration(url: url, appState: appState, modelContext: modelContext)
+        case "story":
+            return handleStory(segments: segments, url: url, appState: appState, modelContext: modelContext)
+        case "set-target":
+            return handleSetTarget(url: url, modelContext: modelContext)
         default:
             return false
         }
@@ -153,6 +157,77 @@ enum DebugDeepLinks {
         try? modelContext.save()
         appState.selectedDogID = nil
         appState.selectedTab = .today
+        return true
+    }
+
+    /// Story-tab QA helpers. Two routes:
+    ///   - `trot://debug/story/wipe` — deletes the active dog's story so
+    ///     the genre picker re-appears.
+    ///   - `trot://debug/story/set-genre?name=fantasy` — flips the active
+    ///     story to a different genre (preserving chapters/pages) so the
+    ///     six genre treatments can be screenshot-cycled without
+    ///     re-seeding.
+    private static func handleStory(
+        segments: [String],
+        url: URL,
+        appState: AppState,
+        modelContext: ModelContext
+    ) -> Bool {
+        guard segments.count >= 2 else { return false }
+        guard let dog = firstActiveDog(in: modelContext) else { return false }
+        appState.debugGateBypassed = true
+        appState.selectedDogID = dog.persistentModelID
+        appState.selectedTab = .story
+        appState.pendingCelebrations.removeAll()
+        appState.pendingWalkCompletes.removeAll()
+        appState.pendingRecapDogID = nil
+
+        switch segments[1] {
+        case "wipe":
+            if let story = dog.story {
+                modelContext.delete(story)
+                dog.story = nil
+                try? modelContext.save()
+            }
+            return true
+        case "set-genre":
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let raw = comps?.queryItems?.first(where: { $0.name == "name" })?.value ?? ""
+            guard let genre = StoryGenre(rawValue: raw) else { return false }
+            if let story = dog.story {
+                story.genre = genre
+                // Mark every closed chapter as already-seen so the
+                // chapter-close celebration overlay doesn't keep firing
+                // when we cycle genres for QA — its seen key is keyed by
+                // the chapter's persistentModelID.hashValue.
+                for chapter in (story.chapters ?? []) where chapter.closedAt != nil {
+                    UserDefaults.standard.set(
+                        true,
+                        forKey: "trot.story.chapterSeen.\(chapter.persistentModelID.hashValue)"
+                    )
+                }
+                try? modelContext.save()
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// `trot://debug/set-target?minutes=200` — bumps the active dog's
+    /// `dailyTargetMinutes` so the Story-tab milestone gating can be
+    /// QA-cycled without manually walking the simulator dog. Also
+    /// useful for testing how Today/Insights handle very-high targets.
+    private static func handleSetTarget(
+        url: URL,
+        modelContext: ModelContext
+    ) -> Bool {
+        let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let raw = comps?.queryItems?.first(where: { $0.name == "minutes" })?.value ?? ""
+        guard let minutes = Int(raw), minutes > 0, minutes <= 600 else { return false }
+        guard let dog = firstActiveDog(in: modelContext) else { return false }
+        dog.dailyTargetMinutes = minutes
+        try? modelContext.save()
         return true
     }
 

@@ -41,11 +41,54 @@ struct StoryView: View {
     @State private var dismissedCelebrationIDs: Set<PersistentIdentifier> = []
     /// Currently-open chapter reader (full-screen preview of a closed chapter).
     @State private var readingChapter: ChapterRef?
+    /// True from the moment the user taps "Begin <Genre>" until the
+    /// prologue page has been written (LLM round-trip, ~5–10s typical).
+    /// Drives the in-between "Writing the first page…" state so the
+    /// picker doesn't sit visually frozen during the call.
+    @State private var pendingGenrePick: StoryGenre?
+    /// The genre card currently highlighted in the picker. Lifted from
+    /// `StoryGenrePicker` so the atmosphere layer can preview the world
+    /// behind the picker the moment a card is tapped — selection is
+    /// preview, "Begin" is commit.
+    @State private var pickerHover: StoryGenre?
+    /// The page the full-screen reader should open at. Setting it
+    /// presents the reader (`fullScreenCover(item:)`); clearing it
+    /// dismisses. Both the page card's "Read more" pill and the
+    /// chapter spine rows feed this state, so the reader instance is
+    /// the same regardless of where the user opened it from.
+    @State private var fullReaderStart: PageRef?
+    /// True from the moment the user taps a path button until the
+    /// LLM call resolves (success or failure). Owned here — not
+    /// inside `StoryPageReader` — so it survives view-body re-renders
+    /// during the round-trip and is reliably reset on failure (the
+    /// reader never re-mounts during a single pick, so an internal
+    /// `@State` would stay stuck at `true` if the call errored).
+    @State private var isGeneratingPage: Bool = false
+    /// Last-error message for the page-pick LLM call. Surfaces a
+    /// banner above the page card with a Retry button; nil hides the
+    /// banner. Replaces silent `_ = await` failure that left the
+    /// user looking at unchanged UI.
+    @State private var pageGenerationError: String?
+    /// Stashed args from the most recent path-pick so the Retry button
+    /// can re-fire the same request without the user re-typing or
+    /// re-selecting a photo. Cleared on success.
+    @State private var lastPickArgs: PickArgs?
 
     private var selectedDog: Dog? { appState.selectedDog(from: activeDogs) }
 
     var body: some View {
-        let genre = selectedDog?.story?.genre
+        // Atmosphere source priority (highest first):
+        //   1. `pendingGenrePick` — user has tapped Begin, prologue is
+        //      being written. Atmosphere stays locked on the chosen
+        //      genre while the LLM works.
+        //   2. `selectedDog?.story?.genre` — story is committed; the
+        //      genre is locked for the run of the book.
+        //   3. `pickerHover` — user is browsing the picker, has tapped
+        //      a card to preview. Atmosphere previews that genre so
+        //      they can see what they're choosing before they commit.
+        // Falling through to nil means we render the weather layer
+        // (no story, nothing previewed).
+        let genre = pendingGenrePick ?? selectedDog?.story?.genre ?? pickerHover
 
         ZStack {
             // Base brand surface so the bottom of the screen always reads
@@ -63,6 +106,11 @@ struct StoryView: View {
             // helps it feel anticipatory rather than abstract.
             if let genre {
                 GenreAtmosphereLayer(genre: genre)
+                // Pervasive medium overlay — film grain, scanlines,
+                // vignette etc. — sits between the sky and the cards so
+                // the whole page feels like a different *book*, not just
+                // a different colour.
+                GenreOverlay(genre: genre)
             } else {
                 WeatherMoodLayer()
             }
@@ -80,6 +128,19 @@ struct StoryView: View {
                 celebrationChapter = nil
             }
         }
+        .fullScreenCover(item: $fullReaderStart) { ref in
+            // Swipe-stack source: every page in the dog's story across
+            // every chapter, in reading order. So the user can swipe
+            // back from chapter 2 page 3 to chapter 1 page 1 without
+            // closing and reopening anything.
+            let pages = orderedStoryPages
+            let startIndex = pages.firstIndex { $0.persistentModelID == ref.page.persistentModelID } ?? max(0, pages.count - 1)
+            StoryFullPageReader(
+                genre: genre ?? selectedDog?.story?.genre ?? .adventure,
+                pages: pages,
+                startIndex: startIndex
+            ) { fullReaderStart = nil }
+        }
         .task(id: refreshTick) {
             checkForUnseenChapter()
         }
@@ -91,77 +152,146 @@ struct StoryView: View {
     @ViewBuilder
     private var content: some View {
         if let dog = selectedDog {
-            let state = StoryService.currentState(for: dog)
-            switch state {
-            case .noStory:
-                StoryGenrePicker { genre in
-                    Task { await pickGenre(genre, for: dog) }
-                }
-            case .awaitingFirstWalk(let page):
-                ScrollView {
-                    VStack(spacing: Space.lg) {
-                        StoryHeader(dog: dog, story: dog.story)
-                        StoryPageReader(
-                            dog: dog,
-                            page: page,
-                            interaction: .awaitingWalk
-                        )
-                        chapterShelf(dog: dog)
-                        Color.clear.frame(height: Space.lg)
-                    }
-                    .padding(.horizontal, Space.md)
-                    .padding(.top, Space.md)
-                }
-            case .pageReady(let page), .caughtUp(let page):
-                ScrollView {
-                    VStack(spacing: Space.lg) {
-                        StoryHeader(dog: dog, story: dog.story)
-                        ChapterSpine(
-                            chapter: dog.story?.currentChapter,
-                            currentPage: page,
-                            genre: dog.story?.genre ?? .adventure
-                        )
-                        StoryPageReader(
-                            dog: dog,
-                            page: page,
-                            interaction: state.isPageReady
-                                ? .pickPath { choice, text, photo in
-                                    Task {
-                                        await generateNext(
-                                            for: dog,
-                                            choice: choice,
-                                            text: text,
-                                            photo: photo
-                                        )
-                                    }
-                                }
-                                : .caughtUp
-                        )
-                        chapterShelf(dog: dog)
-                        Color.clear.frame(height: Space.lg)
-                    }
-                    .padding(.horizontal, Space.md)
-                    .padding(.top, Space.md)
-                }
-            case .chapterClosed:
-                // Should be transient — the .task picks it up and shows
-                // the overlay. Render the caught-up reader underneath
-                // for the instant before the overlay paints.
-                if let page = dog.story?.currentChapter?.orderedPages.last {
-                    ScrollView {
-                        VStack(spacing: Space.lg) {
-                            StoryHeader(dog: dog, story: dog.story)
-                            StoryPageReader(dog: dog, page: page, interaction: .caughtUp)
-                            chapterShelf(dog: dog)
-                            Color.clear.frame(height: Space.lg)
-                        }
-                        .padding(.horizontal, Space.md)
-                        .padding(.top, Space.md)
-                    }
-                }
+            // While the prologue is being written, suppress the picker
+            // and the noStory branch — the user tapped Begin, the picker
+            // should disappear immediately.
+            if let pending = pendingGenrePick {
+                StoryGenerationProgress(genre: pending)
+            } else {
+                routedContent(for: dog)
             }
         } else {
             EmptyStoryPlaceholder()
+        }
+    }
+
+    @ViewBuilder
+    private func routedContent(for dog: Dog) -> some View {
+        let state = StoryService.currentState(for: dog)
+        switch state {
+        case .noStory:
+            StoryGenrePicker(selected: $pickerHover) { genre in
+                // Bloom the atmosphere + show the writing state
+                // BEFORE the await so the press feels alive.
+                pendingGenrePick = genre
+                Task { await pickGenre(genre, for: dog) }
+            }
+        case .awaitingFirstWalk(let page):
+            ScrollView {
+                VStack(spacing: Space.lg) {
+                    StoryHeader(dog: dog, story: dog.story)
+                    StoryPageReader(
+                        dog: dog,
+                        page: page,
+                        interaction: .awaitingWalk,
+                        onOpenFullReader: { fullReaderStart = PageRef(page: page) }
+                    )
+                    chapterShelf(dog: dog)
+                    Color.clear.frame(height: Space.lg)
+                }
+                .padding(.horizontal, Space.md)
+                .padding(.top, Space.md)
+            }
+        case .pageReady(let page), .caughtUp(let page, _):
+            ScrollView {
+                VStack(spacing: Space.lg) {
+                    StoryHeader(dog: dog, story: dog.story)
+                    ChapterSpine(
+                        chapter: dog.story?.currentChapter,
+                        currentPage: page,
+                        genre: dog.story?.genre ?? .adventure,
+                        onTapPage: { tappedPage in
+                            fullReaderStart = PageRef(page: tappedPage)
+                        }
+                    )
+                    if isGeneratingPage {
+                        GenerationStatusBanner(
+                            genre: dog.story?.genre ?? .adventure
+                        )
+                    } else if let message = pageGenerationError {
+                        GenerationErrorBanner(
+                            genre: dog.story?.genre ?? .adventure,
+                            message: message,
+                            onRetry: { retryLastPick(for: dog) },
+                            onDismiss: { pageGenerationError = nil }
+                        )
+                    }
+                    StoryPageReader(
+                        dog: dog,
+                        page: page,
+                        interaction: pageInteraction(for: state, dog: dog),
+                        onOpenFullReader: { fullReaderStart = PageRef(page: page) },
+                        isGenerating: isGeneratingPage
+                    )
+                    chapterShelf(dog: dog)
+                    Color.clear.frame(height: Space.lg)
+                }
+                .padding(.horizontal, Space.md)
+                .padding(.top, Space.md)
+            }
+        case .chapterClosed:
+            // Should be transient — the .task picks it up and shows
+            // the overlay. Render the caught-up reader underneath
+            // for the instant before the overlay paints.
+            if let page = dog.story?.currentChapter?.orderedPages.last {
+                ScrollView {
+                    VStack(spacing: Space.lg) {
+                        StoryHeader(dog: dog, story: dog.story)
+                        StoryPageReader(
+                            dog: dog,
+                            page: page,
+                            interaction: .caughtUp(
+                                title: "Today's page is in.",
+                                subtitle: "Come back after your next walk for the next bit."
+                            ),
+                            onOpenFullReader: { fullReaderStart = PageRef(page: page) }
+                        )
+                        chapterShelf(dog: dog)
+                        Color.clear.frame(height: Space.lg)
+                    }
+                    .padding(.horizontal, Space.md)
+                    .padding(.top, Space.md)
+                }
+            }
+        }
+    }
+
+    /// Maps the service's page-state to the reader's interaction model.
+    /// Encapsulates the "show locked path-choice vs calm caughtUp" rule
+    /// here so the body stays readable.
+    private func pageInteraction(
+        for state: StoryService.State,
+        dog: Dog
+    ) -> StoryPageReader.Interaction {
+        let onPick: (String, String, Data?) -> Void = { choice, text, photo in
+            Task {
+                await generateNext(for: dog, choice: choice, text: text, photo: photo)
+            }
+        }
+        switch state {
+        case .pageReady:
+            return .pickPath(lock: nil, onPick: onPick)
+        case .caughtUp(_, .needMoreMinutes(let minutesNeeded, _)):
+            // User has walked but not enough yet. Buttons render but
+            // disabled, with the milestone tease underneath.
+            let dogName = dog.name.isEmpty ? "your dog" : dog.name
+            let suffix = minutesNeeded == 1 ? "minute" : "minutes"
+            return .pickPath(
+                lock: .init(message: "Walk \(dogName) \(minutesNeeded) more \(suffix) to unlock the next page."),
+                onPick: onPick
+            )
+        case .caughtUp(_, .dailyCapHit):
+            return .caughtUp(
+                title: "Two pages today.",
+                subtitle: "The book waits for tomorrow — the dog can only carry the story so far in a day."
+            )
+        default:
+            // Defensive fallback — every other state is handled by the
+            // outer router before this helper runs.
+            return .caughtUp(
+                title: "Today's page is in.",
+                subtitle: "Come back after your next walk for the next bit."
+            )
         }
     }
 
@@ -173,11 +303,35 @@ struct StoryView: View {
         )
     }
 
+    /// All pages from the selected dog's story, in reading order — used
+    /// by the full-screen swipe reader so a user can move freely
+    /// across chapter boundaries.
+    private var orderedStoryPages: [StoryPage] {
+        let chapters = (selectedDog?.story?.chapters ?? [])
+            .sorted { $0.index < $1.index }
+        return chapters.flatMap { chapter in
+            (chapter.pages ?? []).sorted { $0.index < $1.index }
+        }
+    }
+
     // MARK: - Actions
 
     private func pickGenre(_ genre: StoryGenre, for dog: Dog) async {
         _ = await StoryService.pickGenre(genre, for: dog, modelContext: modelContext)
-        await MainActor.run { refreshTick &+= 1 }
+        // Bump refreshTick BEFORE clearing pendingGenrePick so SwiftUI
+        // sees the state change and re-evaluates the body once. Then
+        // drop pendingGenrePick — at this point the prologue page
+        // exists, so the router lands on `.awaitingFirstWalk` instead
+        // of falling back to the picker.
+        await MainActor.run {
+            refreshTick &+= 1
+            pendingGenrePick = nil
+            // Clear the picker preview state too — at this point the
+            // story is committed and the genre source comes from
+            // `dog.story.genre`. Leaving this set is harmless (it's
+            // last in the coalescing chain) but tidier to nil it.
+            pickerHover = nil
+        }
     }
 
     private func generateNext(
@@ -186,14 +340,49 @@ struct StoryView: View {
         text: String,
         photo: Data?
     ) async {
-        _ = await StoryService.generateNextPage(
+        // Stash args for the Retry button to re-fire the same request
+        // without forcing the user to re-pick a path or re-attach a
+        // photo.
+        lastPickArgs = PickArgs(choice: choice, text: text, photo: photo)
+        isGeneratingPage = true
+        pageGenerationError = nil
+
+        let result = await StoryService.generateNextPage(
             for: dog,
             userChoice: choice,
             userText: text,
             imageJPEG: photo,
             modelContext: modelContext
         )
-        await MainActor.run { refreshTick &+= 1 }
+        // Always reset the loading flag and bump refresh — both
+        // success (new page exists, body should re-evaluate) and
+        // failure (banner needs to render, buttons need to reactivate
+        // so the user can retry).
+        await MainActor.run {
+            isGeneratingPage = false
+            switch result {
+            case .page, .chapterClosed:
+                lastPickArgs = nil
+                pageGenerationError = nil
+            case .failed(let message):
+                pageGenerationError = message
+            }
+            refreshTick &+= 1
+        }
+    }
+
+    /// Re-fires the most recent path pick. Wired to the error banner's
+    /// Retry button — same payload, no UI re-entry required.
+    private func retryLastPick(for dog: Dog) {
+        guard let args = lastPickArgs else { return }
+        Task {
+            await generateNext(
+                for: dog,
+                choice: args.choice,
+                text: args.text,
+                photo: args.photo
+            )
+        }
     }
 
     private func checkForUnseenChapter() {
@@ -215,12 +404,109 @@ private struct ChapterRef: Identifiable {
     var id: PersistentIdentifier { chapter.persistentModelID }
 }
 
-// MARK: - Helpers
+/// Identifiable wrapper around a `StoryPage` for `.fullScreenCover(item:)`.
+/// Same SwiftData @Model / Identifiable workaround as `ChapterRef`.
+private struct PageRef: Identifiable {
+    let page: StoryPage
+    var id: PersistentIdentifier { page.persistentModelID }
+}
 
-private extension StoryService.State {
-    var isPageReady: Bool {
-        if case .pageReady = self { return true }
-        return false
+/// Captures the user's most recent path-pick so the Retry button on the
+/// page-generation error banner can re-fire the same request without
+/// forcing them to re-tap a path or re-attach a photo.
+private struct PickArgs {
+    let choice: String
+    let text: String
+    let photo: Data?
+}
+
+// MARK: - Generation banners
+
+/// Shown above the page card while the LLM is writing the next page.
+/// Mirrors the genre's book chrome so it reads as part of the story
+/// rather than a system toast — a calligraphic "the storyteller is at
+/// the wheel" cue, not a spinner.
+private struct GenerationStatusBanner: View {
+    let genre: StoryGenre
+
+    var body: some View {
+        HStack(spacing: Space.sm) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(genre.accentColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(headline)
+                    .font(.system(.callout, design: genre.bodyFontDesign).weight(.semibold))
+                    .foregroundStyle(genre.bookProseColor)
+                Text("This usually takes a few seconds.")
+                    .font(.caption)
+                    .foregroundStyle(genre.bookMetaColor)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .genreBookCard(genre, style: .compact)
+    }
+
+    private var headline: String {
+        switch genre {
+        case .murderMystery: return "Typing up the next page…"
+        case .horror:        return "Listening for the next page…"
+        case .fantasy:       return "Inking the next page…"
+        case .sciFi:         return "Decoding the next page…"
+        case .cosyMystery:   return "Pouring the next page…"
+        case .adventure:     return "Marking out the next stretch…"
+        }
+    }
+}
+
+/// Surfaces a failed page generation with a Retry button. The most
+/// common cause is a transient LLM-proxy hiccup — the previous flow
+/// silently swallowed these and left the user staring at an unchanged
+/// page wondering if their tap registered.
+private struct GenerationErrorBanner: View {
+    let genre: StoryGenre
+    let message: String
+    let onRetry: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Space.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(genre.accentColor)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.bodyMedium)
+                    .foregroundStyle(genre.bookProseColor)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: Space.xs) {
+                    Button(action: onRetry) {
+                        Text("Try again")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.0)
+                            .foregroundStyle(Color.brandTextOnPrimary)
+                            .padding(.horizontal, Space.sm)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(genre.accentColor))
+                    }
+                    .buttonStyle(.plain)
+                    Button(action: onDismiss) {
+                        Text("Dismiss")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(genre.bookMetaColor)
+                            .padding(.horizontal, Space.sm)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .genreBookCard(genre, style: .compact)
     }
 }
 

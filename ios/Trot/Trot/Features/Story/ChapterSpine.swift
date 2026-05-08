@@ -16,6 +16,11 @@ struct ChapterSpine: View {
     /// The page the user is currently looking at — the row that pulses.
     let currentPage: StoryPage
     let genre: StoryGenre
+    /// Tapped on a `.past` or `.current` row — caller opens the full
+    /// reader at that page. Optional so the spine can still be used
+    /// in read-only contexts (e.g. inside the closed-chapter shelf
+    /// preview if we ever surface it there).
+    var onTapPage: ((StoryPage) -> Void)? = nil
 
     private let dotSize: CGFloat = 14
 
@@ -23,13 +28,28 @@ struct ChapterSpine: View {
         let rows = buildRows()
         VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                spineRow(row, isFirst: index == 0, isLast: index == rows.count - 1)
+                rowContainer(for: row, isFirst: index == 0, isLast: index == rows.count - 1)
             }
         }
-        .padding(Space.md)
-        .background(Color.brandSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .brandCardShadow()
+        .genreBookCard(genre, style: .compact)
+    }
+
+    /// Wraps the row in a Button when it's a real, already-written page
+    /// the user can re-read; otherwise renders it inert. Future and
+    /// pre-chapter placeholder rows aren't tappable — there's nothing
+    /// to read yet.
+    @ViewBuilder
+    private func rowContainer(for row: SpineRow, isFirst: Bool, isLast: Bool) -> some View {
+        if let page = row.page, let onTapPage, row.kind == .past || row.kind == .current {
+            Button {
+                onTapPage(page)
+            } label: {
+                spineRow(row, isFirst: isFirst, isLast: isLast)
+            }
+            .buttonStyle(.plain)
+        } else {
+            spineRow(row, isFirst: isFirst, isLast: isLast)
+        }
     }
 
     // MARK: - Row
@@ -61,12 +81,12 @@ struct ChapterSpine: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.label.uppercased())
-                    .font(.caption2.weight(.semibold))
-                    .tracking(0.5)
+                    .font(.system(.caption2, design: genre.bodyFontDesign).weight(.semibold))
+                    .tracking(1.0)
                     .foregroundStyle(labelColor(for: row))
                 if let snippet = row.snippet {
                     Text(snippet)
-                        .font(.caption)
+                        .font(.system(.caption, design: genre.bodyFontDesign))
                         .foregroundStyle(snippetColor(for: row))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -105,7 +125,8 @@ struct ChapterSpine: View {
                 rows.append(SpineRow(
                     kind: isCurrent ? .current : .past,
                     label: "Page \(page.index)",
-                    snippet: shortenSnippet(page.prose)
+                    snippet: shortenSnippet(page.prose),
+                    page: page
                 ))
             } else if pageIndex == pages.count {
                 // The next page — described by the path teasers from
@@ -156,7 +177,7 @@ struct ChapterSpine: View {
         case .past, .preChapter: return genre.accentColor
         case .current:           return genre.accentColor
         case .nextLocked:        return genre.accentColor.opacity(0.50)
-        case .farLocked:         return Color.brandDivider
+        case .farLocked:         return genre.bookBorder
         }
     }
 
@@ -164,24 +185,24 @@ struct ChapterSpine: View {
         switch row.kind {
         case .past, .preChapter, .current: return genre.accentColor.opacity(0.55)
         case .nextLocked:                   return genre.accentColor.opacity(0.25)
-        case .farLocked:                    return Color.brandDivider
+        case .farLocked:                    return genre.bookBorder.opacity(0.4)
         }
     }
 
     private func labelColor(for row: SpineRow) -> Color {
         switch row.kind {
-        case .past, .preChapter: return Color.brandTextSecondary
-        case .current:           return Color.brandTextPrimary
-        case .nextLocked:        return Color.brandTextSecondary
-        case .farLocked:         return Color.brandTextTertiary
+        case .past, .preChapter: return genre.bookMetaColor
+        case .current:           return genre.bookProseColor
+        case .nextLocked:        return genre.bookMetaColor
+        case .farLocked:         return genre.bookMetaColor.opacity(0.55)
         }
     }
 
     private func snippetColor(for row: SpineRow) -> Color {
         switch row.kind {
-        case .past, .preChapter, .current: return Color.brandTextSecondary
-        case .nextLocked:                   return Color.brandTextSecondary
-        case .farLocked:                    return Color.brandTextTertiary
+        case .past, .preChapter, .current: return genre.bookMetaColor
+        case .nextLocked:                   return genre.bookMetaColor
+        case .farLocked:                    return genre.bookMetaColor.opacity(0.55)
         }
     }
 
@@ -208,4 +229,8 @@ private struct SpineRow {
     let kind: Kind
     let label: String
     let snippet: String?
+    /// Real page this row points to, when there is one. Past + current
+    /// rows carry the page so taps can open the full reader at it;
+    /// pre-chapter placeholders and locked future rows leave it nil.
+    var page: StoryPage? = nil
 }

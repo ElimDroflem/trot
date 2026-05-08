@@ -134,7 +134,13 @@ enum MilestoneService {
 /// state of the Achievement detail sheet so the user can see "you're 47 of
 /// 100 minutes" rather than just "locked." Always represents a count, never
 /// a percentage — the view picks the unit string for display.
-struct UnlockProgress: Equatable {
+///
+/// `nonisolated` so test files can compare instances on the cooperative
+/// pool (Swift Testing's `#expect` helpers run on a non-isolated context;
+/// without this, the project-wide `-default-isolation=MainActor` flag
+/// makes the synthesised `Equatable` conformance MainActor-isolated and
+/// the test compiler warns that this will become an error).
+nonisolated struct UnlockProgress: Equatable {
     let current: Int
     let target: Int
     /// The thing being measured, e.g. "minutes", "day streak". Singular form;

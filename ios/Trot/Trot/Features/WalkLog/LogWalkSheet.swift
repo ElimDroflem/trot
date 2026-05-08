@@ -197,17 +197,20 @@ struct LogWalkSheet: View {
             // 2026-05-07 plan, edits stay quiet by design.
             if isNewWalk {
                 let payloads = applyJourneyProgressAndCapture(minutes: form.durationMinutes)
-                // Dismiss FIRST, then enqueue the celebration ~350ms later so
-                // the overlay lands on a clean Home view rather than behind
-                // the dismissing sheet (classic SwiftUI z-order trap — the
-                // overlay sits on RootView, but a sheet still presenting will
-                // cover it for the duration of the dismiss animation).
+                // Enqueue the celebration BEFORE dismiss so the overlay
+                // is already queued on `appState` by the time the sheet
+                // starts animating away. As the sheet slides off, the
+                // overlay is revealed from underneath in one continuous
+                // motion — no "dead air" gap. (Earlier code did the
+                // opposite: dismiss + 350ms wait + enqueue, which felt
+                // like the celebration only arrived "after I closed the
+                // logging page.")
+                for payload in payloads {
+                    appState.pendingWalkCompletes.append(
+                        payload.makeEvent(minutes: form.durationMinutes)
+                    )
+                }
                 dismiss()
-                Self.scheduleWalkCompleteEnqueue(
-                    payloads: payloads,
-                    minutes: form.durationMinutes,
-                    appState: appState
-                )
             } else {
                 dismiss()
             }
@@ -264,25 +267,6 @@ struct LogWalkSheet: View {
         }
         try? modelContext.save()
         return payloads
-    }
-
-    /// Fires the walk-complete celebrations ~350ms after the sheet dismiss
-    /// starts. 350ms is roughly the iOS sheet-dismiss duration; landing the
-    /// overlay sooner means it renders behind the still-animating sheet and
-    /// the user sees nothing. Sendable payloads only — never carry SwiftData
-    /// refs across the gap.
-    private static func scheduleWalkCompleteEnqueue(
-        payloads: [PendingWalkCompletePayload],
-        minutes: Int,
-        appState: AppState
-    ) {
-        guard !payloads.isEmpty else { return }
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            for payload in payloads {
-                appState.pendingWalkCompletes.append(payload.makeEvent(minutes: minutes))
-            }
-        }
     }
 
     private func deleteWalk() {

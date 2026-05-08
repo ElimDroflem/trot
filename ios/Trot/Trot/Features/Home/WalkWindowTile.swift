@@ -231,10 +231,10 @@ struct WalkWindowTile: View {
         if let forced = DebugOverrides.weatherCategory {
             let synthetic = Self.syntheticForecast(category: forced)
             if let rec = WalkRecommendationService.recommend(for: dog, forecast: synthetic) {
-                await update(.ready(rec))
+                update(.ready(rec))
                 await refreshLLMHeadline(forecast: synthetic, rec: rec)
             } else {
-                await update(.unavailable)
+                update(.unavailable)
             }
             return
         }
@@ -243,27 +243,27 @@ struct WalkWindowTile: View {
         let trimmed = UserPreferences.postcode
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            await update(.noPostcode)
+            update(.noPostcode)
             return
         }
 
         guard let location = await WeatherService.location(for: trimmed) else {
-            await update(.unavailable)
+            update(.unavailable)
             return
         }
         guard let forecast = await WeatherService.forecast(for: location) else {
-            await update(.unavailable)
+            update(.unavailable)
             return
         }
 
         if let rec = WalkRecommendationService.recommend(for: dog, forecast: forecast) {
-            await update(.ready(rec))
+            update(.ready(rec))
             // Fire the LLM rationale in the background — never block the UI
             // on it, never let a failure surface. The deterministic
             // headline already reads cleanly.
             await refreshLLMHeadline(forecast: forecast, rec: rec)
         } else {
-            await update(.unavailable)
+            update(.unavailable)
         }
     }
 
