@@ -3,14 +3,22 @@ import Foundation
 /// Combines a dog's walk windows + the day's hourly forecast into a single
 /// "best window today" recommendation. Pure scoring, no networking.
 ///
-/// Scoring per hour:
-///   +5  if inside one of the dog's enabled walk windows (intent matters)
-///   +3  if temperature is in the dog's comfort band
-///   -8  if precipitation probability ≥ 70%
-///   -3  if precipitation probability is 40-69%
-///   -2  if wind ≥ 30 km/h
-///   -6  if temperature is dangerously hot for this dog (brachy/senior)
-///   -3  if temperature is uncomfortably cold
+/// Scoring per hour (recommendation framing: "best sunny window today, as
+/// long as it's not too hot"):
+///   +5  inside one of the dog's enabled walk windows (intent matters)
+///   +4  clear sky (the bias toward sunny hours)
+///   +2  partly cloudy
+///   +3  temperature in the dog's comfort band
+///   -3  temperature just above comfort upper bound (e.g. 22.1°C+ for normal dogs)
+///   -6  temperature dangerously above comfort (≥+4 over upper bound)
+///   -3  temperature uncomfortably cold
+///   -8  precipitation probability ≥ 70%
+///   -3  precipitation probability 40–69%
+///   -2  wind ≥ 30 km/h
+///   -2  drizzle category penalty
+///   -4  rain category penalty
+///   -6  thunder or snow category penalty
+///   -1  fog category penalty
 ///
 /// We pick the *contiguous run* of best-scoring hours (≥2h) to recommend, with
 /// the single best hour as the start. Falls back to the single best hour if no
@@ -77,7 +85,14 @@ enum WalkRecommendationService {
         if (comfort.lowerBound...comfort.upperBound).contains(hour.temperatureC) {
             s += 3
         } else if hour.temperatureC > comfort.upperBound + 4 {
+            // Dangerously hot.
             s -= 6
+        } else if hour.temperatureC > comfort.upperBound {
+            // Just above comfort upper bound — e.g. 22.1°C+ for a normal
+            // dog. Earlier this only kicked in at +4 over (so 26°C+), which
+            // meant a 23°C afternoon could still rank top. The user's rule:
+            // never recommend an hour above the comfort cap.
+            s -= 3
         } else if hour.temperatureC < comfort.lowerBound - 4 {
             s -= 3
         }
@@ -90,14 +105,17 @@ enum WalkRecommendationService {
 
         if hour.windSpeedKmh >= 30 { s -= 2 }
 
-        // Heavy/dangerous categories — independent of the precip-probability bucket
-        // because rain code can fire even when probability is moderate.
+        // Sunny bias — frames the recommendation as "the best sunny window
+        // today" rather than "the least bad weather window." Clear gets a
+        // strong bump; partly cloudy a smaller one. Cloudy stays at zero.
         switch hour.category {
-        case .thunder, .snow: s -= 6
-        case .rain:           s -= 4
-        case .drizzle:        s -= 2
-        case .fog:            s -= 1
-        default:              break
+        case .clear:           s += 4
+        case .partlyCloudy:    s += 2
+        case .cloudy:          break
+        case .fog:             s -= 1
+        case .drizzle:         s -= 2
+        case .rain:            s -= 4
+        case .thunder, .snow:  s -= 6
         }
 
         return s

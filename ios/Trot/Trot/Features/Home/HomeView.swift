@@ -128,26 +128,29 @@ struct HomeView: View {
                         DogPresenceCard(
                             dog: dog,
                             partOfDay: Self.partOfDay(for: .now),
-                            minutesDone: minutesDone(for: dog),
-                            targetMinutes: dog.dailyTargetMinutes,
-                            percent: percent(for: dog),
-                            minutesToGo: minutesToGo(for: dog)
+                            percent: percent(for: dog)
                         )
-                        // Weather tile only when it's saying something useful
-                        // (rain/snow/storm). On clear/cloudy days the mood
-                        // layer already conveys the weather; a card too is
-                        // duplicated info.
-                        ConditionalWalkWindowTile(dog: dog)
+                        // Personality card sits directly under the photo —
+                        // the dog talking to the owner is the second-most
+                        // important thing on Today. LLM-generated, capped at
+                        // 3 calls per day via slotted caching in LLMService.
+                        DogChatCard(dog: dog)
+                        // Timeline absorbs the "X of Y min · Z to go"
+                        // progress numbers in its header so we don't have a
+                        // floating text row sitting under the ring.
                         TodayTimeline(
                             walks: walksToday(for: dog),
                             walkWindows: dog.walkWindows ?? [],
+                            targetMinutes: dog.dailyTargetMinutes,
                             now: .now,
                             onTapWalk: { walk in editingWalk = walk }
                         )
-                        // Personality card lives at the bottom — the dog
-                        // talking to the owner. LLM-generated, capped at 3
-                        // calls per day via slotted caching in LLMService.
-                        DogChatCard(dog: dog)
+                        // Walk-window recommendation — always visible at the
+                        // bottom. Earlier this was gated to bad-weather days
+                        // only; the user feedback was that this is the most
+                        // useful daily recommendation regardless of weather
+                        // ("the best sunny window today, except not too hot").
+                        WalkWindowTile(dog: dog)
                         // Extra clearance so the bottom card never hides
                         // behind the centre walk FAB.
                         Color.clear.frame(height: Space.lg)
@@ -188,10 +191,6 @@ struct HomeView: View {
         let target = dog.dailyTargetMinutes
         guard target > 0 else { return 0 }
         return min(1.0, Double(minutesDone(for: dog)) / Double(target))
-    }
-
-    private func minutesToGo(for dog: Dog) -> Int {
-        max(0, dog.dailyTargetMinutes - minutesDone(for: dog))
     }
 
     // MARK: - Date / time-of-day formatting
@@ -350,10 +349,7 @@ private struct StreakChip: View {
 private struct DogPresenceCard: View {
     let dog: Dog
     let partOfDay: String
-    let minutesDone: Int
-    let targetMinutes: Int
     let percent: Double
-    let minutesToGo: Int
 
     @Environment(\.modelContext) private var modelContext
     @State private var photoItem: PhotosPickerItem?
@@ -375,8 +371,6 @@ private struct DogPresenceCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabel)
-
-            captionRow
         }
         .onAppear {
             withAnimation(.brandDefault) { animatedPercent = percent }
@@ -446,32 +440,6 @@ private struct DogPresenceCard: View {
         }
     }
 
-    /// Single line: minutes + (status pill if today done, "X min to go" if not).
-    /// The percent number is dropped — the ring already draws it. The dog-voice
-    /// affirmation row above this card is hidden when target's met so we don't
-    /// stack three "you're done" messages.
-    private var captionRow: some View {
-        HStack(spacing: Space.xs) {
-            Text("\(minutesDone) of \(targetMinutes) min")
-                .font(.bodyLarge.weight(.semibold))
-                .foregroundStyle(Color.brandTextPrimary)
-            Spacer()
-            if percent >= 1.0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption)
-                    Text("today done")
-                        .font(.bodyMedium.weight(.semibold))
-                }
-                .foregroundStyle(Color.brandSuccess)
-            } else {
-                Text("\(minutesToGo) min to go")
-                    .font(.bodyMedium)
-                    .foregroundStyle(Color.brandTextSecondary)
-            }
-        }
-    }
-
     private var accessibilityLabel: String {
         let photoState = dog.photo == nil ? "Add a photo of \(dog.name)" : "Change \(dog.name)'s photo"
         let progress = "Today: \(Int(min(1, percent) * 100)) percent."
@@ -491,60 +459,11 @@ private struct DogPresenceCard: View {
 }
 
 // DailyDogVoiceRow removed — DogChatCard at the bottom of Home replaces it.
-
-/// Render the WalkWindowTile only when the weather is actually saying
-/// something useful — rain, drizzle, snow, fog, thunder. On clear/cloudy
-/// days the WeatherMoodLayer behind everything already conveys the weather
-/// and a card on top is duplicate information.
-///
-/// We re-read the postcode-cached forecast on appear (cheap — 30-min cache
-/// in WeatherService) and decide locally; never blocks the main view.
-private struct ConditionalWalkWindowTile: View {
-    let dog: Dog
-    @State private var shouldRender: Bool = false
-
-    var body: some View {
-        Group {
-            if shouldRender {
-                WalkWindowTile(dog: dog)
-                    .transition(.opacity)
-            } else {
-                Color.clear.frame(height: 0)
-            }
-        }
-        .task { await decide() }
-    }
-
-    private func decide() async {
-        let postcode = UserPreferences.postcode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !postcode.isEmpty else { return }
-
-        // DEBUG override should always render the tile so we can QA it.
-        #if DEBUG
-        if let forced = DebugOverrides.weatherCategory {
-            await MainActor.run {
-                withAnimation(.brandDefault) {
-                    shouldRender = noticeableCategories.contains(forced)
-                }
-            }
-            return
-        }
-        #endif
-
-        guard let location = await WeatherService.location(for: postcode) else { return }
-        guard let forecast = await WeatherService.forecast(for: location) else { return }
-        guard let current = forecast.snapshot(at: .now) else { return }
-        await MainActor.run {
-            withAnimation(.brandDefault) {
-                shouldRender = noticeableCategories.contains(current.category)
-            }
-        }
-    }
-
-    private var noticeableCategories: Set<WeatherCategory> {
-        [.drizzle, .rain, .snow, .thunder, .fog]
-    }
-}
+// ConditionalWalkWindowTile removed — WalkWindowTile renders unconditionally
+// at the bottom of Today now. The tile is the most useful daily nudge
+// regardless of weather (it tells the user *when* to walk for the best
+// sunny window), so gating it to bad-weather days hid it from the path it
+// was supposed to support.
 
 private struct ProgressTrack: View {
     let percent: Double
@@ -577,6 +496,7 @@ private struct ProgressTrack: View {
 private struct TodayTimeline: View {
     let walks: [Walk]
     let walkWindows: [WalkWindow]
+    let targetMinutes: Int
     let now: Date
     let onTapWalk: (Walk) -> Void
 
@@ -590,15 +510,13 @@ private struct TodayTimeline: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            // Drop the "TODAY" caption — the tab itself is called Today, so
-            // the label was duplicating the screen name. The summary on the
-            // right ("4 walks · 78 min") carries enough context on its own.
-            HStack {
-                Text(summary)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandTextSecondary)
-                Spacer()
-            }
+            // Header carries today's progress. Earlier this lived in a
+            // floating row underneath the photo ring ("35 of 60 min · 25 min
+            // to go") which read as orphaned text in the middle of the
+            // screen. Pulling it into the timeline anchors the numbers to
+            // the visual that actually conveys *when* those minutes
+            // happened.
+            progressHeader
 
             GeometryReader { geo in
                 ZStack(alignment: .topLeading) {
@@ -692,12 +610,53 @@ private struct TodayTimeline: View {
         walkWindows.filter(\.enabled)
     }
 
-    private var summary: String {
-        if walks.isEmpty {
-            return "no walks yet"
+    private var minutesDone: Int {
+        walks.reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    private var minutesToGo: Int {
+        max(0, targetMinutes - minutesDone)
+    }
+
+    private var targetMet: Bool {
+        targetMinutes > 0 && minutesDone >= targetMinutes
+    }
+
+    /// Two-zone header replacing the old `summary` string. Left side carries
+    /// the today-progress number prominently; right side carries the
+    /// to-go remainder or the "today done" pill. When there are no walks
+    /// yet AND no target, falls back to a neutral caption rather than
+    /// "0 of 0 min" which reads as broken.
+    private var progressHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            if targetMinutes > 0 {
+                Text("\(minutesDone) of \(targetMinutes) min")
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+            } else if walks.isEmpty {
+                Text("no walks yet")
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextSecondary)
+            } else {
+                Text("\(minutesDone) min today")
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
+            }
+            Spacer()
+            if targetMet {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                    Text("today done")
+                        .font(.bodyMedium.weight(.semibold))
+                }
+                .foregroundStyle(Color.brandSuccess)
+            } else if targetMinutes > 0 {
+                Text("\(minutesToGo) min to go")
+                    .font(.bodyMedium)
+                    .foregroundStyle(Color.brandTextSecondary)
+            }
         }
-        let total = walks.reduce(0) { $0 + $1.durationMinutes }
-        return "\(walks.count.pluralised("walk")) · \(total) min"
     }
 
     private func hourLabel(_ hour: Int) -> String {
