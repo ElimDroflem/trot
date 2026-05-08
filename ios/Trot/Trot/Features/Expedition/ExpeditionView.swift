@@ -328,24 +328,55 @@ struct ExpeditionView: View {
             appState.enqueueCelebrations(new, for: dog)
         }
 
-        // Journey progression + walk-complete celebration
+        // Build the celebration payload BEFORE the sheet dismiss so we can
+        // schedule the enqueue post-dismiss without carrying a SwiftData ref.
+        // Routeless dogs still produce a payload — the overlay collapses the
+        // route bar cleanly.
+        let isFirstWalk = (dog.walks ?? []).count == 1
+        let nextLandmarkName = JourneyService.nextLandmark(for: dog)?.landmark.name
+        let payload: PendingWalkCompletePayload
         if let route = JourneyService.currentRoute(for: dog) {
             let oldMinutes = dog.routeProgressMinutes
-            let isFirstWalk = (dog.walks ?? []).count == 1
             let application = JourneyService.applyWalk(minutes: minutes, to: dog)
-            appState.enqueueWalkComplete(
-                dog: dog,
-                minutes: minutes,
+            payload = PendingWalkCompletePayload(
+                dogID: dog.persistentModelID,
+                dogName: dog.name.isEmpty ? "Your dog" : dog.name,
                 isFirstWalk: isFirstWalk,
-                application: application,
                 oldProgressMinutes: oldMinutes,
                 newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
                 routeName: route.name,
-                routeTotalMinutes: route.totalMinutes
+                routeTotalMinutes: route.totalMinutes,
+                minutesAdded: application.minutesAdded,
+                landmarksCrossed: application.landmarksCrossed,
+                routeCompletedName: application.routeCompleted?.name,
+                nextLandmarkName: nextLandmarkName
+            )
+        } else {
+            payload = PendingWalkCompletePayload(
+                dogID: dog.persistentModelID,
+                dogName: dog.name.isEmpty ? "Your dog" : dog.name,
+                isFirstWalk: isFirstWalk,
+                oldProgressMinutes: 0,
+                newProgressMinutes: 0,
+                routeName: nil,
+                routeTotalMinutes: nil,
+                minutesAdded: 0,
+                landmarksCrossed: [],
+                routeCompletedName: nil,
+                nextLandmarkName: nil
             )
         }
         try? modelContext.save()
+
+        // Dismiss FIRST, then enqueue the celebration ~350ms later so the
+        // overlay lands on a clean Home view rather than behind the
+        // dismissing Expedition sheet.
         dismiss()
+        let appState = self.appState
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            appState.pendingWalkCompletes.append(payload.makeEvent(minutes: minutes))
+        }
     }
 
     // MARK: - Helpers

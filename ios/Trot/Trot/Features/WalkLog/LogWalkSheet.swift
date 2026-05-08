@@ -190,45 +190,99 @@ struct LogWalkSheet: View {
             try modelContext.save()
             rescheduleNotifications()
             checkMilestones()
-            // Journey progression + walk-complete celebration ONLY for new walks.
-            // Editing an existing walk doesn't add new minutes — we'd otherwise
-            // double-advance and double-celebrate.
+            // Journey progression + walk-complete celebration ONLY for new
+            // walks. Editing an existing walk is silent (no celebration, no
+            // toast) — the walk was already counted, and re-celebrating a
+            // simple duration tweak would feel dishonest. Per Corey's
+            // 2026-05-07 plan, edits stay quiet by design.
             if isNewWalk {
-                applyJourneyProgress(minutes: form.durationMinutes)
+                let payloads = applyJourneyProgressAndCapture(minutes: form.durationMinutes)
+                // Dismiss FIRST, then enqueue the celebration ~350ms later so
+                // the overlay lands on a clean Home view rather than behind
+                // the dismissing sheet (classic SwiftUI z-order trap — the
+                // overlay sits on RootView, but a sheet still presenting will
+                // cover it for the duration of the dismiss animation).
+                dismiss()
+                Self.scheduleWalkCompleteEnqueue(
+                    payloads: payloads,
+                    minutes: form.durationMinutes,
+                    appState: appState
+                )
+            } else {
+                dismiss()
             }
-            dismiss()
         } catch {
             saveError = error.localizedDescription
         }
     }
 
-    /// Advances each affected dog along their active route by the walk's duration
-    /// and enqueues a walk-complete celebration on AppState. Mirrors the
-    /// expedition-mode finish flow so both entry points produce the same
-    /// post-walk dopamine.
-    private func applyJourneyProgress(minutes: Int) {
-        guard minutes > 0 else { return }
+    /// Advances each affected dog along their active route by the walk's
+    /// duration and returns lightweight payloads for the post-dismiss
+    /// enqueue. Returning value-typed payloads (rather than holding SwiftData
+    /// `Dog` refs) keeps the post-dismiss Task safe from object-deletion
+    /// races.
+    ///
+    /// Routeless dogs still produce a payload — `routeName` / `routeTotalMinutes`
+    /// are nil and the overlay collapses the route bar.
+    private func applyJourneyProgressAndCapture(minutes: Int) -> [PendingWalkCompletePayload] {
+        guard minutes > 0 else { return [] }
+        var payloads: [PendingWalkCompletePayload] = []
         for dog in dogs {
-            guard let route = JourneyService.currentRoute(for: dog) else { continue }
-            let oldMinutes = dog.routeProgressMinutes
-            // First-walk detection: at this point the new walk has been saved,
-            // so a count of exactly 1 means this is the dog's debut.
             let isFirstWalk = (dog.walks ?? []).count == 1
-            let application = JourneyService.applyWalk(minutes: minutes, to: dog)
-            // After applyWalk, dog.activeRouteID may have advanced; the route the
-            // walk-complete UI shows is the one that was IN PROGRESS for this walk.
-            appState.enqueueWalkComplete(
-                dog: dog,
-                minutes: minutes,
-                isFirstWalk: isFirstWalk,
-                application: application,
-                oldProgressMinutes: oldMinutes,
-                newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
-                routeName: route.name,
-                routeTotalMinutes: route.totalMinutes
-            )
+            let nextLandmarkName = JourneyService.nextLandmark(for: dog)?.landmark.name
+            if let route = JourneyService.currentRoute(for: dog) {
+                let oldMinutes = dog.routeProgressMinutes
+                let application = JourneyService.applyWalk(minutes: minutes, to: dog)
+                payloads.append(PendingWalkCompletePayload(
+                    dogID: dog.persistentModelID,
+                    dogName: dog.name.isEmpty ? "Your dog" : dog.name,
+                    isFirstWalk: isFirstWalk,
+                    oldProgressMinutes: oldMinutes,
+                    newProgressMinutes: application.routeCompleted == nil ? dog.routeProgressMinutes : route.totalMinutes,
+                    routeName: route.name,
+                    routeTotalMinutes: route.totalMinutes,
+                    minutesAdded: application.minutesAdded,
+                    landmarksCrossed: application.landmarksCrossed,
+                    routeCompletedName: application.routeCompleted?.name,
+                    nextLandmarkName: nextLandmarkName
+                ))
+            } else {
+                payloads.append(PendingWalkCompletePayload(
+                    dogID: dog.persistentModelID,
+                    dogName: dog.name.isEmpty ? "Your dog" : dog.name,
+                    isFirstWalk: isFirstWalk,
+                    oldProgressMinutes: 0,
+                    newProgressMinutes: 0,
+                    routeName: nil,
+                    routeTotalMinutes: nil,
+                    minutesAdded: 0,
+                    landmarksCrossed: [],
+                    routeCompletedName: nil,
+                    nextLandmarkName: nil
+                ))
+            }
         }
         try? modelContext.save()
+        return payloads
+    }
+
+    /// Fires the walk-complete celebrations ~350ms after the sheet dismiss
+    /// starts. 350ms is roughly the iOS sheet-dismiss duration; landing the
+    /// overlay sooner means it renders behind the still-animating sheet and
+    /// the user sees nothing. Sendable payloads only — never carry SwiftData
+    /// refs across the gap.
+    private static func scheduleWalkCompleteEnqueue(
+        payloads: [PendingWalkCompletePayload],
+        minutes: Int,
+        appState: AppState
+    ) {
+        guard !payloads.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            for payload in payloads {
+                appState.pendingWalkCompletes.append(payload.makeEvent(minutes: minutes))
+            }
+        }
     }
 
     private func deleteWalk() {

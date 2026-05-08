@@ -1,21 +1,32 @@
 import SwiftUI
 import SwiftData
 
-/// Trot's signature retention surface. The Journey tab tells the user where
-/// they are in their dog's narrative arc and what's coming next, with the
-/// dog photo as the breathing centerpiece.
+/// Trot's signature retention surface. Tells the user where they are in
+/// their dog's narrative arc and what's coming next, with the dog photo as
+/// the breathing centerpiece.
 ///
-/// Layout, top to bottom:
-///   1. Hero — dog photo inside a huge route-progress arc, route name
-///      headline, "X% of <Route>" stat below.
-///   2. Landmark trail — horizontal row of moment dots with the dog's
-///      current position as a pulsing coral marker. Unlocked moments are
-///      coral with their icon; locked are grey with a lock.
-///   3. Up next — a single big display-type block naming time-to-next +
-///      a redacted moment title.
-///   4. Recent moments — diary cards with the dog-voice reflections
-///      (the emotional payload).
-///   5. Coming up — completed-route pills + the next route preview.
+/// Three vertical bands, top to bottom — one screen, one story:
+///
+///   1. **Chapter hero** — dog photo inside a route-progress arc, route
+///      name + subtitle in display type, the cumulative-distance brag
+///      ("You and Bonnie have walked 18 km together. That's Brighton to
+///      Hove.") and a single narrative line tied to where the user is in
+///      the route.
+///   2. **The path** — vertical scrollable list of every landmark on the
+///      current route. Past landmarks: filled, named, dated. Current
+///      "you" position: pulsing. Next 1-2 locked landmarks fully named so
+///      the user has something to walk toward. Beyond that: silhouettes —
+///      mystery without redaction.
+///   3. **Chapters journal** — every completed route as a memory card
+///      with the chapter name, total time, and an LLM-generated single-
+///      sentence memory in the dog's voice (cached forever via
+///      `ChapterMemoryService`). Falls back to a templated line if the
+///      LLM is offline or the memory hasn't generated yet.
+///
+/// The earlier "???" placeholders, "Up next ???" block, "Highlights"
+/// card, "Completed seasons" pills, and "Up next, after this" tease
+/// are all gone — the data was rich (36 named landmarks across 4 routes
+/// with descriptions and SF symbols) but the old UI redacted it.
 struct JourneyView: View {
     @Query(filter: #Predicate<Dog> { $0.archivedAt == nil })
     private var activeDogs: [Dog]
@@ -55,23 +66,19 @@ struct JourneyView: View {
                 JourneyHero(
                     dog: dog,
                     route: route,
-                    progressMinutes: dog.routeProgressMinutes
+                    progressMinutes: dog.routeProgressMinutes,
+                    next: next
                 )
 
-                LandmarkTrail(
+                JourneyPath(
                     route: route,
                     progressMinutes: dog.routeProgressMinutes
                 )
 
-                UpNextBlock(
-                    next: next,
-                    route: route,
-                    progressMinutes: dog.routeProgressMinutes
+                ChaptersJournal(
+                    dog: dog,
+                    completedIDs: dog.completedRouteIDs
                 )
-
-                JourneyHighlightsCard(dog: dog, next: next)
-
-                ComingUpSection(currentRouteID: route.id, completedIDs: dog.completedRouteIDs)
 
                 // Extra clearance so the last card never hides behind the
                 // centre walk FAB.
@@ -98,25 +105,26 @@ struct JourneyView: View {
         }
         .padding(Space.xl)
     }
-
 }
 
 // MARK: - Hero
 
-/// Big route-progress arc with the dog photo at the center. The arc fills
-/// in coral as the dog progresses through the route — like the Today ring
-/// but at journey scale. Photo breathes with a slow anticipation pulse.
+/// Chapter hero — route name + subtitle, dog photo inside a progress arc,
+/// distance-translation brag, and a single narrative line about where the
+/// user is in the chapter. Replaces the old hero + standalone Highlights
+/// card; the lifetime stats live here now.
 private struct JourneyHero: View {
     let dog: Dog
     let route: Route
     let progressMinutes: Int
+    let next: NextLandmark?
 
     @State private var pulse = false
     @State private var animatedFraction: Double = 0
 
-    private let outerSize: CGFloat = 260
-    private let strokeWidth: CGFloat = 12
-    private let photoInset: CGFloat = 26
+    private let outerSize: CGFloat = 220
+    private let strokeWidth: CGFloat = 11
+    private let photoInset: CGFloat = 22
 
     private var fraction: Double {
         guard route.totalMinutes > 0 else { return 0 }
@@ -125,18 +133,22 @@ private struct JourneyHero: View {
 
     var body: some View {
         VStack(spacing: Space.md) {
-            Text(route.name)
-                .font(.displayMedium)
-                .foregroundStyle(Color.brandSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Space.md)
+            VStack(spacing: 4) {
+                Text(route.name)
+                    .font(.displayMedium)
+                    .atmosphereTextPrimary()
+                    .multilineTextAlignment(.center)
+                Text(route.subtitle)
+                    .font(.bodyMedium)
+                    .atmosphereTextSecondary()
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Space.md)
+            }
 
             ZStack {
-                // Track ring (faint)
                 Circle()
                     .stroke(Color.brandDivider.opacity(0.7), lineWidth: strokeWidth)
 
-                // Animated coral progress arc
                 Circle()
                     .trim(from: 0, to: animatedFraction)
                     .stroke(
@@ -145,7 +157,6 @@ private struct JourneyHero: View {
                     )
                     .rotationEffect(.degrees(-90))
 
-                // Photo (breathes)
                 photoFill
                     .frame(
                         width: outerSize - strokeWidth * 2 - photoInset * 2,
@@ -154,14 +165,10 @@ private struct JourneyHero: View {
                     .clipShape(Circle())
                     .scaleEffect(pulse ? 1.025 : 1.0)
 
-                // Percent badge tucked into the bottom-right of the arc so
-                // the arc itself reads at a glance — no need to scan down to
-                // the stats row to find the number.
                 percentBadge
-                    .offset(x: outerSize / 2 - 28, y: outerSize / 2 - 28)
+                    .offset(x: outerSize / 2 - 24, y: outerSize / 2 - 24)
             }
             .frame(width: outerSize, height: outerSize)
-            .brandCardShadow()
             .onAppear {
                 withAnimation(.brandDefault.delay(0.05)) {
                     animatedFraction = fraction
@@ -178,46 +185,81 @@ private struct JourneyHero: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(dog.name) on \(route.name). \(Int(fraction * 100)) percent of the route.")
 
+            narrativeLine
+
             heroStats
+
+            if let translation = distanceLine {
+                // Distance line sits BELOW the atmosphere gradient (which
+                // fades to clear ~60% down) so it lives on the cream brand
+                // surface — use the standard secondary text colour, not the
+                // atmosphere swap, so it doesn't read as washed-out cream
+                // on cream at night.
+                Text(translation)
+                    .font(.bodyMedium)
+                    .italic()
+                    .foregroundStyle(Color.brandTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Space.md)
+            }
         }
     }
 
-    /// Small coral pill showing the current percent. Sits inside the arc at
-    /// the bottom-right so the arc reads as "this much of the route" without
-    /// the eye having to translate fill-amount → percentage.
-    private var percentBadge: some View {
-        Text("\(Int(fraction * 100))%")
-            .font(.titleSmall.weight(.bold))
-            .foregroundStyle(Color.brandTextOnPrimary)
-            .padding(.horizontal, Space.sm)
-            .padding(.vertical, 6)
-            .background(Color.brandPrimary)
-            .clipShape(Capsule())
-            .shadow(color: Color.brandPrimary.opacity(0.4), radius: 6, x: 0, y: 3)
+    /// One sentence that locates the user in this chapter. Three buckets:
+    /// just-started, midway, almost-done. Pulled from the route's `subtitle`
+    /// so each chapter has its own voice — no LLM, no per-walk variation,
+    /// just clear positioning.
+    private var narrativeLine: some View {
+        let pct = Int(fraction * 100)
+        let dogName = dog.name
+        let text: String = {
+            if pct < 20 {
+                return "Just starting *\(route.name)* with \(dogName)."
+            } else if pct < 75 {
+                return "Halfway through *\(route.name)* with \(dogName). The bond is settling in."
+            } else if pct < 100 {
+                return "Almost through *\(route.name)*. \(dogName) knows the rhythm."
+            } else {
+                return "*\(route.name)* — walked. Onto the next chapter."
+            }
+        }()
+        return Text(.init(text))
+            .font(.bodyLarge)
+            .foregroundStyle(Color.brandTextPrimary)
+            .multilineTextAlignment(.center)
+            .padding(Space.md)
+            .frame(maxWidth: .infinity)
+            .background(Color.brandSurfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+            .brandCardShadow()
     }
 
-    /// Two-column stats — drop the percent column since the percent now
-    /// lives inside the arc itself. Walked + to-go are the supporting
-    /// numbers a route-progress arc can't show on its own.
+    /// Three-column lifetime strip — walks, minutes, km. Shifts the
+    /// "Highlights" card's job into the hero where it belongs (the lifetime
+    /// numbers tell the chapter context at a glance, not as a separate
+    /// section).
     private var heroStats: some View {
-        HStack(spacing: Space.lg) {
-            statColumn(
-                value: formatDuration(progressMinutes),
-                label: "WALKED"
-            )
+        let walks = dog.walks ?? []
+        let walkCount = walks.count
+        let minutes = walks.reduce(0) { $0 + $1.durationMinutes }
+        let km = DistanceTranslator.totalKilometres(for: dog)
+        return HStack(spacing: 0) {
+            statColumn(value: "\(walkCount)", label: walkCount == 1 ? "WALK" : "WALKS")
             divider
-            statColumn(
-                value: formatDuration(max(0, route.totalMinutes - progressMinutes)),
-                label: "TO GO"
-            )
+            statColumn(value: formatDuration(minutes), label: "TOGETHER")
+            divider
+            statColumn(value: km >= 10 ? "\(Int(km.rounded()))" : String(format: "%.1f", km), label: "KM")
         }
-        .padding(.horizontal, Space.md)
+        .padding(.vertical, Space.sm)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
     }
 
     private var divider: some View {
         Rectangle()
             .fill(Color.brandDivider)
-            .frame(width: 1, height: 36)
+            .frame(width: 1, height: 28)
     }
 
     private func statColumn(value: String, label: String) -> some View {
@@ -235,11 +277,29 @@ private struct JourneyHero: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var distanceLine: String? {
+        let km = DistanceTranslator.totalKilometres(for: dog)
+        guard let milestone = DistanceTranslator.milestone(forKilometres: km) else { return nil }
+        let pretty = km >= 10 ? "\(Int(km.rounded())) km" : String(format: "%.1f km", km)
+        return "That's about \(milestone.label) — \(pretty) walked together."
+    }
+
+    private var percentBadge: some View {
+        Text("\(Int(fraction * 100))%")
+            .font(.titleSmall.weight(.bold))
+            .foregroundStyle(Color.brandTextOnPrimary)
+            .padding(.horizontal, Space.sm)
+            .padding(.vertical, 6)
+            .background(Color.brandPrimary)
+            .clipShape(Capsule())
+            .shadow(color: Color.brandPrimary.opacity(0.4), radius: 6, x: 0, y: 3)
+    }
+
     private func formatDuration(_ minutes: Int) -> String {
-        if minutes < 60 { return "\(minutes) min" }
+        if minutes < 60 { return "\(minutes)m" }
         let h = minutes / 60
         let m = minutes % 60
-        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
+        return m == 0 ? "\(h)h" : "\(h)h\(m)"
     }
 
     @ViewBuilder
@@ -264,55 +324,44 @@ private struct JourneyHero: View {
     }
 }
 
-// MARK: - Landmark trail
+// MARK: - Vertical path
 
-/// Horizontal row of moment dots representing the route's landmarks.
-/// Unlocked landmarks (passed by progressMinutes) are coral with their
-/// symbol; locked are a small grey lock; the *current position* (just
-/// before the next-up landmark) is a pulsing coral disc with a paw — the
-/// dog's place on the trail.
+/// Vertical scrollable path of every landmark on the current route. Replaces
+/// the old horizontal landmark trail.
 ///
-/// Up to 6 visible at a time so the row stays readable on a phone — we
-/// window around the current position. If the route is shorter than 6
-/// landmarks we render them all.
-private struct LandmarkTrail: View {
+/// Progressive reveal pattern, anchored on the dog's current position:
+///   * past landmarks  → filled coral icon, full name + description
+///   * current "you"   → pulsing coral with paw icon, naming the next
+///                        landmark inline so anticipation has a target
+///   * next locked     → full name visible, full icon at half tint,
+///                        description visible (this is the *pull* — the
+///                        thing the user is walking toward)
+///   * one beyond      → name visible at low alpha, icon outline only,
+///                        no description
+///   * two+ beyond     → silhouette icon only, no name (mystery without
+///                        redaction)
+private struct JourneyPath: View {
     let route: Route
     let progressMinutes: Int
 
     @State private var pulse = false
 
-    private let maxVisible = 4
     private let dotSize: CGFloat = 36
-    private let activeSize: CGFloat = 42
+    private let activeSize: CGFloat = 40
+    private let connectorWidth: CGFloat = 2
 
     var body: some View {
-        let stops = visibleStops
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HStack(spacing: 0) {
-                ForEach(Array(stops.enumerated()), id: \.offset) { index, stop in
-                    stopView(stop)
-                    if index < stops.count - 1 {
-                        connector(filled: stops[index + 1].state == .unlocked || stop.state == .current || stop.state == .unlocked)
-                    }
-                }
+        let stops = pathStops
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(stops.enumerated()), id: \.element.id) { index, stop in
+                pathRow(
+                    stop: stop,
+                    isFirst: index == 0,
+                    isLast: index == stops.count - 1
+                )
             }
-            .frame(maxWidth: .infinity)
-
-            HStack(spacing: 0) {
-                ForEach(Array(stops.enumerated()), id: \.offset) { _, stop in
-                    Text(stop.label)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(labelColor(for: stop.state))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.85)
-                }
-            }
-            .padding(.horizontal, Space.xs)
         }
-        .padding(.vertical, Space.md)
-        .padding(.horizontal, Space.sm)
+        .padding(Space.md)
         .background(Color.brandSurfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
         .brandCardShadow()
@@ -324,431 +373,338 @@ private struct LandmarkTrail: View {
     }
 
     @ViewBuilder
-    private func stopView(_ stop: TrailStop) -> some View {
-        switch stop.state {
-        case .unlocked:
+    private func pathRow(stop: PathStop, isFirst: Bool, isLast: Bool) -> some View {
+        HStack(alignment: .top, spacing: Space.sm) {
+            VStack(spacing: 0) {
+                connectorAbove(visible: !isFirst, filled: stop.connectorAboveFilled)
+                stopGlyph(stop: stop)
+                connectorBelow(visible: !isLast, filled: stop.connectorBelowFilled)
+            }
+            .frame(width: max(activeSize, dotSize))
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let nameText = stop.nameText {
+                    Text(nameText)
+                        .font(stop.kind == .current ? .bodyLarge.weight(.semibold) : .bodyLarge.weight(.semibold))
+                        .foregroundStyle(stop.nameColor)
+                }
+                if let detail = stop.detailText {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.brandTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let stamp = stop.stampText {
+                    Text(stamp.uppercased())
+                        .font(.caption2.weight(.semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(Color.brandTextTertiary)
+                }
+            }
+            .padding(.top, isFirst ? 0 : 4)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(stop.accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private func stopGlyph(stop: PathStop) -> some View {
+        switch stop.kind {
+        case .past:
             ZStack {
-                Circle()
-                    .fill(Color.brandPrimary)
+                Circle().fill(Color.brandPrimary)
                 Image(systemName: stop.symbolName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
             }
             .frame(width: dotSize, height: dotSize)
-            .accessibilityLabel("Unlocked: \(stop.label)")
         case .current:
             ZStack {
-                Circle()
-                    .fill(Color.brandPrimaryTint)
-                Circle()
-                    .stroke(Color.brandPrimary, lineWidth: 3)
+                Circle().fill(Color.brandPrimaryTint)
+                Circle().stroke(Color.brandPrimary, lineWidth: 3)
                 Image(systemName: "pawprint.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.brandPrimary)
             }
             .frame(width: activeSize, height: activeSize)
             .scaleEffect(pulse ? 1.08 : 1.0)
-            .accessibilityLabel("Current position: \(stop.label)")
-        case .locked:
+        case .nextLocked:
             ZStack {
-                Circle()
-                    .fill(Color.brandSurface)
-                Circle()
-                    .stroke(Color.brandDivider, lineWidth: 1.5)
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.brandTextTertiary)
-            }
-            .frame(width: dotSize, height: dotSize)
-            .accessibilityLabel("Locked: \(stop.label)")
-        }
-    }
-
-    private func connector(filled: Bool) -> some View {
-        Rectangle()
-            .fill(filled ? Color.brandPrimary : Color.brandDivider)
-            .frame(height: 2)
-            .frame(maxWidth: .infinity)
-    }
-
-    /// Three-tier label colour so the eye can tell the *current* stop apart
-    /// from already-unlocked stops at a glance — current = primary text,
-    /// unlocked = secondary, locked = tertiary. Without this, the most-recent
-    /// unlocked stop and the dog's current marker read at the same weight.
-    private func labelColor(for state: StopState) -> Color {
-        switch state {
-        case .current:  return .brandTextPrimary
-        case .unlocked: return .brandTextSecondary
-        case .locked:   return .brandTextTertiary
-        }
-    }
-
-    // MARK: - Stops construction
-
-    /// Window the route's landmarks into `maxVisible` stops, centred on the
-    /// dog's current progress when possible. No virtual placeholder — the
-    /// real landmarks are the trail.
-    private var visibleStops: [TrailStop] {
-        let sorted = route.landmarks.sorted { $0.minutesFromStart < $1.minutesFromStart }
-        var stops: [TrailStop] = []
-        for landmark in sorted {
-            let state: StopState = progressMinutes >= landmark.minutesFromStart ? .unlocked : .locked
-            let label = state == .unlocked ? landmark.name : "???"
-            stops.append(TrailStop(label: label, symbolName: landmark.symbolName, state: state))
-        }
-
-        // Insert the "current" marker between the last unlocked and the next
-        // locked, so the dog visually sits between them.
-        if let firstLockedIndex = stops.firstIndex(where: { $0.state == .locked }) {
-            stops.insert(
-                TrailStop(label: "You", symbolName: "pawprint.fill", state: .current, isVirtual: true),
-                at: firstLockedIndex
-            )
-        }
-
-        // Window — keep up to maxVisible centred on the current marker.
-        guard stops.count > maxVisible else { return stops }
-        let currentIndex = stops.firstIndex(where: { $0.state == .current }) ?? stops.count / 2
-        let half = maxVisible / 2
-        var lower = max(0, currentIndex - half)
-        var upper = min(stops.count, lower + maxVisible)
-        // If we hit the right edge first, slide the window left.
-        if upper - lower < maxVisible {
-            lower = max(0, upper - maxVisible)
-        }
-        // If the lower edge is at zero, slide right.
-        if upper - lower < maxVisible {
-            upper = min(stops.count, lower + maxVisible)
-        }
-        return Array(stops[lower..<upper])
-    }
-
-    private struct TrailStop {
-        let label: String
-        let symbolName: String
-        let state: StopState
-        var isVirtual: Bool = false
-    }
-
-    private enum StopState {
-        case unlocked, current, locked
-    }
-}
-
-// MARK: - Up next block
-
-/// Display-type "Up next: <duration> to <???>". Replaces the old NEXT UP
-/// caption and progress bar — the trail above carries the visual job; this
-/// block is the single high-value sentence underneath.
-private struct UpNextBlock: View {
-    let next: NextLandmark?
-    let route: Route
-    let progressMinutes: Int
-
-    var body: some View {
-        if let next {
-            content(next: next)
-        } else {
-            routeCompleteContent
-        }
-    }
-
-    private func content(next: NextLandmark) -> some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            Text("UP NEXT")
-                .font(.caption.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(Color.brandTextSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
-                Text(durationLabel(minutesAway: next.minutesAway))
-                    .font(.displayMedium)
-                    .foregroundStyle(Color.brandPrimary)
-                Text("to ???")
-                    .font(.titleSmall)
-                    .foregroundStyle(Color.brandTextSecondary)
-                Spacer()
-                Image(systemName: "arrow.forward.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Color.brandPrimary.opacity(0.45))
-            }
-        }
-        .padding(Space.md)
-        .background(Color.brandPrimaryTint)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Up next, \(next.minutesAway) minutes to the next moment.")
-    }
-
-    private func durationLabel(minutesAway: Int) -> String {
-        if minutesAway < 60 { return "\(minutesAway) min" }
-        let h = minutesAway / 60
-        let m = minutesAway % 60
-        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
-    }
-
-    private var routeCompleteContent: some View {
-        HStack(spacing: Space.sm) {
-            Image(systemName: "flag.checkered")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.brandSecondary)
-            Text("\(route.name) complete!")
-                .font(.titleSmall)
-                .foregroundStyle(Color.brandSecondary)
-            Spacer()
-        }
-        .padding(Space.md)
-        .background(Color.brandSecondaryTint)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-    }
-}
-
-// MARK: - Highlights
-
-/// "Highlights" card on Journey — replaces the LLM-generated diary entries
-/// that used to live here. Shows real, factual stats about the dog's
-/// walking journey so the section actually pays back: lifetime totals,
-/// longest single walk, distance to the next moment.
-///
-/// Pure-function over `dog.walks` and `next.minutesAway`. Three to four
-/// one-liners with a hint of dry framing where it lands naturally.
-private struct JourneyHighlightsCard: View {
-    let dog: Dog
-    let next: NextLandmark?
-
-    private struct Highlight: Identifiable {
-        let id = UUID()
-        let icon: String
-        let value: String
-        let label: String
-    }
-
-    private var highlights: [Highlight] {
-        let walks = dog.walks ?? []
-        let lifetimeMinutes = walks.reduce(0) { $0 + $1.durationMinutes }
-        let walkCount = walks.count
-        let longest = walks.max(by: { $0.durationMinutes < $1.durationMinutes })
-
-        var items: [Highlight] = [
-            Highlight(
-                icon: "figure.walk",
-                value: walkSummary(walkCount: walkCount, minutes: lifetimeMinutes),
-                label: "Together so far"
-            )
-        ]
-
-        if let longest, longest.durationMinutes > 0 {
-            items.append(
-                Highlight(
-                    icon: "stopwatch.fill",
-                    value: "\(longest.durationMinutes) min",
-                    label: "Longest walk · \(Self.relativeDay(longest.startedAt))"
-                )
-            )
-        }
-
-        if let next {
-            items.append(
-                Highlight(
-                    icon: "arrow.forward.circle.fill",
-                    value: "\(next.minutesAway) min",
-                    label: "From the next moment"
-                )
-            )
-        }
-
-        if let consistencyHour = mostConsistentHour(walks: walks) {
-            items.append(
-                Highlight(
-                    icon: "clock.fill",
-                    value: Self.formatHour(consistencyHour),
-                    label: "Most walks start near"
-                )
-            )
-        }
-
-        return items
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            Text("Highlights")
-                .font(.titleSmall)
-                .foregroundStyle(Color.brandTextPrimary)
-
-            VStack(spacing: 0) {
-                ForEach(Array(highlights.enumerated()), id: \.element.id) { index, item in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(Color.brandDivider.opacity(0.5))
-                            .frame(height: 1)
-                    }
-                    row(for: item)
-                }
-            }
-            .background(Color.brandSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-            .brandCardShadow()
-        }
-    }
-
-    private func row(for highlight: Highlight) -> some View {
-        HStack(spacing: Space.sm) {
-            ZStack {
-                Circle()
-                    .fill(Color.brandPrimaryTint)
-                    .frame(width: 32, height: 32)
-                Image(systemName: highlight.icon)
+                Circle().fill(Color.brandPrimary.opacity(0.18))
+                Circle().stroke(Color.brandPrimary.opacity(0.5), lineWidth: 1.5)
+                Image(systemName: stop.symbolName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.brandPrimary)
             }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(highlight.value)
-                    .font(.bodyLarge.weight(.semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-                Text(highlight.label)
-                    .font(.caption)
-                    .foregroundStyle(Color.brandTextSecondary)
+            .frame(width: dotSize, height: dotSize)
+        case .nearLocked:
+            ZStack {
+                Circle().stroke(Color.brandDivider, lineWidth: 1.5)
+                Image(systemName: stop.symbolName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.brandTextTertiary)
             }
-            Spacer()
+            .frame(width: dotSize, height: dotSize)
+        case .farLocked:
+            ZStack {
+                Circle().stroke(Color.brandDivider.opacity(0.5), lineWidth: 1)
+                Image(systemName: stop.symbolName)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(Color.brandTextTertiary.opacity(0.5))
+            }
+            .frame(width: dotSize, height: dotSize)
         }
-        .padding(.horizontal, Space.md)
-        .padding(.vertical, Space.sm)
     }
 
-    private func walkSummary(walkCount: Int, minutes: Int) -> String {
-        if walkCount == 0 { return "No walks yet" }
-        let walksPart = walkCount == 1 ? "1 walk" : "\(walkCount) walks"
-        if minutes < 60 { return "\(walksPart) · \(minutes) min" }
+    private func connectorAbove(visible: Bool, filled: Bool) -> some View {
+        Rectangle()
+            .fill(filled ? Color.brandPrimary : Color.brandDivider)
+            .frame(width: connectorWidth, height: 18)
+            .opacity(visible ? 1 : 0)
+    }
+
+    private func connectorBelow(visible: Bool, filled: Bool) -> some View {
+        Rectangle()
+            .fill(filled ? Color.brandPrimary : Color.brandDivider)
+            .frame(width: connectorWidth, height: 32)
+            .opacity(visible ? 1 : 0)
+    }
+
+    // MARK: - Path construction
+
+    /// Builds the ordered list of path stops by walking the route's landmarks
+    /// (sorted by minutesFromStart), inserting the "current you" marker
+    /// between the last unlocked and first locked, and assigning a kind
+    /// based on each landmark's position relative to the current marker.
+    private var pathStops: [PathStop] {
+        let sorted = route.landmarks.sorted { $0.minutesFromStart < $1.minutesFromStart }
+        var stops: [PathStop] = []
+
+        var firstLockedIndex: Int?
+        for (offset, landmark) in sorted.enumerated() {
+            let isUnlocked = progressMinutes >= landmark.minutesFromStart
+            if !isUnlocked, firstLockedIndex == nil {
+                firstLockedIndex = offset
+            }
+        }
+
+        for (offset, landmark) in sorted.enumerated() {
+            let isUnlocked = progressMinutes >= landmark.minutesFromStart
+            if isUnlocked {
+                stops.append(PathStop(
+                    id: landmark.id,
+                    kind: .past,
+                    symbolName: landmark.symbolName,
+                    nameText: landmark.name,
+                    nameColor: .brandTextPrimary,
+                    detailText: landmark.description,
+                    stampText: "Crossed",
+                    connectorAboveFilled: true,
+                    connectorBelowFilled: true,
+                    accessibilityLabel: "Crossed: \(landmark.name). \(landmark.description)"
+                ))
+            } else if let firstLockedIndex, offset >= firstLockedIndex {
+                let distanceFromCurrent = offset - firstLockedIndex
+                let kind: PathStop.Kind
+                switch distanceFromCurrent {
+                case 0:  kind = .nextLocked
+                case 1:  kind = .nearLocked
+                default: kind = .farLocked
+                }
+                let nameText: String?
+                let nameColor: Color
+                let detailText: String?
+                let stampText: String?
+                switch kind {
+                case .nextLocked:
+                    let minutesAway = max(0, landmark.minutesFromStart - progressMinutes)
+                    nameText = landmark.name
+                    nameColor = .brandTextPrimary
+                    detailText = landmark.description
+                    stampText = "About \(formatMinutesAway(minutesAway)) walked away"
+                case .nearLocked:
+                    nameText = landmark.name
+                    nameColor = .brandTextSecondary
+                    detailText = nil
+                    stampText = nil
+                case .farLocked:
+                    nameText = nil
+                    nameColor = .brandTextTertiary
+                    detailText = nil
+                    stampText = nil
+                default:
+                    nameText = nil
+                    nameColor = .brandTextTertiary
+                    detailText = nil
+                    stampText = nil
+                }
+                stops.append(PathStop(
+                    id: landmark.id,
+                    kind: kind,
+                    symbolName: landmark.symbolName,
+                    nameText: nameText,
+                    nameColor: nameColor,
+                    detailText: detailText,
+                    stampText: stampText,
+                    connectorAboveFilled: false,
+                    connectorBelowFilled: false,
+                    accessibilityLabel: kind == .nextLocked
+                        ? "Coming up: \(landmark.name). \(landmark.description)"
+                        : (nameText.map { "Locked: \($0)" } ?? "Locked landmark")
+                ))
+            }
+        }
+
+        // "You" marker — inserted between last past and first locked. If the
+        // user has finished every landmark, the marker sits at the end.
+        let firstNonPastIndex = stops.firstIndex(where: { $0.kind != .past }) ?? stops.count
+        let nextName: String?
+        if firstNonPastIndex < stops.count {
+            let nextStop = stops[firstNonPastIndex]
+            nextName = nextStop.nameText
+        } else {
+            nextName = nil
+        }
+        let youDetail: String?
+        if let nextName {
+            youDetail = "Walking toward \(nextName)."
+        } else {
+            youDetail = nil
+        }
+        let youStop = PathStop(
+            id: "__you__",
+            kind: .current,
+            symbolName: "pawprint.fill",
+            nameText: "You're here",
+            nameColor: .brandTextPrimary,
+            detailText: youDetail,
+            stampText: nil,
+            connectorAboveFilled: true,
+            connectorBelowFilled: false,
+            accessibilityLabel: "You are here. \(youDetail ?? "")"
+        )
+        stops.insert(youStop, at: firstNonPastIndex)
+
+        return stops
+    }
+
+    private func formatMinutesAway(_ minutes: Int) -> String {
+        if minutes < 60 { return "\(minutes) min" }
         let h = minutes / 60
         let m = minutes % 60
-        let durationPart = m == 0 ? "\(h)h" : "\(h)h \(m)m"
-        return "\(walksPart) · \(durationPart)"
+        return m == 0 ? "\(h) hr" : "\(h) hr \(m) min"
     }
 
-    /// The hour-of-day that contains the most walks, when at least three
-    /// walks share that hour. Returns nil otherwise — a "most consistent"
-    /// claim from one or two walks is just noise.
-    private func mostConsistentHour(walks: [Walk]) -> Int? {
-        guard walks.count >= 3 else { return nil }
-        var byHour: [Int: Int] = [:]
-        for walk in walks {
-            byHour[Calendar.current.component(.hour, from: walk.startedAt), default: 0] += 1
+    private struct PathStop: Identifiable {
+        enum Kind {
+            case past
+            case current
+            case nextLocked
+            case nearLocked
+            case farLocked
         }
-        guard let top = byHour.max(by: { $0.value < $1.value }), top.value >= 3 else { return nil }
-        return top.key
-    }
-
-    /// "Today" / "Yesterday" / weekday name within the last week / "5 May"
-    /// past that. Idiomatic for short captions.
-    private static func relativeDay(_ date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "today" }
-        if calendar.isDateInYesterday(date) { return "yesterday" }
-        let days = calendar.dateComponents([.day], from: date, to: .now).day ?? 0
-        if days < 7 {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_GB")
-            formatter.dateFormat = "EEEE"
-            return formatter.string(from: date)
-        }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_GB")
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: date)
-    }
-
-    private static func formatHour(_ hour: Int) -> String {
-        switch hour {
-        case 0: return "midnight"
-        case 12: return "noon"
-        case 1...11: return "\(hour)am"
-        default: return "\(hour - 12)pm"
-        }
+        let id: String
+        let kind: Kind
+        let symbolName: String
+        let nameText: String?
+        let nameColor: Color
+        let detailText: String?
+        let stampText: String?
+        let connectorAboveFilled: Bool
+        let connectorBelowFilled: Bool
+        let accessibilityLabel: String
     }
 }
 
-// MARK: - Coming up
+// MARK: - Chapters journal
 
-private struct ComingUpSection: View {
-    let currentRouteID: String
+/// A memory card per completed route. Replaces the old "Completed seasons"
+/// pill row + "Up next, after this" tease, both of which were mystery noise
+/// rather than emotional payoff. Each card shows the chapter name, total
+/// time, and a one-sentence dog-voice memory generated by
+/// `ChapterMemoryService` (LLM, cached forever) with a templated fallback.
+///
+/// On appear, the card requests memory generation for any completed route
+/// that doesn't have one yet. Idempotent — fires at most one LLM call per
+/// (dog, route) for the lifetime of the install.
+private struct ChaptersJournal: View {
+    let dog: Dog
     let completedIDs: [String]
 
-    var body: some View {
-        let nextID = JourneyService.nextRouteID(after: currentRouteID)
-        let nextRoute = JourneyService.route(for: nextID)
-        let completed = completedRoutes()
+    /// Bumped after a memory generation request so the view re-reads the
+    /// cache. Generation is fire-and-forget; we re-render lazily on next
+    /// scrolls or tab returns. The bump is for deterministic SwiftUI Preview
+    /// updates more than runtime needs.
+    @State private var refreshTick: Int = 0
 
-        VStack(alignment: .leading, spacing: Space.md) {
-            if !completed.isEmpty {
-                completedBlock(routes: completed)
+    var body: some View {
+        let routes = completedRoutes
+        if routes.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                Text("Chapters walked")
+                    .font(.titleSmall)
+                    .foregroundStyle(Color.brandTextPrimary)
+
+                VStack(spacing: Space.sm) {
+                    ForEach(routes) { route in
+                        chapterCard(route: route)
+                    }
+                }
             }
-            if let nextRoute, nextID != currentRouteID, !completedIDs.contains(currentRouteID) {
-                comingUpBlock(route: nextRoute)
+            .onAppear {
+                for route in routes {
+                    ChapterMemoryService.generateIfNeeded(routeID: route.id, route: route, dog: dog)
+                }
             }
         }
     }
 
-    private func completedRoutes() -> [Route] {
+    private var completedRoutes: [Route] {
         completedIDs.compactMap { JourneyService.route(for: $0) }
     }
 
-    private func completedBlock(routes: [Route]) -> some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            Text("Completed seasons")
-                .font(.titleSmall)
-                .foregroundStyle(Color.brandTextPrimary)
-            FlowLayout(spacing: Space.sm) {
-                ForEach(routes) { route in
-                    completedPill(route: route)
-                }
-            }
-        }
-    }
-
-    private func completedPill(route: Route) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .bold))
-            Text(route.name)
-                .font(.captionBold)
-        }
-        .foregroundStyle(Color.brandSecondary)
-        .padding(.horizontal, Space.sm + 2)
-        .padding(.vertical, 6)
-        .background(Color.brandSecondaryTint)
-        .clipShape(Capsule())
-    }
-
-    private func comingUpBlock(route: Route) -> some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            Text("Up next, after this")
-                .font(.titleSmall)
-                .foregroundStyle(Color.brandTextPrimary)
-
-            HStack(spacing: Space.md) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.brandTextTertiary)
-                    .frame(width: 36, height: 36)
-                    .background(Color.brandSurface)
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(route.name)
-                        .font(.bodyLarge.weight(.semibold))
-                        .foregroundStyle(Color.brandTextPrimary)
-                    Text(route.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Color.brandTextSecondary)
-                        .lineLimit(2)
-                }
+    private func chapterCard(route: Route) -> some View {
+        let memory = ChapterMemoryService.cachedMemory(routeID: route.id, dog: dog)
+            ?? ChapterMemoryService.templatedFallback(routeID: route.id, route: route, dog: dog)
+        let totalLabel = formatHours(route.totalMinutes)
+        return VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(route.name)
+                    .font(.bodyLarge.weight(.semibold))
+                    .foregroundStyle(Color.brandTextPrimary)
                 Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(totalLabel)
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color.brandSecondary)
             }
-            .padding(Space.md)
-            .background(Color.brandSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-            .brandCardShadow()
+            Text(.init("*\(memory)*"))
+                .font(.bodyMedium)
+                .foregroundStyle(Color.brandTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(Space.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandSurfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .brandCardShadow()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Chapter walked: \(route.name). \(memory)")
+    }
+
+    private func formatHours(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        if h == 0 { return "\(m) min" }
+        if m == 0 { return "\(h)h" }
+        return "\(h)h \(m)m"
     }
 }
 
@@ -765,53 +721,5 @@ private struct EmptyJourneyPlaceholder: View {
                 .foregroundStyle(Color.brandTextSecondary)
         }
         .padding(Space.xl)
-    }
-}
-
-// MARK: - Tiny flow layout
-
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = Space.sm
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var rows: [[CGSize]] = [[]]
-        var currentRowWidth: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if currentRowWidth + size.width > maxWidth, !rows[rows.count - 1].isEmpty {
-                rows.append([])
-                currentRowWidth = 0
-            }
-            rows[rows.count - 1].append(size)
-            currentRowWidth += size.width + spacing
-        }
-
-        let height = rows.reduce(0) { sum, row in
-            sum + (row.map(\.height).max() ?? 0) + spacing
-        } - spacing
-        return CGSize(width: maxWidth, height: max(0, height))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x: CGFloat = bounds.minX
-        var y: CGFloat = bounds.minY
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > bounds.maxX, x > bounds.minX {
-                x = bounds.minX
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            subview.place(
-                at: CGPoint(x: x, y: y),
-                proposal: ProposedViewSize(size)
-            )
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
     }
 }

@@ -367,7 +367,7 @@ private struct DogPresenceCard: View {
         VStack(spacing: Space.md) {
             Text("\(dog.name)'s \(partOfDay).")
                 .font(.displayMedium)
-                .foregroundStyle(Color.brandSecondary)
+                .atmosphereTextPrimary()
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {

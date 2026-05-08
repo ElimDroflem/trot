@@ -155,31 +155,34 @@ private struct StatTile: View {
     let label: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
+        HStack(spacing: Space.sm) {
             ZStack {
                 Circle()
                     .fill(tint.opacity(0.14))
-                    .frame(width: 26, height: 26)
+                    .frame(width: 32, height: 32)
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(tint)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value)
-                    .font(.displayMedium)
-                    .foregroundStyle(Color.brandTextPrimary)
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.brandTextTertiary)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(value)
+                        .font(.titleMedium)
+                        .foregroundStyle(Color.brandTextPrimary)
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                    if !unit.isEmpty {
+                        Text(unit)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.brandTextTertiary)
+                    }
                 }
+                Text(label.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.brandTextSecondary)
             }
-            Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(0.5)
-                .foregroundStyle(Color.brandTextSecondary)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, Space.md)
         .padding(.vertical, Space.sm)

@@ -6,8 +6,8 @@ import Charts
 /// text observations. Reading order:
 ///
 ///   1. Header — "Insights" / "What Luna's been up to."
-///   2. Weekday rhythm chart — bars showing minutes-per-weekday so the
-///      pattern is visible, not just stated.
+///   2. Daily rhythm chart — vertical bars showing minutes-by-hour-of-day
+///      so the dog's preferred walk time is visible, not just stated.
 ///   3. Stats grid — 2×2 of StatCard (this week, vs last, longest walk,
 ///      current streak). Replaces the old "4 walks / 78 minutes" strip.
 ///   4. Luna says — single LLM dog-voice line about a noticed pattern.
@@ -45,8 +45,8 @@ struct InsightsView: View {
                                 dogName: dog.name
                             )
                         } else {
-                            WeekdayRhythmCard(
-                                minutesByWeekday: stats.minutesByWeekday,
+                            DailyRhythmCard(
+                                minutesByHour: stats.minutesByHour,
                                 averagePerActiveDay: stats.averageMinutesPerActiveDay,
                                 dogName: dog.name
                             )
@@ -110,10 +110,10 @@ struct InsightsView: View {
         VStack(alignment: .leading, spacing: Space.xs) {
             Text("Insights")
                 .font(.displayMedium)
-                .foregroundStyle(Color.brandSecondary)
+                .atmosphereTextPrimary()
             Text("What \(dog.name)'s been up to.")
                 .font(.bodyMedium)
-                .foregroundStyle(Color.brandTextSecondary)
+                .atmosphereTextSecondary()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -156,34 +156,53 @@ struct InsightsView: View {
     }
 }
 
-// MARK: - Hero chart (weekday rhythm)
+// MARK: - Hero chart (daily rhythm)
 
-/// Bar chart of total walking minutes per weekday across the dog's history.
-/// Coral bars; the average-per-active-day caption sits underneath. When all
-/// bars are zero we render a flat track with a "Trot is still learning"
-/// caption rather than a confusing empty axis.
-private struct WeekdayRhythmCard: View {
-    /// 7 integers, Mon (0) → Sun (6), of total minutes walked on that weekday.
-    let minutesByWeekday: [Int]
+/// Vertical bar chart of total walking minutes by hour-of-day across the
+/// dog's whole history. Shows when of the day the dog is most active —
+/// matches the visual idiom of the TodayTimeline on Home so the two screens
+/// rhyme. Range is 5am–11pm because nobody walks the dog at 3am, and
+/// trimming the axis lets the live bars breathe.
+private struct DailyRhythmCard: View {
+    /// 24 integers indexed by hour-of-day (0-23).
+    let minutesByHour: [Int]
     let averagePerActiveDay: Int
     let dogName: String
 
-    /// Full weekday names — used as Y-axis labels in the horizontal bar
-    /// chart. We render the chart sideways so it visually differs from the
-    /// daily-minutes vertical chart underneath.
-    private let weekdayLabels: [String] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    /// Hours we render on the x-axis. Trims the dead-of-night where 99% of
+    /// users have zero walks, so the daytime distribution reads cleanly.
+    private let visibleHours: [Int] = Array(5...23)
 
-    private var allZero: Bool { minutesByWeekday.allSatisfy { $0 == 0 } }
-    private var topWeekday: (label: String, minutes: Int)? {
-        let max = minutesByWeekday.max() ?? 0
-        guard max > 0, let idx = minutesByWeekday.firstIndex(of: max) else { return nil }
-        return (fullDayName(idx), max)
+    private struct HourBin: Identifiable {
+        let hour: Int
+        let minutes: Int
+        var id: Int { hour }
+        /// Stable categorical label keyed on the hour itself. Drives the
+        /// discrete x-axis; the visible label is replaced via AxisValueLabel
+        /// so we only render every third tick.
+        var label: String { String(format: "%02d", hour) }
     }
+
+    private var visibleSeries: [HourBin] {
+        visibleHours.map { HourBin(hour: $0, minutes: minutesByHour[$0]) }
+    }
+
+    private var allZero: Bool { visibleSeries.allSatisfy { $0.minutes == 0 } }
+
+    private var topHour: Int? {
+        let pairs = visibleSeries.filter { $0.minutes > 0 }
+        guard let top = pairs.max(by: { $0.minutes < $1.minutes }) else { return nil }
+        return top.hour
+    }
+
+    /// Hours where we want a written label on the x-axis. Every third hour
+    /// keeps the axis legible without crowding.
+    private let labeledHours: Set<Int> = [6, 9, 12, 15, 18, 21]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Weekday rhythm")
+                Text("Daily rhythm")
                     .font(.titleSmall)
                     .foregroundStyle(Color.brandTextPrimary)
                 Spacer()
@@ -194,43 +213,45 @@ private struct WeekdayRhythmCard: View {
                 }
             }
 
-            // Horizontal bars — Y-axis is the day, X-axis is minutes. Visually
-            // distinct from the vertical daily-minutes chart further down on
-            // the same screen, so the eye reads them as different shapes.
             Chart {
-                ForEach(Array(minutesByWeekday.enumerated()), id: \.offset) { index, minutes in
+                ForEach(visibleSeries) { entry in
                     BarMark(
-                        x: .value("Minutes", minutes),
-                        y: .value("Day", weekdayLabels[index])
+                        x: .value("Hour", entry.label),
+                        y: .value("Minutes", entry.minutes)
                     )
-                    .foregroundStyle(Color.brandPrimary)
+                    .foregroundStyle(barTint(for: entry.hour))
                     .cornerRadius(3)
                 }
             }
-            .chartYAxis {
-                AxisMarks(preset: .aligned, position: .leading, values: weekdayLabels) { _ in
-                    AxisValueLabel()
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.brandTextTertiary)
+            .chartXAxis {
+                AxisMarks(values: visibleHours.map { String(format: "%02d", $0) }) { value in
+                    AxisGridLine().foregroundStyle(Color.brandDivider.opacity(0.4))
+                    AxisValueLabel {
+                        if let raw = value.as(String.self), let hour = Int(raw),
+                           labeledHours.contains(hour) {
+                            Text(hourLabel(hour))
+                                .font(.caption2)
+                                .foregroundStyle(Color.brandTextTertiary)
+                        }
+                    }
                 }
             }
-            .chartXAxis {
+            .chartYAxis {
                 AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                    AxisGridLine()
-                        .foregroundStyle(Color.brandDivider.opacity(0.6))
+                    AxisGridLine().foregroundStyle(Color.brandDivider.opacity(0.6))
                     AxisValueLabel()
                         .font(.caption2)
                         .foregroundStyle(Color.brandTextTertiary)
                 }
             }
-            .frame(height: 160)
+            .frame(height: 140)
 
             if allZero {
                 Text("Trot is still learning \(dogName)'s rhythm. Log a walk.")
                     .font(.caption)
                     .foregroundStyle(Color.brandTextSecondary)
-            } else if let top = topWeekday {
-                Text("Strongest day so far: \(top.label).")
+            } else if let hour = topHour {
+                Text("\(dogName) walks most around \(hourLabel(hour)).")
                     .font(.caption)
                     .foregroundStyle(Color.brandTextSecondary)
             }
@@ -241,8 +262,20 @@ private struct WeekdayRhythmCard: View {
         .brandCardShadow()
     }
 
-    private func fullDayName(_ index: Int) -> String {
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][index]
+    /// Coral by default, secondary green for the early-morning band so the
+    /// chart has a touch of the warm/cool split the rest of the design system
+    /// uses to encode time-of-day.
+    private func barTint(for hour: Int) -> Color {
+        hour < 9 ? Color.brandSecondary : Color.brandPrimary
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        switch hour {
+        case 0: return "12am"
+        case 12: return "12pm"
+        case 1...11: return "\(hour)am"
+        default: return "\(hour - 12)pm"
+        }
     }
 }
 
@@ -443,8 +476,10 @@ struct InsightsStats: Equatable {
     let lastWeekMinutes: Int
     let longestWalkMinutes: Int
     let currentStreak: Int
-    /// 7 integers, Mon (index 0) → Sun (index 6).
-    let minutesByWeekday: [Int]
+    /// 24 integers indexed by hour-of-day (0-23). Total minutes the dog has
+    /// walked starting in that hour, across the dog's whole walk history.
+    /// Powers the "Daily rhythm" chart on Insights.
+    let minutesByHour: [Int]
     let averageMinutesPerActiveDay: Int
 
     var weekDelta: Int { thisWeekMinutes - lastWeekMinutes }
@@ -482,7 +517,7 @@ struct InsightsStats: Equatable {
         var thisWeekMinutes = 0
         var lastWeekMinutes = 0
         var longest = 0
-        var byWeekday: [Int: Int] = [:]      // weekday raw (1=Sun, 7=Sat)
+        var byHour: [Int] = Array(repeating: 0, count: 24)
         var activeDays: Set<Date> = []
 
         for walk in walks {
@@ -494,18 +529,11 @@ struct InsightsStats: Equatable {
                 lastWeekMinutes += walk.durationMinutes
             }
             longest = max(longest, walk.durationMinutes)
-            let weekday = calendar.component(.weekday, from: walk.startedAt)
-            byWeekday[weekday, default: 0] += walk.durationMinutes
+            let hour = calendar.component(.hour, from: walk.startedAt)
+            if hour >= 0 && hour < 24 {
+                byHour[hour] += walk.durationMinutes
+            }
             activeDays.insert(day)
-        }
-
-        // Re-key Sun-first (1=Sun … 7=Sat) into Mon-first (Mon … Sun) for UK
-        // reading conventions.
-        let monFirst: [Int] = (0..<7).map { i in
-            // i=0 → Monday (raw 2), i=1 → Tuesday (raw 3), …, i=5 → Saturday
-            // (raw 7), i=6 → Sunday (raw 1)
-            let raw = i == 6 ? 1 : i + 2
-            return byWeekday[raw] ?? 0
         }
 
         let totalMinutes = walks.reduce(0) { $0 + $1.durationMinutes }
@@ -518,7 +546,7 @@ struct InsightsStats: Equatable {
             lastWeekMinutes: lastWeekMinutes,
             longestWalkMinutes: longest,
             currentStreak: streak,
-            minutesByWeekday: monFirst,
+            minutesByHour: byHour,
             averageMinutesPerActiveDay: avgPerActiveDay
         )
     }

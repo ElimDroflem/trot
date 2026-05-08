@@ -69,6 +69,12 @@ enum DogInsightsService {
     /// "Beagles need 60-90 min daily. You're averaging 45 — room to grow."
     /// Anchors the dog's average against the breed-table target. Tells the
     /// owner whether they're over, on track, or under, and by how much.
+    ///
+    /// Body copy explicitly labels the average as "min/day across the last 7
+    /// days" and includes the total + walk count so it never reads as "X
+    /// minutes per walk." (Earlier wording said "averaging 6 minutes" for a
+    /// dog with one 42-min walk in the last week, which sounded broken even
+    /// though the math was right.)
     private static func volumeInsight(
         for dog: Dog,
         walks: [Walk],
@@ -82,6 +88,7 @@ enum DogInsightsService {
 
         let breed = dog.breedPrimary.isEmpty ? "Dogs your dog's size" : "\(dog.breedPrimary)s"
         let dogName = dog.name
+        let context = recentVolumeContext(walks: walks, now: now, calendar: calendar)
 
         if avg < Int(Double(target) * 0.7) {
             let gap = target - avg
@@ -89,23 +96,42 @@ enum DogInsightsService {
                 id: "volume.under",
                 kind: .volume,
                 title: "Room to walk more",
-                body: "\(breed) at \(dogName)'s stage do well around \(target) min a day. \(dogName) is averaging \(avg). \(gap) min more would close the gap."
+                body: "\(breed) at \(dogName)'s stage do well around \(target) min/day. \(dogName) averaged \(avg) min/day across the last 7 days (\(context)). \(gap) min/day more would close the gap."
             )
         } else if avg > Int(Double(target) * 1.4) {
             return DogInsight(
                 id: "volume.over",
                 kind: .volume,
                 title: "Plenty of mileage",
-                body: "\(dogName) is averaging \(avg) min a day, well above the typical \(target) for \(breed.lowercased()). Plenty for the breed — make sure rest days happen."
+                body: "\(dogName) averaged \(avg) min/day across the last 7 days (\(context)), well above the typical \(target) for \(breed.lowercased()). Make sure rest days happen."
             )
         } else {
             return DogInsight(
                 id: "volume.on",
                 kind: .volume,
                 title: "On the breed mark",
-                body: "\(breed) at \(dogName)'s stage do best around \(target) min daily. \(dogName)'s averaging \(avg) — about right."
+                body: "\(breed) at \(dogName)'s stage do best around \(target) min/day. \(dogName) averaged \(avg) min/day across the last 7 days (\(context)) — about right."
             )
         }
+    }
+
+    /// "182 min total over 5 walks" — appears in volume body copy so the
+    /// reader can see the per-walk picture alongside the per-day average.
+    private static func recentVolumeContext(
+        walks: [Walk],
+        now: Date,
+        calendar: Calendar
+    ) -> String {
+        let todayDay = calendar.startOfDay(for: now)
+        let windowStart = calendar.date(byAdding: .day, value: -6, to: todayDay) ?? todayDay
+        let recent = walks.filter {
+            let d = calendar.startOfDay(for: $0.startedAt)
+            return d >= windowStart && d <= todayDay
+        }
+        let total = recent.reduce(0) { $0 + $1.durationMinutes }
+        let count = recent.count
+        let walksLabel = count == 1 ? "1 walk" : "\(count) walks"
+        return "\(total) min total over \(walksLabel)"
     }
 
     // MARK: - Life stage

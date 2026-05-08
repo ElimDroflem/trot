@@ -15,6 +15,7 @@ import SwiftUI
 struct WalkWindowTile: View {
     let dog: Dog
 
+    @Environment(AppState.self) private var appState
     @State private var state: TileState = .loading
     @State private var postcode: String = UserPreferences.postcode
     @State private var showingPostcodeEditor = false
@@ -96,7 +97,7 @@ struct WalkWindowTile: View {
 
     private func recommendationTile(_ rec: WalkRecommendationService.Recommendation) -> some View {
         tileShell(
-            icon: weatherIcon(for: rec.category),
+            icon: weatherIcon(for: rec.category, isDay: !appState.atmosphereIsNight),
             tint: weatherTint(for: rec.category),
             title: rec.headline,
             subtitle: rec.detail,
@@ -191,16 +192,19 @@ struct WalkWindowTile: View {
 
     // MARK: - Visual mapping
 
-    private func weatherIcon(for category: WeatherCategory) -> String {
+    /// Sun symbols at night look wrong on a deep-navy sky — swap to moon
+    /// variants when the atmosphere is in night mode. Categories without a
+    /// natural night counterpart (storm, snow) keep their daytime icon.
+    private func weatherIcon(for category: WeatherCategory, isDay: Bool) -> String {
         switch category {
-        case .clear:        return "sun.max.fill"
-        case .partlyCloudy: return "cloud.sun.fill"
+        case .clear:        return isDay ? "sun.max.fill" : "moon.stars.fill"
+        case .partlyCloudy: return isDay ? "cloud.sun.fill" : "cloud.moon.fill"
         case .cloudy:       return "cloud.fill"
         case .fog:          return "cloud.fog.fill"
-        case .drizzle:      return "cloud.drizzle.fill"
-        case .rain:         return "cloud.rain.fill"
+        case .drizzle:      return isDay ? "cloud.drizzle.fill" : "cloud.moon.rain.fill"
+        case .rain:         return isDay ? "cloud.rain.fill" : "cloud.moon.rain.fill"
         case .snow:         return "cloud.snow.fill"
-        case .thunder:      return "cloud.bolt.rain.fill"
+        case .thunder:      return isDay ? "cloud.bolt.rain.fill" : "cloud.moon.bolt.fill"
         }
     }
 

@@ -82,19 +82,103 @@ struct DogChatCard: View {
         }
     }
 
-    /// Tiny static fallback set so the card always has something to say even
-    /// if the proxy is offline. Keyed to slot so the time-of-day flavour
-    /// matches the user's expectation; uses `dog.name` so it still feels
-    /// personalised.
-    static func fallback(for slot: LLMService.DogChatSlot, dog: Dog) -> String {
+    /// Static fallback library — used when the LLM is offline, throttled, or
+    /// hasn't responded yet. Keyed to slot so the time-of-day flavour is
+    /// right; rotated deterministically by (dog × day × slot) so the user
+    /// sees variety across days without it feeling random within a session.
+    /// Pulls from a wider bank than the LLM-disabled v1 of this card to
+    /// guarantee character even on cold start.
+    static func fallback(
+        for slot: LLMService.DogChatSlot,
+        dog: Dog,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> String {
         let name = dog.name
+        let pool: [String] = lines(for: slot, name: name, breed: dog.breedPrimary)
+        let dayKey = Self.dayKey(now, calendar: calendar)
+        var hasher = Hasher()
+        hasher.combine(dog.persistentModelID.hashValue)
+        hasher.combine(dayKey)
+        hasher.combine(slot.rawValue)
+        hasher.combine("fallback") // distinct from the LLM category-pick hash
+        let value = abs(hasher.finalize())
+        return pool[value % pool.count]
+    }
+
+    private static func dayKey(_ date: Date, calendar: Calendar) -> String {
+        let comps = calendar.dateComponents([.year, .month, .day], from: date)
+        return "\(comps.year ?? 0)-\(comps.month ?? 0)-\(comps.day ?? 0)"
+    }
+
+    /// The fallback bank. Lines stay in-character: dry, slightly dramatic,
+    /// specific where they can be. Some lean on breed if we can identify a
+    /// flavour from the breed string; others are universal.
+    private static func lines(for slot: LLMService.DogChatSlot, name: String, breed: String) -> [String] {
+        let breedFlavour = breedAside(for: breed)
         switch slot {
         case .morning:
-            return "Morning. \(name) reporting for duty."
+            return [
+                "Morning. The garden has been audited. Three new smells.",
+                "Briefing: birds at six o'clock, postman due at nine.",
+                "I dreamed about cheese. Then I dreamed about more cheese.",
+                "Up. Stretched. Thought about breakfast for forty minutes.",
+                "\(breedFlavour) Currently waiting for a sock to fall.",
+                "The day is long, the lead is short. Let's address that.",
+                "I checked: the squirrels still exist. Worrying.",
+            ]
         case .afternoon:
-            return "What's the plan, then."
+            return [
+                "Park or river? You pick. I'll lead.",
+                "Phase one of today's plan: look pitiful near the kitchen.",
+                "Hypothesis: the postman is suspicious. Evidence: he leaves.",
+                "Guess what's behind the bins. Go on.",
+                "If we leave now, we beat the small dog with the loud opinions.",
+                "I have done nothing for two hours. It feels structured.",
+                "\(breedFlavour) Open to lunchtime suggestions.",
+            ]
         case .evening:
-            return "Long day. Going to lie down dramatically."
+            return [
+                "Long day. Going to lie down dramatically.",
+                "Three walks would have been better, but I respect your choices.",
+                "I've decided the rug is mine now. We'll talk about it tomorrow.",
+                "Settling in. The sofa knows what it did.",
+                "If anyone calls, tell them I'm asleep. I'm not, but tell them.",
+                "\(breedFlavour) Currently fighting the urge to bark at nothing.",
+                "Tonight's plot: get on the bed before you notice.",
+            ]
         }
+    }
+
+    /// Breed-flavoured aside used inside the bigger fallback lines. Matches
+    /// the dog's breed family loosely so a sighthound line doesn't show up
+    /// for a French Bulldog. Defaults to a neutral one-liner.
+    private static func breedAside(for breed: String) -> String {
+        let lower = breed.lowercased()
+        if lower.contains("beagle") || lower.contains("hound") {
+            return "Bred to follow my nose."
+        }
+        if lower.contains("terrier") {
+            return "Bred to dig things up. Working on the carpet."
+        }
+        if lower.contains("retriever") || lower.contains("labrador") {
+            return "Bred to fetch. Currently fetching nothing."
+        }
+        if lower.contains("collie") || lower.contains("shepherd") || lower.contains("kelpie") {
+            return "Bred to herd. Counting things in the kitchen."
+        }
+        if lower.contains("spaniel") {
+            return "Bred to flush birds. Currently flushing crumbs."
+        }
+        if lower.contains("bulldog") || lower.contains("pug") || lower.contains("frenchie") {
+            return "Bred to be a chair, mostly."
+        }
+        if lower.contains("husky") || lower.contains("malamute") {
+            return "Bred to pull a sled. Pulling at the lead instead."
+        }
+        if lower.contains("dachshund") || lower.contains("sausage") {
+            return "Long. Low. Determined."
+        }
+        return "Doing the job, more or less."
     }
 }

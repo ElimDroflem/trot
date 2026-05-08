@@ -24,6 +24,7 @@ import SwiftUI
 /// flash a mood that's about to change.
 struct WeatherMoodLayer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AppState.self) private var appState
     @State private var snapshot: HourlySnapshot?
     /// Re-read on every appear so a debug-override change in Profile lands
     /// immediately on the next tab swap.
@@ -51,22 +52,36 @@ struct WeatherMoodLayer: View {
         ZStack {
             SkyGradient(category: category, isDay: isDay)
 
-            // Atmospheric mid-layer (sun OR clouds OR neither). These sit
+            // Star field — only visible at night, only meaningful with sky
+            // showing through. Sits below the moon/clouds.
+            if !isDay && (category == .clear || category == .partlyCloudy) {
+                StarField()
+            }
+
+            // Atmospheric mid-layer (sun/moon OR clouds OR neither). These sit
             // behind the foreground particles so rain falls through them.
             switch category {
             case .clear:
-                SunDisc(isDay: isDay, intensity: 1.0)
+                if isDay {
+                    SunDisc(intensity: 1.0)
+                } else {
+                    MoonDisc(intensity: 1.0)
+                }
             case .partlyCloudy:
                 ZStack {
-                    SunDisc(isDay: isDay, intensity: 0.7)
+                    if isDay {
+                        SunDisc(intensity: 0.7)
+                    } else {
+                        MoonDisc(intensity: 0.7)
+                    }
                     CloudBank(density: 0.4, windSpeedKmh: snapshot.windSpeedKmh, tint: cloudTint(isDay: isDay))
                 }
             case .cloudy:
                 CloudBank(density: 0.85, windSpeedKmh: snapshot.windSpeedKmh, tint: cloudTint(isDay: isDay))
             case .fog:
-                FogLayer()
+                FogLayer(isDay: isDay)
             case .drizzle, .rain, .thunder:
-                CloudBank(density: 0.95, windSpeedKmh: snapshot.windSpeedKmh, tint: stormCloudTint())
+                CloudBank(density: 0.95, windSpeedKmh: snapshot.windSpeedKmh, tint: stormCloudTint(isDay: isDay))
             case .snow:
                 CloudBank(density: 0.6, windSpeedKmh: snapshot.windSpeedKmh, tint: cloudTint(isDay: isDay))
             }
@@ -95,12 +110,21 @@ struct WeatherMoodLayer: View {
 
     // MARK: - Cloud tint helpers
 
+    /// Cloud tint differs between day (bright white puffs) and night (dim
+    /// silvery clouds with a navy undercast) so the same cloudy hour reads
+    /// genuinely differently at noon and midnight.
     private func cloudTint(isDay: Bool) -> Color {
-        isDay ? Color.white.opacity(0.85) : Color(red: 0.92, green: 0.88, blue: 0.95).opacity(0.75)
+        isDay
+            ? Color.white.opacity(0.85)
+            : Color(red: 0.62, green: 0.66, blue: 0.78).opacity(0.55)
     }
 
-    private func stormCloudTint() -> Color {
-        Color(red: 0.40, green: 0.43, blue: 0.50).opacity(0.55)
+    /// Storm clouds — flatter/darker than fair clouds. Night version pushes
+    /// further toward indigo so the rain palette doesn't feel daylit.
+    private func stormCloudTint(isDay: Bool) -> Color {
+        isDay
+            ? Color(red: 0.40, green: 0.43, blue: 0.50).opacity(0.55)
+            : Color(red: 0.20, green: 0.22, blue: 0.32).opacity(0.62)
     }
 
     // MARK: - Load
@@ -116,6 +140,7 @@ struct WeatherMoodLayer: View {
                 withAnimation(.brandDefault) {
                     snapshot = Self.syntheticSnapshot(for: forced)
                 }
+                publishAtmosphere(snapshot)
             }
             return
         }
@@ -130,13 +155,26 @@ struct WeatherMoodLayer: View {
             withAnimation(.brandDefault) {
                 snapshot = current
             }
+            publishAtmosphere(snapshot)
         }
+    }
+
+    /// Publishes the loaded snapshot's category + isDay onto AppState so
+    /// other views (card borders, tab headers) can swap their styling
+    /// without needing to re-fetch the forecast themselves.
+    @MainActor
+    private func publishAtmosphere(_ snap: HourlySnapshot?) {
+        guard let snap else { return }
+        appState.atmosphereIsNight = !snap.isDay
+        appState.atmosphereCategory = snap.category
     }
 
     /// Build an `HourlySnapshot` whose `category` resolves to `target` and whose
     /// other fields read as a plausible example of that weather. Used by the
     /// DEBUG override path. The wind speed deliberately varies per category so
     /// cloud drift speed differs visibly between (e.g.) calm and stormy.
+    /// `isDay` honours `DebugOverrides.forceNight` so the night palettes can
+    /// be QA'd without waiting for actual nightfall.
     private static func syntheticSnapshot(for target: WeatherCategory) -> HourlySnapshot {
         let (code, tempC, precip, wind): (Int, Double, Int, Double) = {
             switch target {
@@ -150,13 +188,20 @@ struct WeatherMoodLayer: View {
             case .thunder:      return (95, 14, 95, 26)
             }
         }()
+        let isDay: Bool = {
+            #if DEBUG
+            return !DebugOverrides.forceNight
+            #else
+            return true
+            #endif
+        }()
         return HourlySnapshot(
             time: .now,
             temperatureC: tempC,
             precipitationProbability: precip,
             weatherCodeRaw: code,
             windSpeedKmh: wind,
-            isDay: true
+            isDay: isDay
         )
     }
 }
@@ -172,8 +217,15 @@ private struct SkyGradient: View {
     let isDay: Bool
 
     var body: some View {
+        // Explicit `Gradient.Stop` locations so the gradient hits `.clear`
+        // by ~60% of screen height. Below that, the warm-cream brand surface
+        // shows through — cards then sit on cream, not on dark navy. Without
+        // this, the cards on Insights / Today / Journey punch out of a
+        // night sky as flat white blocks (user feedback: "clunky / 0%
+        // opacity"). The atmosphere stays night-flavoured at the top where
+        // the moon and stars live.
         LinearGradient(
-            colors: stops,
+            stops: stops,
             startPoint: .top,
             endPoint: .bottom
         )
@@ -184,83 +236,119 @@ private struct SkyGradient: View {
     /// were diluted to the point that a clear afternoon and a clear dusk
     /// looked similar — both somewhere around "vaguely warm." Now each
     /// (category × isDay) pair has a distinct palette.
-    private var stops: [Color] {
+    /// Locations: the gradient hits `.clear` at 0.60 (60% down the screen).
+    /// Below that the brand-cream surface reads through. Three colour stops
+    /// occupy the upper 60% so the sky/atmosphere reads with full character
+    /// in the top half where it belongs.
+    private var stops: [Gradient.Stop] {
+        let (top, mid, low) = colorStops
+        return [
+            .init(color: top, location: 0.0),
+            .init(color: mid, location: 0.20),
+            .init(color: low, location: 0.40),
+            .init(color: .clear, location: 0.60),
+        ]
+    }
+
+    /// Three-colour palette per (category × isDay). Locations are applied by
+    /// `stops` so this only owns the colour story.
+    private var colorStops: (top: Color, mid: Color, low: Color) {
         switch (category, isDay) {
         case (.clear, true):
             // Bright daytime — saturated sky blue at the top, warm gold mid.
-            return [
+            return (
                 Color(red: 0.42, green: 0.74, blue: 0.96).opacity(0.92),
                 Color(red: 0.62, green: 0.84, blue: 0.96).opacity(0.70),
-                Color(red: 0.96, green: 0.78, blue: 0.45).opacity(0.42),
-                .clear,
-            ]
+                Color(red: 0.96, green: 0.78, blue: 0.45).opacity(0.42)
+            )
         case (.clear, false):
-            // Sunset: deep purple top, sodium-orange middle, warm fade.
-            return [
-                Color(red: 0.42, green: 0.30, blue: 0.72).opacity(0.85),
-                Color(red: 0.92, green: 0.40, blue: 0.42).opacity(0.65),
-                Color(red: 0.99, green: 0.62, blue: 0.36).opacity(0.45),
-                .clear,
-            ]
+            // Deep night — navy at the top fading to a soft indigo wash.
+            return (
+                Color(red: 0.08, green: 0.11, blue: 0.32).opacity(0.92),
+                Color(red: 0.22, green: 0.24, blue: 0.50).opacity(0.72),
+                Color(red: 0.46, green: 0.42, blue: 0.66).opacity(0.40)
+            )
         case (.partlyCloudy, true):
-            return [
+            return (
                 Color(red: 0.50, green: 0.76, blue: 0.94).opacity(0.85),
                 Color(red: 0.78, green: 0.86, blue: 0.94).opacity(0.55),
-                Color(red: 0.96, green: 0.84, blue: 0.62).opacity(0.32),
-                .clear,
-            ]
+                Color(red: 0.96, green: 0.84, blue: 0.62).opacity(0.32)
+            )
         case (.partlyCloudy, false):
-            return [
-                Color(red: 0.45, green: 0.38, blue: 0.72).opacity(0.78),
-                Color(red: 0.85, green: 0.54, blue: 0.58).opacity(0.55),
-                Color(red: 0.96, green: 0.74, blue: 0.58).opacity(0.32),
-                .clear,
-            ]
-        case (.cloudy, _):
-            return [
+            return (
+                Color(red: 0.10, green: 0.14, blue: 0.34).opacity(0.88),
+                Color(red: 0.32, green: 0.34, blue: 0.55).opacity(0.62),
+                Color(red: 0.55, green: 0.56, blue: 0.72).opacity(0.36)
+            )
+        case (.cloudy, true):
+            return (
                 Color(red: 0.45, green: 0.52, blue: 0.62).opacity(0.85),
                 Color(red: 0.66, green: 0.72, blue: 0.80).opacity(0.55),
-                Color(red: 0.84, green: 0.86, blue: 0.88).opacity(0.30),
-                .clear,
-            ]
-        case (.fog, _):
-            return [
+                Color(red: 0.84, green: 0.86, blue: 0.88).opacity(0.30)
+            )
+        case (.cloudy, false):
+            return (
+                Color(red: 0.16, green: 0.20, blue: 0.32).opacity(0.92),
+                Color(red: 0.32, green: 0.36, blue: 0.46).opacity(0.65),
+                Color(red: 0.50, green: 0.52, blue: 0.60).opacity(0.32)
+            )
+        case (.fog, true):
+            return (
                 Color(red: 0.72, green: 0.74, blue: 0.78).opacity(0.85),
                 Color(red: 0.84, green: 0.84, blue: 0.86).opacity(0.55),
-                Color(red: 0.92, green: 0.92, blue: 0.92).opacity(0.30),
-                .clear,
-            ]
-        case (.drizzle, _), (.rain, _):
-            return [
+                Color(red: 0.92, green: 0.92, blue: 0.92).opacity(0.30)
+            )
+        case (.fog, false):
+            return (
+                Color(red: 0.34, green: 0.38, blue: 0.46).opacity(0.85),
+                Color(red: 0.46, green: 0.50, blue: 0.58).opacity(0.60),
+                Color(red: 0.60, green: 0.62, blue: 0.68).opacity(0.32)
+            )
+        case (.drizzle, true), (.rain, true):
+            return (
                 Color(red: 0.22, green: 0.32, blue: 0.50).opacity(0.92),
                 Color(red: 0.40, green: 0.52, blue: 0.66).opacity(0.65),
-                Color(red: 0.62, green: 0.72, blue: 0.82).opacity(0.32),
-                .clear,
-            ]
-        case (.thunder, _):
-            return [
+                Color(red: 0.62, green: 0.72, blue: 0.82).opacity(0.32)
+            )
+        case (.drizzle, false), (.rain, false):
+            return (
+                Color(red: 0.08, green: 0.14, blue: 0.30).opacity(0.95),
+                Color(red: 0.20, green: 0.28, blue: 0.42).opacity(0.70),
+                Color(red: 0.36, green: 0.42, blue: 0.55).opacity(0.36)
+            )
+        case (.thunder, true):
+            return (
                 Color(red: 0.18, green: 0.20, blue: 0.34).opacity(0.95),
                 Color(red: 0.32, green: 0.36, blue: 0.50).opacity(0.70),
-                Color(red: 0.50, green: 0.54, blue: 0.66).opacity(0.32),
-                .clear,
-            ]
-        case (.snow, _):
-            return [
+                Color(red: 0.50, green: 0.54, blue: 0.66).opacity(0.32)
+            )
+        case (.thunder, false):
+            return (
+                Color(red: 0.06, green: 0.07, blue: 0.18).opacity(0.97),
+                Color(red: 0.18, green: 0.20, blue: 0.32).opacity(0.75),
+                Color(red: 0.34, green: 0.36, blue: 0.46).opacity(0.36)
+            )
+        case (.snow, true):
+            return (
                 Color(red: 0.66, green: 0.78, blue: 0.92).opacity(0.85),
                 Color(red: 0.84, green: 0.90, blue: 0.96).opacity(0.55),
-                Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.30),
-                .clear,
-            ]
+                Color(red: 0.96, green: 0.97, blue: 0.99).opacity(0.30)
+            )
+        case (.snow, false):
+            return (
+                Color(red: 0.20, green: 0.30, blue: 0.50).opacity(0.85),
+                Color(red: 0.42, green: 0.52, blue: 0.70).opacity(0.55),
+                Color(red: 0.72, green: 0.78, blue: 0.88).opacity(0.30)
+            )
         }
     }
 }
 
 // MARK: - Sun disc
 
-/// Soft sun in the top-right with a halo and slowly rotating rays. Day version
-/// is a warm gold; dusk is pinker. Pure SwiftUI — no images.
+/// Soft sun in the top-right with a halo and slowly rotating rays. Pure
+/// SwiftUI — no images. Only used during the day; nighttime uses `MoonDisc`.
 private struct SunDisc: View {
-    let isDay: Bool
     var intensity: Double = 1.0
 
     var body: some View {
@@ -330,16 +418,157 @@ private struct SunDisc: View {
         }
     }
 
-    private var coreColor: Color {
-        isDay
-            ? Color(red: 1.00, green: 0.86, blue: 0.40)   // bright golden noon
-            : Color(red: 1.00, green: 0.52, blue: 0.32)   // hot sunset orange
+    private var coreColor: Color { Color(red: 1.00, green: 0.86, blue: 0.40) }
+    private var haloColor: Color { Color(red: 1.00, green: 0.78, blue: 0.36) }
+}
+
+// MARK: - Moon disc
+
+/// Nighttime counterpart to `SunDisc`. Soft luminous moon with a cool halo,
+/// a few craters for character, and a slow drift of sparkles around it.
+/// Anchored in the same top-right slot so the eye finds the "sky's main
+/// thing" in the same place day or night.
+private struct MoonDisc: View {
+    var intensity: Double = 1.0
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            Canvas { canvas, size in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let centre = CGPoint(x: size.width * 0.78, y: size.height * 0.18)
+                let coreRadius: CGFloat = 46
+                let haloRadius: CGFloat = 140
+
+                // Cool halo — three concentric soft rings, dimmer than the
+                // sun's so it reads as moonlight rather than daylight.
+                for i in 0..<3 {
+                    let r = haloRadius - CGFloat(i) * 30
+                    let rect = CGRect(
+                        x: centre.x - r, y: centre.y - r,
+                        width: r * 2, height: r * 2
+                    )
+                    canvas.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(haloColor.opacity((0.10 + Double(i) * 0.06) * intensity))
+                    )
+                }
+
+                // Core disc — luminous off-white, slightly cool.
+                let coreRect = CGRect(
+                    x: centre.x - coreRadius, y: centre.y - coreRadius,
+                    width: coreRadius * 2, height: coreRadius * 2
+                )
+                canvas.fill(
+                    Path(ellipseIn: coreRect),
+                    with: .color(coreColor.opacity(0.96 * intensity))
+                )
+
+                // Inner highlight — a soft top-left brightening for that
+                // "almost waning gibbous" look.
+                let highlightRect = CGRect(
+                    x: centre.x - coreRadius + 6,
+                    y: centre.y - coreRadius + 6,
+                    width: coreRadius * 1.5,
+                    height: coreRadius * 1.5
+                )
+                canvas.fill(
+                    Path(ellipseIn: highlightRect),
+                    with: .color(.white.opacity(0.16 * intensity))
+                )
+
+                // Three craters — fixed positions relative to the disc, in
+                // a faintly darker grey so they read without being noisy.
+                let craters: [(dx: CGFloat, dy: CGFloat, r: CGFloat)] = [
+                    (-14,  -8, 6),
+                    ( 12,   4, 8),
+                    ( -4,  16, 4),
+                ]
+                for crater in craters {
+                    let rect = CGRect(
+                        x: centre.x + crater.dx - crater.r,
+                        y: centre.y + crater.dy - crater.r,
+                        width: crater.r * 2,
+                        height: crater.r * 2
+                    )
+                    canvas.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(craterColor.opacity(0.32 * intensity))
+                    )
+                }
+
+                // A handful of sparkles drifting slowly around the moon —
+                // anchored deterministically off `t` so positions are stable
+                // but always moving.
+                let sparkleCount = 5
+                for i in 0..<sparkleCount {
+                    let phase = Double(i) * 1.31
+                    let angle = t * 0.05 + phase
+                    let radius = 90.0 + sin(t * 0.3 + phase) * 18
+                    let sparkleX = centre.x + CGFloat(cos(angle) * radius)
+                    let sparkleY = centre.y + CGFloat(sin(angle) * radius * 0.7)
+                    let sparkleR: CGFloat = 1.6
+                    let twinkle = (sin(t * 1.4 + phase) + 1) / 2  // 0...1
+                    let rect = CGRect(
+                        x: sparkleX - sparkleR,
+                        y: sparkleY - sparkleR,
+                        width: sparkleR * 2,
+                        height: sparkleR * 2
+                    )
+                    canvas.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(.white.opacity((0.45 + 0.45 * twinkle) * intensity))
+                    )
+                }
+            }
+        }
     }
 
-    private var haloColor: Color {
-        isDay
-            ? Color(red: 1.00, green: 0.78, blue: 0.36)   // gold halo
-            : Color(red: 0.98, green: 0.42, blue: 0.48)   // sunset rose
+    private var coreColor: Color { Color(red: 0.96, green: 0.96, blue: 0.92) }
+    private var haloColor: Color { Color(red: 0.78, green: 0.84, blue: 0.96) }
+    private var craterColor: Color { Color(red: 0.55, green: 0.58, blue: 0.66) }
+}
+
+// MARK: - Star field
+
+/// A sparse layer of stars across the upper sky. Twinkles via a per-star
+/// phase. Rendered only at night for clear / partly-cloudy skies — heavy
+/// cloud and storm cover would block them anyway.
+private struct StarField: View {
+    private let starCount = 28
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
+            Canvas { canvas, size in
+                let t = context.date.timeIntervalSinceReferenceDate
+                for i in 0..<starCount {
+                    let seed = Double(i) * 0.6180339887
+                    let xFrac = (seed.truncatingRemainder(dividingBy: 1.0))
+                    // Stars sit in the upper half only — below that they'd
+                    // collide with the dog photo / cards.
+                    let yFrac = 0.04 + (seed.truncatingRemainder(dividingBy: 0.45))
+                    let x = xFrac * size.width
+                    let y = yFrac * size.height
+                    // Skip stars that would overlap the moon's anchor.
+                    let moonCentre = CGPoint(x: size.width * 0.78, y: size.height * 0.18)
+                    let dx = x - moonCentre.x
+                    let dy = y - moonCentre.y
+                    if dx * dx + dy * dy < 130 * 130 { continue }
+
+                    let twinklePhase = seed * 6.28
+                    let twinkle = (sin(t * 1.6 + twinklePhase) + 1) / 2  // 0...1
+                    let alpha = 0.35 + 0.55 * twinkle
+                    let radius: CGFloat = 1.0 + CGFloat(i % 3) * 0.5
+                    let rect = CGRect(
+                        x: x - radius, y: y - radius,
+                        width: radius * 2, height: radius * 2
+                    )
+                    canvas.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(.white.opacity(alpha))
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -538,6 +767,8 @@ private struct SnowLayer: View {
 // MARK: - Fog (drifting horizontal bands)
 
 private struct FogLayer: View {
+    var isDay: Bool = true
+
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
             Canvas { canvas, size in
@@ -550,10 +781,14 @@ private struct FogLayer: View {
                     let rect = CGRect(x: -40, y: y, width: size.width + 80, height: bandHeight)
                     canvas.fill(
                         Path(roundedRect: rect, cornerRadius: bandHeight / 2),
-                        with: .color(.white.opacity(0.16))
+                        with: .color(bandColor.opacity(0.16))
                     )
                 }
             }
         }
+    }
+
+    private var bandColor: Color {
+        isDay ? .white : Color(red: 0.78, green: 0.82, blue: 0.92)
     }
 }

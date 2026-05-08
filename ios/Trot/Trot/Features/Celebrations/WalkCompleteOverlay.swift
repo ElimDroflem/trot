@@ -61,8 +61,10 @@ struct WalkCompleteOverlay: View {
                         .transition(.opacity)
                 }
 
-                routeBar
-                    .padding(.horizontal, Space.lg)
+                if event.hasRouteContext {
+                    routeBar
+                        .padding(.horizontal, Space.lg)
+                }
 
                 if !event.landmarksCrossed.isEmpty {
                     landmarkStamps
@@ -108,34 +110,43 @@ struct WalkCompleteOverlay: View {
             return
         }
 
-        // Success haptic the instant the overlay lands.
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        // Layered haptic — a heavy impact lands the moment of arrival, then a
+        // success chord at the photo apex. iOS notification haptics on their
+        // own read soft; pairing them with an impact makes the celebration
+        // feel physical.
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
 
         // Surface fade.
         withAnimation(.brandDefault) { appeared = true }
 
-        // Photo zooms up + ring fills, in sync.
-        withAnimation(.brandCelebration.delay(0.05)) {
+        // Photo zooms up + ring fills, in sync. Tightened slightly (0.05s
+        // earlier kick-off, ring uses .brandCelebration so it pops with the
+        // photo) so the first second of the overlay is visually dense.
+        withAnimation(.brandCelebration) {
             photoScale = 1
             ringFraction = 1
         }
 
-        // Confetti at the apex of the photo zoom.
+        // Success haptic + confetti at the apex of the photo zoom.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             confettiTrigger += 1
         }
 
         // Headline pops in just after.
-        withAnimation(.brandCelebration.delay(0.25)) {
+        withAnimation(.brandCelebration.delay(0.22)) {
             headlineScale = 1
             headlineOpacity = 1
         }
 
-        // Initialise routeFraction at the OLD position so the animate-to-new
-        // produces a visible bar advance.
-        routeFraction = event.oldFraction
-        withAnimation(.brandDefault.delay(0.55)) {
-            routeFraction = event.newFraction
+        // Route bar advance — only animated when there's actually a route.
+        // Initialise at the OLD position so the animate-to-new produces a
+        // visible bar advance.
+        if event.hasRouteContext {
+            routeFraction = event.oldFraction
+            withAnimation(.brandDefault.delay(0.5)) {
+                routeFraction = event.newFraction
+            }
         }
     }
 
@@ -154,7 +165,7 @@ struct WalkCompleteOverlay: View {
                 minutes: event.minutes,
                 isFirstWalk: event.isFirstWalk,
                 landmarksHit: landmarkNames,
-                routeName: event.routeName,
+                routeName: event.routeName ?? "",
                 nextLandmarkName: event.nextLandmarkName
             )
             await MainActor.run {
@@ -220,7 +231,7 @@ struct WalkCompleteOverlay: View {
     private var routeBar: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             HStack {
-                Text(event.routeName.uppercased())
+                Text((event.routeName ?? "ROUTE").uppercased())
                     .font(.caption.weight(.semibold))
                     .tracking(0.5)
                     .foregroundStyle(Color.brandTextTertiary)

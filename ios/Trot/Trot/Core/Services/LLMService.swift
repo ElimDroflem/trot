@@ -28,6 +28,11 @@ enum LLMService {
         /// playful question in the dog's voice. Capped at three calls per
         /// dog per day via slotted caching in `dogChatLine(for:)`.
         case dogChat = "dog_chat"
+        /// Journey-tab chapter epitaph — fires once when a route completes,
+        /// generates a single sentence in the dog's voice that summarises
+        /// the season the user just walked through. Cached forever in
+        /// UserDefaults via `ChapterMemoryService`.
+        case chapterMemory = "chapter_memory"
     }
 
     // MARK: - Public surfaces
@@ -118,6 +123,25 @@ enum LLMService {
         return text
     }
 
+    /// Chapter epitaph for a just-completed route. Single sentence in the
+    /// dog's voice — *"We learned the loop together. The bench at the
+    /// corner became ours."* No iOS-side cache; `ChapterMemoryService`
+    /// owns the persistent storage in UserDefaults so the memory survives
+    /// app reinstalls scoped to the dog.
+    static func chapterMemory(
+        for dog: Dog,
+        routeName: String,
+        routeTotalMinutes: Int,
+        landmarkNames: [String]
+    ) async -> String? {
+        let context: [String: any Sendable] = [
+            "routeName": routeName,
+            "routeTotalMinutes": routeTotalMinutes,
+            "landmarkNames": landmarkNames,
+        ]
+        return await request(kind: .chapterMemory, dog: dog, context: context)
+    }
+
     /// One-shot onboarding "first card" line. Persists indefinitely once
     /// generated — this is a moment, not a refresh.
     static func onboardingCardLine(for dog: Dog) async -> String? {
@@ -129,15 +153,16 @@ enum LLMService {
         return text
     }
 
-    /// Home-tab personality line — fun fact, joke, observation, or playful
-    /// question in the dog's voice. Cached per (dog × local-day × time-slot)
-    /// so we burn at most three LLM calls per dog per day even if the user
-    /// opens the app dozens of times. The slot key is computed from the
-    /// current local hour: morning (5-12), afternoon (12-17), evening (17-22).
-    /// Outside those windows we reuse the most-recent slot's cache.
+    /// Home-tab personality line — fun fact, joke, observation, plot, trivia
+    /// or playful question in the dog's voice. Cached per (dog × local-day ×
+    /// time-slot) so we burn at most three LLM calls per dog per day even if
+    /// the user opens the app dozens of times. The slot key is computed from
+    /// the current local hour: morning (5-12), afternoon (12-17), evening
+    /// (17-22). Outside those windows we reuse the evening slot's cache.
     ///
-    /// `category` is one of "fact", "joke", "observation", "question" — picked
-    /// deterministically from the slot so the user gets variety across the day.
+    /// Category is rotated deterministically across days using the dog's id +
+    /// day key + slot, so each slot has a stable category for the whole day
+    /// but the user gets visible variety across consecutive mornings/etc.
     static func dogChatLine(
         for dog: Dog,
         now: Date = .now,
@@ -145,15 +170,17 @@ enum LLMService {
     ) async -> String? {
         let dayKey = Self.localDayKey(now, calendar: calendar)
         let slot = DogChatSlot.current(now: now, calendar: calendar)
+        let category = DogChatSlot.category(for: dog, dayKey: dayKey, slot: slot)
         let cacheKey = "dogChat.\(dog.persistentModelID.hashValue).\(dayKey).\(slot.rawValue)"
         if let hit = LLMCache.get(key: cacheKey) { return hit }
 
         let context: [String: any Sendable] = [
-            "category": slot.category,
+            "category": category,
             "slot": slot.rawValue,
         ]
         guard let text = await request(kind: .dogChat, dog: dog, context: context) else { return nil }
-        // 24h cache: by tomorrow's same slot a fresh line will be generated.
+        // 24h cache: by tomorrow's same slot a fresh line will be generated
+        // and the rotation will land on a (likely) different category.
         LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24)
         return text
     }
@@ -162,7 +189,7 @@ enum LLMService {
     /// API — capped at one call per slot per dog per day, three slots per
     /// day (morning/afternoon/evening) = max three calls per dog per day.
     /// The night hours (22:00-05:00) reuse the evening slot's cache.
-    enum DogChatSlot: String, Sendable {
+    enum DogChatSlot: String, Sendable, CaseIterable {
         case morning, afternoon, evening
 
         static func current(now: Date, calendar: Calendar) -> DogChatSlot {
@@ -173,16 +200,32 @@ enum LLMService {
             }
         }
 
-        /// Category seed sent to the LLM so the same slot always gets the same
-        /// flavour of message — morning is observational/fact, afternoon is
-        /// playful question, evening is joke/wry. Deterministic so a slot
-        /// retry stays consistent.
-        var category: String {
+        /// Category candidates per slot. Each slot has 3 distinct flavours so
+        /// the dog has a clear voice for the time of day but still varies day
+        /// to day. Morning leans facts/observation, afternoon leans curiosity,
+        /// evening leans wry/dramatic.
+        var categories: [String] {
             switch self {
-            case .morning:   return "fact"
-            case .afternoon: return "question"
-            case .evening:   return "joke"
+            case .morning:   return ["fact", "trivia", "observation"]
+            case .afternoon: return ["question", "plot", "observation"]
+            case .evening:   return ["joke", "plot", "trivia"]
             }
+        }
+
+        /// Deterministic per-day category pick — same dog × same day × same
+        /// slot always yields the same category, so a retry inside a slot
+        /// stays consistent. Across consecutive days the rotation moves so
+        /// the user sees variety without surprises mid-day.
+        static func category(for dog: Dog, dayKey: String, slot: DogChatSlot) -> String {
+            let candidates = slot.categories
+            // Stable hash from id hash + day string so rotation is deterministic
+            // but uncorrelated with anything visible.
+            var hasher = Hasher()
+            hasher.combine(dog.persistentModelID.hashValue)
+            hasher.combine(dayKey)
+            hasher.combine(slot.rawValue)
+            let value = abs(hasher.finalize())
+            return candidates[value % candidates.count]
         }
     }
 

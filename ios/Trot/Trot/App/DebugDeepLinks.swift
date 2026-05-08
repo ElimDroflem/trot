@@ -17,6 +17,9 @@ import SwiftData
 /// - `trot://debug/seed-walks?count=N` — insert N synthetic recent walks for
 ///   the currently-selected (or first) active dog
 /// - `trot://debug/reset` — clear all dogs/walks/windows (gate fires next launch)
+/// - `trot://debug/fire-celebration?minutes=N&route=true|false` — fires a
+///   walk-complete celebration overlay without logging a walk. Used for
+///   QA'ing the overlay visuals in isolation.
 enum DebugDeepLinks {
     /// Returns true if the URL was understood and handled. Caller can ignore
     /// the result; logging is internal.
@@ -41,9 +44,48 @@ enum DebugDeepLinks {
             return handleReset(modelContext: modelContext, appState: appState)
         case "clear-overlays":
             return handleClearOverlays(appState: appState)
+        case "fire-celebration":
+            return handleFireCelebration(url: url, appState: appState, modelContext: modelContext)
         default:
             return false
         }
+    }
+
+    /// Synthesises a `PendingWalkComplete` and pushes it onto AppState so the
+    /// `WalkCompleteOverlay` renders. Doesn't insert a walk — pure visual
+    /// QA. `?minutes=42&route=true` drives the headline tier and whether the
+    /// route bar shows.
+    private static func handleFireCelebration(
+        url: URL,
+        appState: AppState,
+        modelContext: ModelContext
+    ) -> Bool {
+        let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let minutesString = comps?.queryItems?.first(where: { $0.name == "minutes" })?.value ?? "42"
+        let minutes = max(1, Int(minutesString) ?? 42)
+        let withRoute = (comps?.queryItems?.first(where: { $0.name == "route" })?.value ?? "true") == "true"
+
+        guard let dog = firstActiveDog(in: modelContext) else { return false }
+
+        let dogName = dog.name.isEmpty ? "Your dog" : dog.name
+        let routeName: String? = withRoute ? "Finding your rhythm" : nil
+        let routeTotal: Int? = withRoute ? 240 : nil
+        let event = PendingWalkComplete(
+            dogID: dog.persistentModelID,
+            dogName: dogName,
+            minutes: minutes,
+            isFirstWalk: false,
+            minutesAdded: withRoute ? minutes : 0,
+            oldProgressMinutes: withRoute ? 60 : 0,
+            newProgressMinutes: withRoute ? min(60 + minutes, 240) : 0,
+            routeName: routeName,
+            routeTotalMinutes: routeTotal,
+            landmarksCrossed: [],
+            nextLandmarkName: nil,
+            routeCompleted: nil
+        )
+        appState.pendingWalkCompletes.append(event)
+        return true
     }
 
     /// Drains all pending celebration / walk-complete / recap overlays. Useful

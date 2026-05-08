@@ -116,6 +116,9 @@ struct RootView: View {
             await rescheduleNotificationsIfNeeded()
             checkMilestones()
             checkRecapAutoShow()
+            #if DEBUG
+            fireDebugCelebrationIfRequested()
+            #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active, isPastGate {
@@ -153,6 +156,34 @@ struct RootView: View {
         }
         try? modelContext.save()
     }
+
+    #if DEBUG
+    /// Honours `-DebugCelebrationMinutes N [-DebugCelebrationRoute YES]` —
+    /// pushes a synthetic walk-complete event onto AppState so the overlay
+    /// renders on first paint. Lets simulator testing QA the overlay without
+    /// driving the LogWalkSheet UI.
+    private func fireDebugCelebrationIfRequested() {
+        guard let minutes = appState.pendingDebugCelebrationMinutes,
+              let dog = activeDogs.first else { return }
+        let withRoute = appState.pendingDebugCelebrationWithRoute
+        let event = PendingWalkComplete(
+            dogID: dog.persistentModelID,
+            dogName: dog.name.isEmpty ? "Your dog" : dog.name,
+            minutes: minutes,
+            isFirstWalk: false,
+            minutesAdded: withRoute ? minutes : 0,
+            oldProgressMinutes: withRoute ? 60 : 0,
+            newProgressMinutes: withRoute ? min(60 + minutes, 240) : 0,
+            routeName: withRoute ? "Finding your rhythm" : nil,
+            routeTotalMinutes: withRoute ? 240 : nil,
+            landmarksCrossed: [],
+            nextLandmarkName: nil,
+            routeCompleted: nil
+        )
+        appState.pendingWalkCompletes.append(event)
+        appState.pendingDebugCelebrationMinutes = nil
+    }
+    #endif
 
     /// Auto-presents the weekly recap sheet on Sunday evenings if it hasn't been
     /// seen yet this week. Selected dog only — multi-dog households see one

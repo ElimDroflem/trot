@@ -30,7 +30,8 @@ type Kind =
     | "recap"
     | "decay"
     | "onboarding_card"
-    | "dog_chat";
+    | "dog_chat"
+    | "chapter_memory";
 
 interface DogInfo {
     name: string;
@@ -100,7 +101,7 @@ export default async function handler(req: Request): Promise<Response> {
 
 // MARK: - Validation
 
-const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat"];
+const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "chapter_memory"];
 
 function validate(body: RequestBody): string | null {
     if (!body || typeof body !== "object") return "invalid_body";
@@ -255,21 +256,51 @@ Maximum 10 words.`,
             };
         }
 
+        case "chapter_memory": {
+            const routeName = str(context.routeName);
+            const routeTotalMinutes = num(context.routeTotalMinutes, 0);
+            const landmarkNames = arr(context.landmarkNames);
+            const hours = Math.round(routeTotalMinutes / 60);
+            const landmarkSampler = landmarkNames.length > 0
+                ? `Moments crossed along the way included: ${landmarkNames.slice(0, 4).join(", ")}.`
+                : "";
+
+            return {
+                system: SYSTEM_BASE,
+                user: `${dogContext}
+${dog.name} and the user just finished a chapter of their walking life called "${routeName}".
+This chapter took roughly ${hours} hours of cumulative walking.
+${landmarkSampler}
+
+Write ONE warm sentence in ${dog.name}'s voice that closes this chapter as a memory the user can re-read months later. The sentence should:
+- Speak in first person ("we", not "Luna and Corey").
+- Reference one specific texture or moment of the chapter (a place, a feeling, a small victory) — never generic ("we walked a lot together"). Pull a detail from the chapter name and landmarks if you can.
+- Land like the last line of a short paragraph in a diary, not a brag. Quiet pride, not exclamation.
+
+Maximum 22 words. No exclamation marks. Exactly one sentence.`,
+                maxTokens: 100,
+            };
+        }
+
         case "dog_chat": {
             const category = str(context.category) || "fact";
 
             const categoryBrief = (() => {
                 switch (category) {
                     case "fact":
-                        return `A short fun fact tied to the dog's breed (${dog.breed}), age, or species. Lean on what you actually know about ${dog.breed}s — Trot trusts you to be accurate. End with a small first-person aside that adds personality.`;
+                        return `A surprising fact specifically about ${dog.breed}s — origin, working purpose, body trait, behaviour quirk, or famous example. Lead with the fact, then a tiny first-person aside in ${dog.name}'s voice ("Bred to flush birds. Currently flushing nothing."). Trot trusts you to be accurate; do NOT guess if unsure — pivot to a known dog-species fact instead.`;
+                    case "trivia":
+                        return `A weird factoid about being a dog generally — sniffing, dreaming, ear-twitching, scent receptors, sleep cycles, age-in-dog-years myth, why they circle before lying down. Specific number if you have one ("300 million scent receptors"). End with a one-clause aside.`;
                     case "joke":
-                        return `A dry one-liner or short joke. Self-aware, observational, never corny. Think understated UK humour.`;
+                        return `A dry one-liner. Self-aware, observational, deadpan. Think understated UK humour — Alan Partridge if he were a ${dog.breed}. No setup-punchline structure; one sharp sentence. No corny puns.`;
                     case "question":
-                        return `A playful question or guessing-game prompt aimed at the user. Specific, not generic. ("Guess where I want to go on Saturday.")`;
+                        return `A playful, specific question or guessing-game prompt aimed at the user. Anchored in something concrete (a place, an object, a time of day, a breed instinct). NOT generic ("walkies?"). Examples: "Guess what's behind the bins today." / "Park or river? You pick, I'll lead."`;
                     case "observation":
-                        return `A small wry observation about being a dog, or about ${dog.name}'s daily life. Specific, not generic.`;
+                        return `A small wry observation about being a dog or about ${dog.name}'s actual life. Concrete, slightly philosophical. ("The cat has the better armchair. We accept this.")`;
+                    case "plot":
+                        return `${dog.name} reveals a small scheme they're hatching today. Treat with mock-seriousness, like a heist briefing scaled down to dog-sized stakes. ("Phase one: look pitiful near the cheese drawer. Phase two: be patient.")`;
                     default:
-                        return `A short observation in the dog's voice.`;
+                        return `A short observation in ${dog.name}'s voice.`;
                 }
             })();
 
@@ -283,15 +314,15 @@ Today's mode: ${categoryBrief}
 Hard rules (in addition to the system rules):
 - One sentence preferred, two maximum.
 - Maximum 30 words.
-- Plain English, slightly dry tone. Never saccharine. Never gushing.
-- No "yay", "OMG", "love love love", baby-talk, or fake enthusiasm.
-- No exclamation marks unless the line genuinely earns one.
-- Specific over generic. Use real numbers and breed-specific details where they help.
+- Specific over generic. Use real numbers and breed-specific details where they help. Idiosyncratic beats safe.
+- Plain English. Dry, slightly dramatic tone — a dog with a clear inner life. Never saccharine, never gushing.
+- No "yay", "OMG", "love love love", baby-talk, "doggo", "pupper", "boop", "blep", or any internet-dog vocabulary.
+- No exclamation marks unless the line genuinely earns one. Most lines earn none.
 - Never mention "Trot", "the app", "tracking", or "logged".
-- Use ${dog.name}'s name only if it lands naturally.
+- Use ${dog.name}'s name only if it lands naturally — usually skip it; the user already knows whose voice this is.
 
 Output ONLY the line.`,
-                maxTokens: 100,
+                maxTokens: 110,
             };
         }
     }

@@ -49,6 +49,23 @@ struct InsightsStatsTests {
         dog.walks = (dog.walks ?? []) + [walk]
     }
 
+    /// Helper that pins the wall-clock hour, so we can test the hour-of-day
+    /// histogram without it being skewed by the noon-anchored `referenceToday`.
+    private func addWalk(daysAgo: Int, hour: Int, minutes: Int, to dog: Dog) {
+        let day = calendar.date(byAdding: .day, value: -daysAgo, to: referenceToday) ?? referenceToday
+        let dayStart = calendar.startOfDay(for: day)
+        let anchored = calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? day
+        let walk = Walk(
+            startedAt: anchored,
+            durationMinutes: minutes,
+            distanceMeters: nil,
+            source: .manual,
+            notes: "",
+            dogs: [dog]
+        )
+        dog.walks = (dog.walks ?? []) + [walk]
+    }
+
     @Test("empty dog → all zeros, no streak, no longest, no average")
     func emptyDog() {
         let dog = makeDog()
@@ -57,7 +74,8 @@ struct InsightsStatsTests {
         #expect(stats.lastWeekMinutes == 0)
         #expect(stats.longestWalkMinutes == 0)
         #expect(stats.currentStreak == 0)
-        #expect(stats.minutesByWeekday == [0, 0, 0, 0, 0, 0, 0])
+        #expect(stats.minutesByHour.count == 24)
+        #expect(stats.minutesByHour.allSatisfy { $0 == 0 })
         #expect(stats.averageMinutesPerActiveDay == 0)
     }
 
@@ -91,21 +109,26 @@ struct InsightsStatsTests {
         #expect(stats.longestWalkMinutes == 47)
     }
 
-    @Test("weekday histogram is Mon-first")
-    func weekdayHistogramMonFirst() {
+    @Test("hour-of-day histogram buckets walks by start hour")
+    func hourOfDayHistogram() {
         let dog = makeDog()
-        // 2026-05-12 is a Tuesday (raw weekday 3).
-        // daysAgo: 0 → Tuesday → index 1 in Mon-first array
-        // daysAgo: 1 → Monday  → index 0
-        // daysAgo: 6 → Wednesday → index 2 (since today is Tue, 6 days ago is last Wednesday)
-        addWalk(daysAgo: 0, minutes: 10, to: dog)
-        addWalk(daysAgo: 1, minutes: 20, to: dog)
-        addWalk(daysAgo: 6, minutes: 30, to: dog)
+        // Two walks starting at 7am on different days → 7am bucket = 25.
+        addWalk(daysAgo: 0, hour: 7, minutes: 15, to: dog)
+        addWalk(daysAgo: 1, hour: 7, minutes: 10, to: dog)
+        // One walk starting at 6pm → 18:00 bucket = 40.
+        addWalk(daysAgo: 2, hour: 18, minutes: 40, to: dog)
+        // One walk starting at 9am → 9:00 bucket = 30.
+        addWalk(daysAgo: 3, hour: 9, minutes: 30, to: dog)
 
         let stats = InsightsStats.compute(for: dog, today: referenceToday, calendar: calendar)
-        #expect(stats.minutesByWeekday[0] == 20, "Monday total")
-        #expect(stats.minutesByWeekday[1] == 10, "Tuesday total")
-        #expect(stats.minutesByWeekday[2] == 30, "Wednesday total")
+        #expect(stats.minutesByHour.count == 24)
+        #expect(stats.minutesByHour[7] == 25, "7am bucket")
+        #expect(stats.minutesByHour[9] == 30, "9am bucket")
+        #expect(stats.minutesByHour[18] == 40, "6pm bucket")
+        // Sanity: nothing leaks into adjacent buckets.
+        #expect(stats.minutesByHour[6] == 0)
+        #expect(stats.minutesByHour[8] == 0)
+        #expect(stats.minutesByHour[17] == 0)
     }
 
     @Test("average per active day uses unique days, not lifetime walks")

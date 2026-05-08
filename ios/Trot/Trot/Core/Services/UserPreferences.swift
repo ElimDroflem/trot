@@ -50,6 +50,7 @@ enum UserPreferences {
 /// available everywhere so the override toggle works inside the app.
 enum DebugOverrides {
     private static let weatherCategoryKey = "trot.debug.weatherCategoryOverride"
+    private static let forceNightKey = "trot.debug.forceNightOverride"
 
     /// Forced weather category. `nil` means "use the real forecast."
     /// `WeatherMoodLayer` checks this on load (DEBUG only) and skips the
@@ -68,5 +69,13 @@ enum DebugOverrides {
                 UserDefaults.standard.removeObject(forKey: weatherCategoryKey)
             }
         }
+    }
+
+    /// Forces the synthetic weather snapshot's `isDay` to false so we can QA
+    /// the night palette and moon disc on a sunny afternoon. Only applies
+    /// when `weatherCategory` is also set (the override path).
+    static var forceNight: Bool {
+        get { UserDefaults.standard.bool(forKey: forceNightKey) }
+        set { UserDefaults.standard.set(newValue, forKey: forceNightKey) }
     }
 }

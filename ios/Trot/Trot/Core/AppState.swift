@@ -53,6 +53,17 @@ final class AppState {
 
     var pendingWalkComplete: PendingWalkComplete? { pendingWalkCompletes.first }
 
+    /// Atmospheric context written by `WeatherMoodLayer` once it has a
+    /// snapshot. Consumed by:
+    ///   - card-border / shadow modifier (different border colour at night)
+    ///   - tab headers that sit on top of the atmosphere (text colour swap
+    ///     so deep-green `brandSecondary` doesn't disappear on a navy sky)
+    ///
+    /// Default is "day" so views render correctly on first paint before the
+    /// snapshot lands.
+    var atmosphereIsNight: Bool = false
+    var atmosphereCategory: WeatherCategory? = nil
+
     init(selectedDogID: PersistentIdentifier? = nil) {
         self.selectedDogID = selectedDogID
         #if DEBUG
@@ -77,7 +88,22 @@ final class AppState {
            let tab = TrotTab(rawValue: raw.lowercased()) {
             selectedTab = tab
         }
+        // -DebugCelebrationMinutes N → enqueue a synthetic walk-complete event
+        // so the WalkCompleteOverlay renders on first paint. Used by simulator
+        // testing to QA the overlay without firing a real walk save (which
+        // requires UI driving the LogWalkSheet or ExpeditionView). The dog ID
+        // is filled in lazily by RootView once active dogs are queried.
+        let celebrationMinutes = defaults.integer(forKey: "DebugCelebrationMinutes")
+        if celebrationMinutes > 0 {
+            pendingDebugCelebrationMinutes = celebrationMinutes
+            pendingDebugCelebrationWithRoute = defaults.bool(forKey: "DebugCelebrationRoute")
+        }
     }
+
+    /// Captured launch-arg state for the synthetic celebration. RootView reads
+    /// these once active dogs are available, builds the event, and clears.
+    var pendingDebugCelebrationMinutes: Int?
+    var pendingDebugCelebrationWithRoute: Bool = false
     #endif
 
     /// Returns the dog that should be displayed given the current selection and the
@@ -115,15 +141,20 @@ final class AppState {
     /// Append a walk-complete event for the given walk save. Built from the
     /// `WalkApplication` returned by `JourneyService.applyWalk(...)` so the
     /// overlay can render route advance + landmark stamps.
+    ///
+    /// `application`, `oldProgressMinutes`, `newProgressMinutes`, `routeName`,
+    /// and `routeTotalMinutes` are nil when the dog has no active route — the
+    /// overlay hides the route bar / landmark / completion sections cleanly
+    /// in that case so the celebration still fires.
     func enqueueWalkComplete(
         dog: Dog,
         minutes: Int,
         isFirstWalk: Bool,
-        application: WalkApplication,
-        oldProgressMinutes: Int,
-        newProgressMinutes: Int,
-        routeName: String,
-        routeTotalMinutes: Int
+        application: WalkApplication?,
+        oldProgressMinutes: Int = 0,
+        newProgressMinutes: Int = 0,
+        routeName: String? = nil,
+        routeTotalMinutes: Int? = nil
     ) {
         let nextLandmark = JourneyService.nextLandmark(for: dog)?.landmark.name
         let event = PendingWalkComplete(
@@ -131,14 +162,14 @@ final class AppState {
             dogName: dog.name.isEmpty ? "Your dog" : dog.name,
             minutes: minutes,
             isFirstWalk: isFirstWalk,
-            minutesAdded: application.minutesAdded,
+            minutesAdded: application?.minutesAdded ?? 0,
             oldProgressMinutes: oldProgressMinutes,
             newProgressMinutes: newProgressMinutes,
             routeName: routeName,
             routeTotalMinutes: routeTotalMinutes,
-            landmarksCrossed: application.landmarksCrossed,
+            landmarksCrossed: application?.landmarksCrossed ?? [],
             nextLandmarkName: nextLandmark,
-            routeCompleted: application.routeCompleted?.name
+            routeCompleted: application?.routeCompleted?.name
         )
         pendingWalkCompletes.append(event)
     }
@@ -163,8 +194,14 @@ struct PendingCelebration: Identifiable, Equatable, Sendable {
 }
 
 /// A walk has just been saved. Carries the data the `WalkCompleteOverlay`
-/// needs to render: dopamine headline + route bar advance + (optional)
-/// landmark stamps + (rare) route-completion line.
+/// needs to render: dopamine headline + (optional) route bar advance +
+/// (optional) landmark stamps + (rare) route-completion line.
+///
+/// Route fields are optional because not every dog has an active route — the
+/// overlay degrades cleanly to "headline + photo + dog-voice line + confetti"
+/// for routeless walks, which still reads as a celebration. (Earlier the
+/// enqueue was gated on having a route, which silently swallowed celebrations
+/// for any dog who'd finished their last route or never started one.)
 struct PendingWalkComplete: Identifiable, Sendable {
     let id = UUID()
     /// The dog that was walked. Carried through so `WalkCompleteOverlay` can
@@ -179,12 +216,14 @@ struct PendingWalkComplete: Identifiable, Sendable {
     let isFirstWalk: Bool
     /// Minutes credited to the active route by this walk. Equal to `minutes`
     /// in normal cases; differs only on degenerate edge cases (zero-minute
-    /// walks return 0 added).
+    /// walks return 0 added). Zero when there's no active route.
     let minutesAdded: Int
     let oldProgressMinutes: Int
     let newProgressMinutes: Int
-    let routeName: String
-    let routeTotalMinutes: Int
+    /// Nil when the dog has no active route. Overlay hides the route bar.
+    let routeName: String?
+    /// Nil when the dog has no active route.
+    let routeTotalMinutes: Int?
     let landmarksCrossed: [Landmark]
     /// Name of the very next landmark the dog hasn't reached yet, if any.
     /// Lets the LLM hint at what's coming ("Tea Hut next time?").
@@ -193,17 +232,105 @@ struct PendingWalkComplete: Identifiable, Sendable {
     /// "route finished" treatment in that case.
     let routeCompleted: String?
 
+    /// Variable headline bank picked deterministically from the walk's
+    /// minutes + dog id — the user sees a different opener walk-to-walk
+    /// rather than the same "X minutes with Luna!" every time. Tier rules:
+    ///   * tier 1 (1-19 min)   → "short walk" energy
+    ///   * tier 2 (20-44 min)  → "core walk" energy
+    ///   * tier 3 (45+ min)    → "long walk" energy
+    /// First-ever walks always get the cinematic line regardless of tier.
     var headline: String {
-        "\(minutes) \(minutes == 1 ? "minute" : "minutes") with \(dogName)!"
+        if isFirstWalk {
+            return "\(dogName)'s first walk!"
+        }
+        let bank = headlineBank(forMinutes: minutes, dogName: dogName)
+        var hasher = Hasher()
+        hasher.combine(dogID.hashValue)
+        hasher.combine(minutes)
+        hasher.combine(id)
+        let pick = abs(hasher.finalize()) % bank.count
+        return bank[pick]
+    }
+
+    private func headlineBank(forMinutes minutes: Int, dogName: String) -> [String] {
+        if minutes < 20 {
+            return [
+                "\(minutes) minutes with \(dogName).",
+                "Quick one with \(dogName)!",
+                "\(dogName) got out. \(minutes) min.",
+                "\(minutes) min — better than zero!",
+            ]
+        } else if minutes < 45 {
+            return [
+                "\(minutes) minutes with \(dogName)!",
+                "\(dogName) just put in \(minutes) min!",
+                "Solid \(minutes) min with \(dogName).",
+                "\(minutes) min — proper walk!",
+                "\(dogName) walked \(minutes) min!",
+            ]
+        } else {
+            return [
+                "\(minutes) minutes with \(dogName)!",
+                "Big one — \(minutes) min with \(dogName)!",
+                "\(minutes) min! \(dogName) is sleeping well tonight.",
+                "Properly long walk: \(minutes) min!",
+                "\(dogName) got the full \(minutes) min!",
+            ]
+        }
+    }
+
+    /// True when the route bar should render — both fields populated AND a
+    /// non-zero total. Lets the overlay collapse cleanly for routeless walks.
+    var hasRouteContext: Bool {
+        guard let total = routeTotalMinutes, let name = routeName else { return false }
+        return total > 0 && !name.isEmpty
     }
 
     /// 0...1 progress on the active route AT THE MOMENT the walk landed.
     /// Used by the overlay to animate the route bar from old to new.
     var oldFraction: Double {
-        routeTotalMinutes > 0 ? min(1, max(0, Double(oldProgressMinutes) / Double(routeTotalMinutes))) : 0
+        guard let total = routeTotalMinutes, total > 0 else { return 0 }
+        return min(1, max(0, Double(oldProgressMinutes) / Double(total)))
     }
 
     var newFraction: Double {
-        routeTotalMinutes > 0 ? min(1, max(0, Double(newProgressMinutes) / Double(routeTotalMinutes))) : 0
+        guard let total = routeTotalMinutes, total > 0 else { return 0 }
+        return min(1, max(0, Double(newProgressMinutes) / Double(total)))
+    }
+}
+
+/// Sendable snapshot of everything needed to enqueue a `PendingWalkComplete`,
+/// captured BEFORE a sheet dismiss so the post-dismiss Task doesn't carry
+/// `Dog` refs across the dismiss-animation gap. SwiftData objects can vanish
+/// (delete, archive, sync race) and reading them off-thread crashes — value
+/// types are safe.
+struct PendingWalkCompletePayload: Sendable {
+    let dogID: PersistentIdentifier
+    let dogName: String
+    let isFirstWalk: Bool
+    let oldProgressMinutes: Int
+    let newProgressMinutes: Int
+    let routeName: String?
+    let routeTotalMinutes: Int?
+    let minutesAdded: Int
+    let landmarksCrossed: [Landmark]
+    let routeCompletedName: String?
+    let nextLandmarkName: String?
+
+    func makeEvent(minutes: Int) -> PendingWalkComplete {
+        PendingWalkComplete(
+            dogID: dogID,
+            dogName: dogName,
+            minutes: minutes,
+            isFirstWalk: isFirstWalk,
+            minutesAdded: minutesAdded,
+            oldProgressMinutes: oldProgressMinutes,
+            newProgressMinutes: newProgressMinutes,
+            routeName: routeName,
+            routeTotalMinutes: routeTotalMinutes,
+            landmarksCrossed: landmarksCrossed,
+            nextLandmarkName: nextLandmarkName,
+            routeCompleted: routeCompletedName
+        )
     }
 }
