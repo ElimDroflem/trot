@@ -325,7 +325,8 @@ Genre: ${genreName}. Tone: ${genreTone}
 
 Hard rules:
 - Output strict JSON only: {"prose": "...", "choiceA": "...", "choiceB": "..."}. No markdown fences, no commentary, no quotes outside the JSON.
-- "prose" is exactly 40 to 70 words. One paragraph. British English ("realise", "harbour", "grey").
+- "prose" is exactly one iPhone screen of reading: 140 to 180 words, broken into 2 or 3 paragraphs separated by single newlines (\\n). Not a teaser, but tight — fits without scrolling at body font. British English ("realise", "harbour", "grey").
+- Use the channelled author's pacing inside that length — short sentences where they bite, longer ones where the prose can breathe, paragraph breaks where the camera moves.
 - Comedy comes from the dog being a ${dog.breed}, not from the narrator winking at the reader. Genre tropes are taken seriously; the dog occasionally punctures them through breed-specific behaviour. NOT every page resolves to "the dog did it" — vary so the reader can't predict.
 - Reference the owner (${ownerName}) sparingly — once every 3-4 pages, not every page. They're a co-protagonist.
 - Use the walk facts (duration, weather, time of day, distance) as concrete texture — never as a stat dump.
@@ -350,7 +351,7 @@ ${prologueLine}
 ${wrapLine}
 
 Write the next page now. Return ONLY the JSON.`,
-                maxTokens: 600,
+                maxTokens: 800,
             };
         }
 
@@ -381,7 +382,7 @@ Field rules:
 - "title": chapter title in title case, 2-5 words. Concrete noun preferred ("The Postman Returns", "What Was in the Hedge"). No clichés ("A New Beginning", "The Journey Continues" — banned).
 - "closingLine": 12-22 words. The last sentence of the chapter — earns the title, leaves a hook for chapter ${chapterIndex + 1}. No exclamation marks.
 - "bibleUpdate": a fresh story bible. 60-100 words of structured prose summarising: characters introduced, current setting, central arc/threat, open threads. Will be the FULL bible for the next chapter (overwrites the previous one). No bullets — flowing prose so the LLM tokenises it cheaply on read.
-- "prologueProse": the FIRST page of chapter ${chapterIndex + 1}. 40-70 words. Set the new scene; raise the stakes one notch.
+- "prologueProse": the FIRST page of chapter ${chapterIndex + 1}. Exactly one iPhone screen of reading: 140 to 180 words, 2 or 3 paragraphs separated by single newlines (\\n). Set the new scene; raise the stakes one notch. Same length and pacing rules as a normal page — not a teaser, but tight enough to fit a phone screen without scrolling.
 - "choiceA" / "choiceB": 4-8 word teasers for what could happen on page 2 of the new chapter.
 
 British English. No fourth-wall. Genre comedy comes from the dog being a ${dog.breed}.`,
@@ -392,7 +393,7 @@ All pages from the chapter that's just closed:
 ${chapterPages}
 
 Wrap this chapter and open the next. Return ONLY the JSON.`,
-                maxTokens: 800,
+                maxTokens: 1000,
             };
         }
 
