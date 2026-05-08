@@ -30,10 +30,16 @@ enum WalkRecommendationService {
 
     struct Recommendation: Equatable {
         let start: Date
+        /// End of the recommended window — `start + durationHours` hours.
+        /// Surfacing this lets the headline say "from 1pm to 3pm" rather
+        /// than just naming a single start hour, and lets a downstream
+        /// reminder schedule a notification at `start` knowing the window
+        /// length.
+        let end: Date
         let durationHours: Int
         let category: WeatherCategory
         let temperatureC: Double
-        /// Short, glanceable rationale. e.g. "Dry and 14°. Best window of the day."
+        /// Short, glanceable rationale. e.g. "Best 1pm to 3pm. Sunny, 18°."
         let headline: String
         /// Slightly longer reason that can sit under the headline if there's room.
         let detail: String
@@ -62,12 +68,14 @@ enum WalkRecommendationService {
 
         let first = best.first!.0
         let dur = best.count
+        let end = calendar.date(byAdding: .hour, value: dur, to: first.time) ?? first.time
         return Recommendation(
             start: first.time,
+            end: end,
             durationHours: dur,
             category: first.category,
             temperatureC: first.temperatureC,
-            headline: headline(for: first, durationHours: dur, now: now, calendar: calendar),
+            headline: headline(start: first.time, end: end, durationHours: dur, category: first.category, temperatureC: first.temperatureC, now: now, calendar: calendar),
             detail: detail(for: first, dog: dog)
         )
     }
@@ -200,18 +208,45 @@ enum WalkRecommendationService {
     // MARK: - Copy
 
     private static func headline(
-        for hour: HourlySnapshot,
+        start: Date,
+        end: Date,
         durationHours: Int,
+        category: WeatherCategory,
+        temperatureC: Double,
         now: Date,
         calendar: Calendar
     ) -> String {
-        let when = relativeWhen(start: hour.time, now: now, calendar: calendar)
-        let weather = weatherFragment(for: hour)
-        let temp = "\(Int(hour.temperatureC.rounded()))°"
+        let weather = weatherFragment(for: category)
+        let temp = "\(Int(temperatureC.rounded()))°"
+        let nowHour = calendar.component(.hour, from: now)
+        let startHour = calendar.component(.hour, from: start)
+        let endHour = calendar.component(.hour, from: end)
+        let startsNow = startHour <= nowHour
+
         if durationHours >= 2 {
-            return "\(weather) and \(temp) \(when). Best window of the day."
+            // Multi-hour window — name the range so "the best window today"
+            // actually reads as a window, not a single time.
+            if startsNow {
+                return "Best now until \(clockLabel(hour: endHour)). \(weather), \(temp)."
+            }
+            return "Best \(clockLabel(hour: startHour)) to \(clockLabel(hour: endHour)). \(weather), \(temp)."
         }
-        return "\(weather) and \(temp) \(when)."
+        // Single-hour fallback — rare; only when no contiguous run scored well.
+        if startsNow {
+            return "Best in this hour. \(weather), \(temp)."
+        }
+        return "Best around \(clockLabel(hour: startHour)). \(weather), \(temp)."
+    }
+
+    /// "1pm" / "10am" / "12pm". Used for the headline range so the user sees
+    /// "Best 1pm to 3pm" rather than "from 13:00 to 15:00".
+    static func clockLabel(hour: Int) -> String {
+        switch hour {
+        case 0: return "12am"
+        case 12: return "12pm"
+        case 1...11: return "\(hour)am"
+        default: return "\(hour - 12)pm"
+        }
     }
 
     private static func detail(for hour: HourlySnapshot, dog: Dog) -> String {
@@ -227,40 +262,22 @@ enum WalkRecommendationService {
         }
     }
 
-    private static func weatherFragment(for hour: HourlySnapshot) -> String {
-        switch hour.category {
-        case .clear:        return "Clear"
+    private static func weatherFragment(for category: WeatherCategory) -> String {
+        switch category {
+        case .clear:        return "Sunny"
         case .partlyCloudy: return "Bright"
         case .cloudy:       return "Cloudy"
         case .fog:          return "Foggy"
-        case .drizzle:      return "A drizzle"
+        case .drizzle:      return "Drizzly"
         case .rain:         return "Wet"
         case .snow:         return "Snowy"
         case .thunder:      return "Stormy"
         }
     }
 
-    private static func relativeWhen(
-        start: Date,
-        now: Date,
-        calendar: Calendar
-    ) -> String {
-        let nowHour = calendar.component(.hour, from: now)
-        let startHour = calendar.component(.hour, from: start)
-        let delta = startHour - nowHour
-        if delta <= 0 { return "now" }
-        if delta == 1 { return "in an hour" }
-        if delta < 6 { return "in \(delta) hours" }
-        // "at 18:00" reads better than "in 7 hours" once we're outside the
-        // imminent window.
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_GB")
-        formatter.dateFormat = "HH:mm"
-        return "at \(formatter.string(from: start))"
-    }
 }
 
-private extension Calendar {
+extension Calendar {
     /// Top-of-the-current-hour. Used as the recommendation cutoff so we don't
     /// suggest a hour that has already begun and mostly elapsed.
     func startOfHour(for date: Date) -> Date {

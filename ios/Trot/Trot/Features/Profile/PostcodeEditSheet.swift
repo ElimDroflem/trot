@@ -33,7 +33,7 @@ struct PostcodeEditSheet: View {
                             Text("Your postcode")
                                 .font(.displayMedium)
                                 .foregroundStyle(Color.brandSecondary)
-                            Text("Used for the daily walk-window forecast. Trot never tracks your live location.")
+                            Text("Used for the daily walk-window forecast.")
                                 .font(.bodyMedium)
                                 .foregroundStyle(Color.brandTextSecondary)
                         }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// "When's the best time to walk today?" tile on the Today tab.
 ///
@@ -19,6 +20,14 @@ struct WalkWindowTile: View {
     @State private var state: TileState = .loading
     @State private var postcode: String = UserPreferences.postcode
     @State private var showingPostcodeEditor = false
+    /// LLM-rewritten headline. Drops in over the deterministic headline
+    /// once the proxy responds. Cached per (dog × dayKey) inside the
+    /// service so we burn at most one call per day per dog.
+    @State private var llmHeadline: String?
+    /// When non-nil, the user has scheduled a reminder for the picked
+    /// window's start time. We mirror this from UserDefaults on appear so
+    /// the toggle survives an app restart.
+    @State private var reminderScheduledFor: Date?
 
     enum TileState {
         case loading
@@ -72,7 +81,7 @@ struct WalkWindowTile: View {
                 icon: "location.fill",
                 tint: .brandPrimary,
                 title: "Add a postcode for the daily walk forecast.",
-                subtitle: "Tap to add. Used only for weather, never for live tracking.",
+                subtitle: "Tap to add.",
                 tempPill: nil
             )
         }
@@ -96,13 +105,36 @@ struct WalkWindowTile: View {
     }
 
     private func recommendationTile(_ rec: WalkRecommendationService.Recommendation) -> some View {
-        tileShell(
+        // LLM headline takes precedence when it's landed; falls back to the
+        // deterministic copy. The deterministic copy is already a real range
+        // ("Best 1pm to 3pm. Sunny, 18°.") so the LLM is icing rather than
+        // load-bearing — if the proxy is offline the user still sees a clean
+        // sentence.
+        let title = llmHeadline ?? rec.headline
+        return tileShell(
             icon: weatherIcon(for: rec.category, isDay: !appState.atmosphereIsNight),
             tint: weatherTint(for: rec.category),
-            title: rec.headline,
+            title: title,
             subtitle: rec.detail,
-            tempPill: "\(Int(rec.temperatureC.rounded()))°"
+            tempPill: "\(Int(rec.temperatureC.rounded()))°",
+            reminder: reminderState(for: rec)
         )
+    }
+
+    /// Decide whether the reminder row shows. Hidden when the window has
+    /// already started (less than 5 minutes lead time) AND no reminder is
+    /// already scheduled — there's nothing meaningful to remind for. Visible
+    /// otherwise so the user can either set or cancel.
+    private func reminderState(for rec: WalkRecommendationService.Recommendation) -> ReminderRowState {
+        let leadTime: TimeInterval = 5 * 60
+        let isFuture = rec.start.timeIntervalSinceNow >= leadTime
+        let alreadyScheduled = reminderScheduledFor != nil
+        if isFuture || alreadyScheduled {
+            return .visible(scheduled: alreadyScheduled) {
+                Task { await toggleReminder(for: rec) }
+            }
+        }
+        return .hidden
     }
 
     // MARK: - Shell
@@ -112,44 +144,56 @@ struct WalkWindowTile: View {
         tint: Color,
         title: String,
         subtitle: String?,
-        tempPill: String?
+        tempPill: String?,
+        reminder: ReminderRowState = .hidden
     ) -> some View {
-        HStack(alignment: .top, spacing: Space.md) {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 44, height: 44)
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(tint)
-            }
+        VStack(spacing: Space.sm) {
+            HStack(alignment: .top, spacing: Space.md) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.14))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
 
-            VStack(alignment: .leading, spacing: Space.xs) {
-                HStack(alignment: .top) {
-                    Text("WALK WINDOW")
-                        .font(.caption.weight(.semibold))
-                        .tracking(0.5)
-                        .foregroundStyle(Color.brandTextTertiary)
-                    Spacer()
-                    if let temp = tempPill {
-                        Text(temp)
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    HStack(alignment: .top) {
+                        Text("WALK WINDOW")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(tint)
-                            .padding(.horizontal, Space.xs)
-                            .padding(.vertical, 2)
-                            .background(tint.opacity(0.12))
-                            .clipShape(Capsule())
+                            .tracking(0.5)
+                            .foregroundStyle(Color.brandTextTertiary)
+                        Spacer()
+                        if let temp = tempPill {
+                            Text(temp)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(tint)
+                                .padding(.horizontal, Space.xs)
+                                .padding(.vertical, 2)
+                                .background(tint.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    Text(title)
+                        .font(.bodyLarge.weight(.semibold))
+                        .foregroundStyle(Color.brandTextPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(Color.brandTextSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                Text(title)
-                    .font(.bodyLarge.weight(.semibold))
-                    .foregroundStyle(Color.brandTextPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Color.brandTextSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            // Reminder capsule sits on its own row when present, so it
+            // doesn't compete with the temperature pill or the headline.
+            // Hidden entirely (no row, no spacing) when not applicable.
+            if case .visible(let scheduled, let action) = reminder {
+                HStack {
+                    Spacer()
+                    ReminderCapsule(isScheduled: scheduled, action: action)
                 }
             }
         }
@@ -159,9 +203,24 @@ struct WalkWindowTile: View {
         .brandCardShadow()
     }
 
+    /// Whether the reminder row renders. `.hidden` keeps the tile compact
+    /// when no rec is loaded yet or the window has already started.
+    enum ReminderRowState {
+        case hidden
+        case visible(scheduled: Bool, action: () -> Void)
+    }
+
     // MARK: - Loading
 
     private func load() async {
+        // Re-read any persisted reminder so the capsule shows the right
+        // state on each launch. UserDefaults is per-bundle so this is fine
+        // for v1 (single-device).
+        await MainActor.run {
+            reminderScheduledFor = WalkWindowReminder.scheduledFireDate()
+            llmHeadline = nil
+        }
+
         let trimmed = UserPreferences.postcode
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -180,6 +239,10 @@ struct WalkWindowTile: View {
 
         if let rec = WalkRecommendationService.recommend(for: dog, forecast: forecast) {
             await update(.ready(rec))
+            // Fire the LLM rationale in the background — never block the UI
+            // on it, never let a failure surface. The deterministic
+            // headline already reads cleanly.
+            await refreshLLMHeadline(forecast: forecast, rec: rec)
         } else {
             await update(.unavailable)
         }
@@ -188,6 +251,71 @@ struct WalkWindowTile: View {
     @MainActor
     private func update(_ next: TileState) {
         withAnimation(.brandDefault) { state = next }
+    }
+
+    /// Calls `LLMService.bestWindowRationale` and slots the response over
+    /// the deterministic headline. Cached per (dog × dayKey) inside the
+    /// service, so this is a single Anthropic call per dog per day.
+    private func refreshLLMHeadline(
+        forecast: WeatherForecast,
+        rec: WalkRecommendationService.Recommendation
+    ) async {
+        let calendar = Calendar.current
+        // Compress today's upcoming hours into a tight table the LLM can
+        // reason over without burning tokens. 12 hours is enough to cover
+        // any user's enabled walk windows.
+        let upcoming = forecast.hourly
+            .filter { $0.time >= calendar.startOfHour(for: .now) }
+            .prefix(12)
+        let hourlyTable = upcoming.map { snap in
+            let h = calendar.component(.hour, from: snap.time)
+            let label = WalkRecommendationService.clockLabel(hour: h)
+            let temp = Int(snap.temperatureC.rounded())
+            return "\(label): \(snap.category.rawValue), \(temp)°C, \(Int(snap.precipitationProbability))% rain"
+        }.joined(separator: "\n")
+
+        let startHour = calendar.component(.hour, from: rec.start)
+        let endHour = calendar.component(.hour, from: rec.end)
+        let pickedWindow = rec.durationHours >= 2
+            ? "\(WalkRecommendationService.clockLabel(hour: startHour)) to \(WalkRecommendationService.clockLabel(hour: endHour))"
+            : WalkRecommendationService.clockLabel(hour: startHour)
+        let pickedConditions = "\(rec.category.rawValue), \(Int(rec.temperatureC.rounded()))°C"
+        let walkSlots = (dog.walkWindows ?? []).filter(\.enabled).map { $0.slot.rawValue }
+
+        let line = await LLMService.bestWindowRationale(
+            for: dog,
+            hourlyTable: hourlyTable,
+            pickedWindow: pickedWindow,
+            pickedConditions: pickedConditions,
+            walkWindowSlots: walkSlots
+        )
+        guard let line, !line.isEmpty else { return }
+        await MainActor.run {
+            withAnimation(.brandDefault) { llmHeadline = line }
+        }
+    }
+
+    /// Toggles the reminder for the picked window. If one is already
+    /// scheduled, cancels it. Otherwise schedules a single
+    /// `UNCalendarNotificationTrigger` for the window's start time today.
+    private func toggleReminder(for rec: WalkRecommendationService.Recommendation) async {
+        if reminderScheduledFor != nil {
+            await WalkWindowReminder.cancel()
+            await MainActor.run {
+                reminderScheduledFor = nil
+            }
+            return
+        }
+        let title = llmHeadline ?? rec.headline
+        let body = "Time for \(dog.name)'s walk."
+        let scheduled = await WalkWindowReminder.schedule(
+            at: rec.start,
+            title: title,
+            body: body
+        )
+        await MainActor.run {
+            reminderScheduledFor = scheduled ? rec.start : nil
+        }
     }
 
     // MARK: - Visual mapping
@@ -216,5 +344,101 @@ struct WalkWindowTile: View {
         case .snow:                 return .brandTextSecondary
         case .thunder:              return .brandError
         }
+    }
+}
+
+// MARK: - Reminder capsule
+
+/// Small button that lets the user schedule a one-shot notification at the
+/// recommended walk-window's start time. Two visual states:
+///   - **Idle**: a brand-primary "Remind me" capsule with a bell icon.
+///   - **Scheduled**: a green-tinted "Reminder set" capsule with a tick.
+///     Tap again cancels.
+private struct ReminderCapsule: View {
+    let isScheduled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isScheduled ? "checkmark.circle.fill" : "bell.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(isScheduled ? "Reminder set" : "Remind me")
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(isScheduled ? Color.brandSuccess : Color.brandPrimary)
+            .padding(.horizontal, Space.sm)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill((isScheduled ? Color.brandSuccess : Color.brandPrimary).opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isScheduled ? "Cancel reminder" : "Set reminder for the walk window")
+    }
+}
+
+// MARK: - Reminder scheduling
+
+/// Wrapper around `UNUserNotificationCenter` for the single walk-window
+/// reminder. We hold at most one reminder globally — tapping "Remind me"
+/// when one is already scheduled cancels and replaces it. The scheduled
+/// fire-time is mirrored into UserDefaults so the capsule shows the right
+/// state across launches; on cancellation it's cleared.
+@MainActor
+enum WalkWindowReminder {
+    private static let identifier = "trot.walkWindow.reminder"
+    private static let storageKey = "trot.walkWindow.reminderFireDate"
+
+    /// Returns the fire-date of the currently-scheduled reminder, or nil.
+    /// Reads from UserDefaults rather than `pendingNotificationRequests()`
+    /// so callers can decide synchronously what to render. We also clear
+    /// the stored value if it's in the past — iOS already fired (or
+    /// dropped) the notification by then.
+    static func scheduledFireDate() -> Date? {
+        guard let stamp = UserDefaults.standard.object(forKey: storageKey) as? Date else {
+            return nil
+        }
+        if stamp <= Date() {
+            UserDefaults.standard.removeObject(forKey: storageKey)
+            return nil
+        }
+        return stamp
+    }
+
+    /// Schedules a one-shot notification at `at`. Replaces any existing
+    /// reminder. Returns true on success. Failure modes: notification
+    /// authorisation denied (we still write the storage key so the UI
+    /// reflects the user's intent — they can grant permission and tap
+    /// Allow when they next launch).
+    @discardableResult
+    static func schedule(at fireAt: Date, title: String, body: String) async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+        do {
+            try await center.add(request)
+            UserDefaults.standard.set(fireAt, forKey: storageKey)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func cancel() async {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        UserDefaults.standard.removeObject(forKey: storageKey)
     }
 }

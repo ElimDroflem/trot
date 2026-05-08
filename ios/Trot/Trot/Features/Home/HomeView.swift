@@ -661,10 +661,10 @@ private struct TodayTimeline: View {
 
     private func hourLabel(_ hour: Int) -> String {
         switch hour {
-        case 0: return "12a"
-        case 12: return "12p"
-        case 1...11: return "\(hour)a"
-        default: return "\(hour - 12)p"
+        case 0: return "12am"
+        case 12: return "12pm"
+        case 1...11: return "\(hour)am"
+        default: return "\(hour - 12)pm"
         }
     }
 

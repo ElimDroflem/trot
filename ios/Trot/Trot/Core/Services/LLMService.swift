@@ -33,6 +33,11 @@ enum LLMService {
         /// the season the user just walked through. Cached forever in
         /// UserDefaults via `ChapterMemoryService`.
         case chapterMemory = "chapter_memory"
+        /// Today-tab walk-window rationale. Layered on top of the
+        /// deterministic scorer so the user sees a glanceable headline
+        /// immediately, then a slightly nicer LLM-flavoured caption when
+        /// it lands. Cached per (dog × dayKey).
+        case bestWindow = "best_window"
     }
 
     // MARK: - Public surfaces
@@ -119,6 +124,41 @@ enum LLMService {
 
         let context: [String: any Sendable] = ["daysSinceLastWalk": daysSinceLastWalk]
         guard let text = await request(kind: .decay, dog: dog, context: context) else { return nil }
+        LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24)
+        return text
+    }
+
+    /// Walk-window rationale for the Today-tab tile. Sends the day's
+    /// hourly forecast (compressed) plus the deterministic scorer's pick
+    /// to the LLM, asks for one short sentence naming a *range* (not a
+    /// single hour) like *"Best between 1pm and 3pm — sun, no clouds in
+    /// the way."* Cached per (dog × dayKey) so we burn at most one call
+    /// per dog per day.
+    ///
+    /// `pickedWindow` is the deterministic range string ("1pm to 3pm"),
+    /// `pickedConditions` is the conditions ("Sunny, 18°"). LLM treats
+    /// these as a strong hint and may rephrase but should not invent
+    /// different weather.
+    static func bestWindowRationale(
+        for dog: Dog,
+        hourlyTable: String,
+        pickedWindow: String,
+        pickedConditions: String,
+        walkWindowSlots: [String],
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) async -> String? {
+        let dayKey = Self.localDayKey(now, calendar: calendar)
+        let cacheKey = "bestWindow.\(dog.persistentModelID.hashValue).\(dayKey)"
+        if let hit = LLMCache.get(key: cacheKey) { return hit }
+
+        let context: [String: any Sendable] = [
+            "hourlyTable": hourlyTable,
+            "pickedWindow": pickedWindow,
+            "pickedConditions": pickedConditions,
+            "walkWindowSlots": walkWindowSlots,
+        ]
+        guard let text = await request(kind: .bestWindow, dog: dog, context: context) else { return nil }
         LLMCache.set(key: cacheKey, value: text, ttl: 60 * 60 * 24)
         return text
     }

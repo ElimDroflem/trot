@@ -31,7 +31,8 @@ type Kind =
     | "decay"
     | "onboarding_card"
     | "dog_chat"
-    | "chapter_memory";
+    | "chapter_memory"
+    | "best_window";
 
 interface DogInfo {
     name: string;
@@ -101,7 +102,7 @@ export default async function handler(req: Request): Promise<Response> {
 
 // MARK: - Validation
 
-const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "chapter_memory"];
+const ALLOWED_KINDS: Kind[] = ["daily", "walk_complete", "insight", "recap", "decay", "onboarding_card", "dog_chat", "chapter_memory", "best_window"];
 
 function validate(body: RequestBody): string | null {
     if (!body || typeof body !== "object") return "invalid_body";
@@ -253,6 +254,37 @@ This is the very first card the user sees after uploading ${dog.name}'s photo, b
 Write ONE punchy line in ${dog.name}'s voice that announces them. Warm, excited, share-worthy. Exclamation marks ALLOWED. Use the dog's name. Examples of the right register: "${dog.name}'s here. Let's go!" / "Hi, I'm ${dog.name}. Walk?"
 Maximum 10 words.`,
                 maxTokens: 50,
+            };
+        }
+
+        case "best_window": {
+            const hourlyTable = str(context.hourlyTable);
+            const pickedWindow = str(context.pickedWindow);
+            const pickedConditions = str(context.pickedConditions);
+            const walkWindowSlots = arr(context.walkWindowSlots);
+            const slotLine = walkWindowSlots.length > 0
+                ? `User has these walk windows enabled: ${walkWindowSlots.join(", ")}.`
+                : "User has not configured specific walk windows yet.";
+
+            return {
+                system: SYSTEM_BASE,
+                user: `${dogContext}
+Today's hourly forecast (local time):
+${hourlyTable}
+
+${slotLine}
+
+Trot's algorithm picked this window: ${pickedWindow} (${pickedConditions}).
+
+Write ONE short sentence (12-18 words) suggesting the best time to walk ${dog.name} today. The sentence MUST:
+- Name a TIME RANGE, not a single hour. Use the algorithm's pick as the floor; widen or narrow only if the forecast genuinely supports it.
+- Include one weather detail from the picked conditions (sun, temperature, dryness, light cloud).
+- Lead with the time range — e.g. "Best between 2pm and 4pm" or "1pm to 3pm is the sweet spot".
+- Be plain and direct. No exclamation marks. No clichés ("perfect for a stroll"). No mention of "the algorithm".
+- Use British English ("realise", not "realize"). Don't say "you" — keep it neutral.
+
+Output ONLY the sentence.`,
+                maxTokens: 80,
             };
         }
 
