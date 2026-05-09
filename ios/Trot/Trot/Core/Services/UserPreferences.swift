@@ -43,6 +43,11 @@ enum UserPreferences {
             } else {
                 UserDefaults.standard.removeObject(forKey: cachedLocationKey)
             }
+            // Wake any view that depends on the postcode but doesn't own the
+            // editor sheet — chiefly `WeatherMoodLayer`, which sits behind
+            // every tab and so never gets a fresh `.onAppear` after a
+            // postcode change.
+            NotificationCenter.default.post(name: .trotPostcodeChanged, object: nil)
         }
     }
 

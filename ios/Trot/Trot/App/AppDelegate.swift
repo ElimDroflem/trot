@@ -48,4 +48,11 @@ extension Notification.Name {
     /// Posted when the user taps the Sunday weekly-recap notification.
     /// `RootView` observes this to set `AppState.pendingRecapDogID` and present the sheet.
     static let trotRecapTapped = Notification.Name("dog.trot.notification.recapTapped")
+
+    /// Posted by `UserPreferences` whenever the postcode setter runs (set or
+    /// cleared). Views that key off the postcode but don't own the editor
+    /// sheet (e.g. `WeatherMoodLayer`, which sits behind every tab and so
+    /// never gets a fresh `.onAppear` when the sheet dismisses) observe
+    /// this to refetch.
+    static let trotPostcodeChanged = Notification.Name("dog.trot.preferences.postcodeChanged")
 }

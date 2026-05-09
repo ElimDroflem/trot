@@ -42,6 +42,14 @@ struct WeatherMoodLayer: View {
         }
         .task(id: refreshTrigger) { await load() }
         .onAppear { refreshTrigger &+= 1 }
+        // The editor sheet that writes the postcode is owned by other views
+        // (WalkWindowTile, DogSettingsSheet), so dismissing it never fires
+        // .onAppear on the mood layer. Bump the trigger when
+        // `UserPreferences.postcode` changes so the new value lands without
+        // forcing the user to switch tabs.
+        .onReceive(NotificationCenter.default.publisher(for: .trotPostcodeChanged)) { _ in
+            refreshTrigger &+= 1
+        }
         .ignoresSafeArea()
     }
 
