@@ -136,6 +136,7 @@ struct StoryView: View {
         .fullScreenCover(item: $celebrationChapter) { ref in
             StoryChapterCloseOverlay(chapter: ref.chapter, genre: genre ?? .adventure) {
                 StoryService.markChapterSeen(ref.chapter)
+                try? modelContext.save()
                 dismissedCelebrationIDs.insert(ref.chapter.persistentModelID)
                 celebrationChapter = nil
             }

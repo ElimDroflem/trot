@@ -295,14 +295,11 @@ enum DebugSeed {
             context.insert(page)
         }
 
-        // Save first so persistentModelIDs are stable before we use them
-        // as UserDefaults keys.
-        try? context.save()
-
         // Mark chapter 1 as already seen so the celebration overlay doesn't
         // pop on every fresh seed install — the user is in the middle of
         // chapter 2, not just finishing 1.
-        UserDefaults.standard.set(true, forKey: "trot.story.chapterSeen.\(chapter1.persistentModelID.hashValue)")
+        chapter1.seenAt = chapter1.closedAt
+        try? context.save()
     }
 }
 #endif

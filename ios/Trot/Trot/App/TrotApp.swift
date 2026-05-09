@@ -24,6 +24,11 @@ struct TrotApp: App {
                 migrationPlan: TrotMigrationPlan.self,
                 configurations: [configuration]
             )
+            // Promote any legacy UserDefaults chapter-seen flags onto the
+            // SwiftData `seenAt` field so existing installs don't re-fire
+            // the chapter-close overlay after this build lands.
+            // Cheap + idempotent; runs in DEBUG and Release.
+            StoryService.migrateLegacyChapterSeenState(in: container.mainContext)
             #if DEBUG
             DebugSeed.seedIfEmpty(container: container)
             #endif

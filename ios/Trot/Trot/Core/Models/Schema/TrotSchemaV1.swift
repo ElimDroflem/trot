@@ -3,7 +3,7 @@ import SwiftData
 
 enum TrotSchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version {
-        Schema.Version(1, 2, 0)
+        Schema.Version(1, 3, 0)
     }
 
     static var models: [any PersistentModel.Type] {

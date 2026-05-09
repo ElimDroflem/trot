@@ -138,25 +138,41 @@ enum StoryService {
     /// True if the latest page closed a chapter that hasn't been "seen"
     /// by the user yet — used by the UI to surface the celebration once.
     /// Persistence: a chapter is "seen" once the user has tapped through
-    /// the celebration; we mark it via a per-chapter UserDefaults flag.
+    /// the celebration; the timestamp lives on `StoryChapter.seenAt`.
     static func unseenClosedChapter(for dog: Dog) -> StoryChapter? {
         let chapters = (dog.story?.chapters ?? []).sorted { $0.index < $1.index }
-        guard let mostRecentClosed = chapters.last(where: { $0.closedAt != nil }) else {
-            return nil
-        }
-        // Only surface if this is the most recent close AND the next
-        // chapter is the active open one (i.e. we're on its prologue).
-        let key = seenKey(for: mostRecentClosed)
-        if UserDefaults.standard.bool(forKey: key) { return nil }
-        return mostRecentClosed
+        return chapters.last(where: { $0.closedAt != nil && $0.seenAt == nil })
     }
 
+    /// Stamps `seenAt` on the chapter so the celebration won't re-fire.
+    /// Caller is responsible for `try? modelContext.save()` — kept out of
+    /// here so the dismiss flow can batch the save with any other
+    /// mutations it makes.
     static func markChapterSeen(_ chapter: StoryChapter) {
-        UserDefaults.standard.set(true, forKey: seenKey(for: chapter))
+        if chapter.seenAt == nil {
+            chapter.seenAt = .now
+        }
     }
 
-    private static func seenKey(for chapter: StoryChapter) -> String {
-        "trot.story.chapterSeen.\(chapter.persistentModelID.hashValue)"
+    /// One-shot migrator that promotes the legacy UserDefaults seen-state
+    /// (keyed by `persistentModelID.hashValue`, which changes on every
+    /// install) onto the `seenAt` field. Idempotent and cheap — only
+    /// touches chapters that closed but haven't been marked seen yet.
+    /// Runs at app start before any UI renders.
+    static func migrateLegacyChapterSeenState(in context: ModelContext) {
+        let descriptor = FetchDescriptor<StoryChapter>()
+        guard let chapters = try? context.fetch(descriptor) else { return }
+        var didChange = false
+        for chapter in chapters where chapter.closedAt != nil && chapter.seenAt == nil {
+            let legacyKey = "trot.story.chapterSeen.\(chapter.persistentModelID.hashValue)"
+            guard UserDefaults.standard.bool(forKey: legacyKey) else { continue }
+            chapter.seenAt = chapter.closedAt
+            UserDefaults.standard.removeObject(forKey: legacyKey)
+            didChange = true
+        }
+        if didChange {
+            try? context.save()
+        }
     }
 
     // MARK: - Genre pick + prologue

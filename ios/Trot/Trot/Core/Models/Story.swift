@@ -91,6 +91,14 @@ final class StoryChapter {
     /// while the chapter is the active one.
     var closedAt: Date?
 
+    /// Set the moment the user dismisses the chapter-close celebration.
+    /// `nil` while a closed chapter has yet to be seen, non-nil once it
+    /// has. Replaces the install-scoped UserDefaults flag the close
+    /// overlay used to key on, which broke on every reinstall because
+    /// `persistentModelID.hashValue` changes per install. SwiftData-
+    /// backed means this survives reinstall and CloudKit sync.
+    var seenAt: Date?
+
     var startedAt: Date = Date()
 
     var story: Story?

@@ -214,13 +214,10 @@ enum DebugDeepLinks {
                 story.genre = genre
                 // Mark every closed chapter as already-seen so the
                 // chapter-close celebration overlay doesn't keep firing
-                // when we cycle genres for QA — its seen key is keyed by
-                // the chapter's persistentModelID.hashValue.
-                for chapter in (story.chapters ?? []) where chapter.closedAt != nil {
-                    UserDefaults.standard.set(
-                        true,
-                        forKey: "trot.story.chapterSeen.\(chapter.persistentModelID.hashValue)"
-                    )
+                // when we cycle genres for QA. Persisted on the model
+                // since 1.3.0; was a per-install UserDefaults flag prior.
+                for chapter in (story.chapters ?? []) where chapter.closedAt != nil && chapter.seenAt == nil {
+                    chapter.seenAt = chapter.closedAt
                 }
                 try? modelContext.save()
             }
