@@ -7,6 +7,17 @@ import Foundation
 enum UserPreferences {
     private static let postcodeKey = "trot.user.postcode"
     private static let ownerNameKey = "trot.user.ownerName"
+    private static let permissionsSeenKey = "trot.onboarding.permissionsSeen"
+
+    /// True once the user has tapped through the onboarding permissions
+    /// step (regardless of whether they accepted notifications). Stops
+    /// the step from re-appearing on every launch. Survives app
+    /// reinstall as long as iOS preserves UserDefaults — fresh install
+    /// wipes it, which is fine.
+    static var permissionsSeen: Bool {
+        get { UserDefaults.standard.bool(forKey: permissionsSeenKey) }
+        set { UserDefaults.standard.set(newValue, forKey: permissionsSeenKey) }
+    }
 
     /// First name (or chosen handle) used by the Story tab when the LLM
     /// names the human protagonist alongside the dog. Empty by default —

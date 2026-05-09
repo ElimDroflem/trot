@@ -6,6 +6,11 @@ struct RootView: View {
     private var activeDogs: [Dog]
 
     @State private var hasContinued = false
+    /// Mirror of `UserPreferences.permissionsSeen` so SwiftUI re-renders
+    /// when the user dismisses the permissions step. Initialised from
+    /// the persistent flag, then updated locally + persistently when
+    /// the step calls back.
+    @State private var permissionsSeen = UserPreferences.permissionsSeen
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
@@ -39,6 +44,17 @@ struct RootView: View {
                 OnboardingGateView(onContinue: { hasContinued = true })
             } else if activeDogs.isEmpty {
                 AddDogView()
+            } else if !permissionsSeen {
+                // Final onboarding step — fires the notification permission
+                // ask in a clean context AND introduces the Story tab.
+                // Skipped (and never re-appears) once the user taps either
+                // CTA. Not persisted on Dog so adding a second dog later
+                // doesn't re-fire it.
+                OnboardingPermissionsView(
+                    dogName: activeDogs.first?.name ?? ""
+                ) {
+                    permissionsSeen = true
+                }
             } else {
                 HomeView()
             }
@@ -103,16 +119,11 @@ struct RootView: View {
         // users who tap Continue (hasContinued flips true mid-session).
         .task(id: isPastGate) {
             guard isPastGate else { return }
-            #if DEBUG
-            // `-DebugSkipNotifications YES` launch arg lets simulator-driven
-            // testing avoid the iOS notification-permission system dialog,
-            // which would otherwise overlay every clean-install screenshot.
-            if !UserDefaults.standard.bool(forKey: "DebugSkipNotifications") {
-                _ = await NotificationService.requestPermission()
-            }
-            #else
-            _ = await NotificationService.requestPermission()
-            #endif
+            // Notification permission ask moved into
+            // `OnboardingPermissionsView` so it fires in a clean
+            // dedicated context, not on top of milestone celebrations
+            // queued by DebugSeed on first paint. Reschedule still runs
+            // here — it's a no-op if permission was denied.
             await rescheduleNotificationsIfNeeded()
             checkMilestones()
             checkRecapAutoShow()
