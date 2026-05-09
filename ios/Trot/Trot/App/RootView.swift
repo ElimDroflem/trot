@@ -6,11 +6,6 @@ struct RootView: View {
     private var activeDogs: [Dog]
 
     @State private var hasContinued = false
-    /// Mirror of `UserPreferences.permissionsSeen` so SwiftUI re-renders
-    /// when the user dismisses the permissions step. Initialised from
-    /// the persistent flag, then updated locally + persistently when
-    /// the step calls back.
-    @State private var permissionsSeen = UserPreferences.permissionsSeen
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
@@ -44,17 +39,6 @@ struct RootView: View {
                 OnboardingGateView(onContinue: { hasContinued = true })
             } else if activeDogs.isEmpty {
                 AddDogView()
-            } else if !permissionsSeen {
-                // Final onboarding step — fires the notification permission
-                // ask in a clean context AND introduces the Story tab.
-                // Skipped (and never re-appears) once the user taps either
-                // CTA. Not persisted on Dog so adding a second dog later
-                // doesn't re-fire it.
-                OnboardingPermissionsView(
-                    dogName: activeDogs.first?.name ?? ""
-                ) {
-                    permissionsSeen = true
-                }
             } else {
                 HomeView()
             }

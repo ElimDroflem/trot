@@ -46,6 +46,10 @@ struct StoryView: View {
     /// Drives the in-between "Writing the first page…" state so the
     /// picker doesn't sit visually frozen during the call.
     @State private var pendingGenrePick: StoryGenre?
+    /// Mirror of `UserPreferences.storyIntroSeen` so SwiftUI re-renders
+    /// when the user taps Begin on the one-shot intro. Initialised from
+    /// the persistent flag, then locally + persistently flipped true.
+    @State private var storyIntroSeen = UserPreferences.storyIntroSeen
     /// Set when the user has committed a genre but hasn't yet committed
     /// a scene. Drives the routing to `StoryScenePicker`. Distinct from
     /// `pendingGenrePick` (which fires once the LLM call kicks off) so
@@ -206,13 +210,26 @@ struct StoryView: View {
         let state = StoryService.currentState(for: dog)
         switch state {
         case .noStory:
-            StoryGenrePicker(selected: $pickerHover) { genre in
-                // Genre committed → move to the scene picker. Atmosphere
-                // is already on this genre via `pickerHover`; setting
-                // `pendingSceneFor` keeps it locked there while the
-                // user picks where the story opens.
-                withAnimation(.brandDefault) {
-                    pendingSceneFor = genre
+            // First-time visitors get a one-shot intro that explains
+            // what Story mode is BEFORE the genre-pick decision.
+            // `storyIntroSeen` flips true on Begin and the picker
+            // takes over for this and every subsequent visit.
+            if !storyIntroSeen {
+                StoryIntroView(dogName: dog.name) {
+                    UserPreferences.storyIntroSeen = true
+                    withAnimation(.brandDefault) {
+                        storyIntroSeen = true
+                    }
+                }
+            } else {
+                StoryGenrePicker(selected: $pickerHover) { genre in
+                    // Genre committed → move to the scene picker. Atmosphere
+                    // is already on this genre via `pickerHover`; setting
+                    // `pendingSceneFor` keeps it locked there while the
+                    // user picks where the story opens.
+                    withAnimation(.brandDefault) {
+                        pendingSceneFor = genre
+                    }
                 }
             }
         case .awaitingFirstWalk(let page):
