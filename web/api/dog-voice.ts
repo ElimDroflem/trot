@@ -293,6 +293,7 @@ Maximum 10 words.`,
             const isPrologue = bool(context.isPrologue);
             const pageIndexInChapter = num(context.pageIndexInChapter, 1);
             const isFinalPageOfChapter = pageIndexInChapter >= 5;
+            const scenePrompt = str(context.scenePrompt);
 
             const userIntentLine = (() => {
                 if (hasImage) {
@@ -308,6 +309,10 @@ Maximum 10 words.`,
                 }
                 return "No specific user direction — pick the most interesting next beat yourself, true to the genre.";
             })();
+
+            const sceneLine = isPrologue && scenePrompt
+                ? `OPEN THE STORY HERE: ${scenePrompt} The reader picked this opening — page 1 must visibly land in this place/time. Don't be heavy-handed; one or two telling details (a smell, a sound, a colour, a small ordinary event) is enough to anchor it. The world should feel like the reader's choice paid off the moment they read the first line.`
+                : "";
 
             const prologueLine = isPrologue
                 ? `THIS IS THE PROLOGUE — the first page of a brand-new ${genreName} story. Set the scene. Introduce the dog (${dog.name}, a ${dog.breed}) and the human (${ownerName}) as the protagonists, and plant the central tension or mystery of the genre. End on something that pulls the reader forward.`
@@ -346,6 +351,8 @@ ${walkFacts}
 ${ageLine}
 
 ${userIntentLine}
+
+${sceneLine}
 
 ${prologueLine}
 
