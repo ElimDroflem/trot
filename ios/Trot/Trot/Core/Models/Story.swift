@@ -19,6 +19,13 @@ final class Story {
     /// the typed enum.
     var genreRaw: String = ""
 
+    /// Scene raw id picked by the user on the scene-setter step that
+    /// follows genre commit. Empty string for legacy stories that
+    /// existed before the scene picker shipped — the LLM falls through
+    /// to the generic prologue path. Stored as primitive String for
+    /// CloudKit; `scene` computed property maps to the typed value.
+    var sceneRaw: String = ""
+
     /// Rolling LLM-generated state. Updated at chapter close: characters
     /// introduced, current setting, open threads. Sent on every page
     /// prompt so continuity survives.
@@ -41,6 +48,14 @@ final class Story {
     var genre: StoryGenre {
         get { StoryGenre(rawValue: genreRaw) ?? .adventure }
         set { genreRaw = newValue.rawValue }
+    }
+
+    /// Typed accessor for the picked scene, or nil if `sceneRaw` is empty
+    /// (legacy story) or the id no longer matches a known scene under the
+    /// current genre (e.g. data drift after a v1.x scene-table change).
+    var scene: StoryGenre.Scene? {
+        guard !sceneRaw.isEmpty else { return nil }
+        return genre.scene(forID: sceneRaw)
     }
 
     /// The currently-open chapter (no closedAt). Nil if every chapter has

@@ -161,17 +161,21 @@ enum StoryService {
 
     // MARK: - Genre pick + prologue
 
-    /// User picked a genre. Creates the Story, the first chapter, and
-    /// fires the LLM to write the prologue page (no walk facts — genre +
-    /// dog profile alone). On LLM failure, persists a templated prologue
-    /// so the UI never sits empty.
+    /// User picked a genre + scene. Creates the Story (persisting the
+    /// scene id BEFORE the LLM call so the fallback / rolling bible
+    /// inherit it), the first chapter, and fires the LLM to write the
+    /// prologue page (no walk facts — genre + scene + dog profile alone).
+    /// On LLM failure, persists a templated prologue so the UI never
+    /// sits empty.
     @discardableResult
     static func pickGenre(
         _ genre: StoryGenre,
+        scene: StoryGenre.Scene,
         for dog: Dog,
         modelContext: ModelContext
     ) async -> GenerationResult {
         let story = Story(genre: genre)
+        story.sceneRaw = scene.id
         dog.story = story
         modelContext.insert(story)
         let chapter = StoryChapter(index: 1)
@@ -262,6 +266,7 @@ enum StoryService {
         let payload = await LLMService.storyPage(
             for: dog,
             genre: genre,
+            scene: story.scene,
             ownerName: ownerName,
             bible: story.bible,
             previousPages: previousPages,

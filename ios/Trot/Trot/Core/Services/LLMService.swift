@@ -198,6 +198,7 @@ enum LLMService {
     static func storyPage(
         for dog: Dog,
         genre: StoryGenre,
+        scene: StoryGenre.Scene?,
         ownerName: String,
         bible: String,
         previousPages: String,
@@ -220,6 +221,8 @@ enum LLMService {
             "hasImage": imageJPEG != nil,
             "isPrologue": isPrologue,
             "pageIndexInChapter": pageIndexInChapter,
+            "sceneName": scene?.displayName ?? "",
+            "scenePrompt": scene?.prompt ?? "",
         ]
         guard let raw = await request(
             kind: .storyPage,

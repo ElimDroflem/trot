@@ -46,6 +46,15 @@ struct StoryView: View {
     /// Drives the in-between "Writing the first page…" state so the
     /// picker doesn't sit visually frozen during the call.
     @State private var pendingGenrePick: StoryGenre?
+    /// Set when the user has committed a genre but hasn't yet committed
+    /// a scene. Drives the routing to `StoryScenePicker`. Distinct from
+    /// `pendingGenrePick` (which fires once the LLM call kicks off) so
+    /// the user can still go Back to the genre picker before they
+    /// commit the scene.
+    @State private var pendingSceneFor: StoryGenre?
+    /// The scene card currently highlighted in the scene picker.
+    /// Mirrors `pickerHover` for genres.
+    @State private var sceneHover: StoryGenre.Scene?
     /// The genre card currently highlighted in the picker. Lifted from
     /// `StoryGenrePicker` so the atmosphere layer can preview the world
     /// behind the picker the moment a card is tapped — selection is
@@ -78,17 +87,20 @@ struct StoryView: View {
 
     var body: some View {
         // Atmosphere source priority (highest first):
-        //   1. `pendingGenrePick` — user has tapped Begin, prologue is
-        //      being written. Atmosphere stays locked on the chosen
-        //      genre while the LLM works.
-        //   2. `selectedDog?.story?.genre` — story is committed; the
+        //   1. `pendingGenrePick` — user has tapped Begin on the scene
+        //      step, prologue is being written. Atmosphere stays locked
+        //      on the chosen genre while the LLM works.
+        //   2. `pendingSceneFor` — genre is committed, user is on the
+        //      scene picker. Atmosphere stays on the chosen genre so
+        //      the transition genre→scene→writing is one continuous
+        //      world, not three flashes.
+        //   3. `selectedDog?.story?.genre` — story is committed; the
         //      genre is locked for the run of the book.
-        //   3. `pickerHover` — user is browsing the picker, has tapped
-        //      a card to preview. Atmosphere previews that genre so
-        //      they can see what they're choosing before they commit.
+        //   4. `pickerHover` — user is browsing the genre picker, has
+        //      tapped a card to preview.
         // Falling through to nil means we render the weather layer
         // (no story, nothing previewed).
-        let genre = pendingGenrePick ?? selectedDog?.story?.genre ?? pickerHover
+        let genre = pendingGenrePick ?? pendingSceneFor ?? selectedDog?.story?.genre ?? pickerHover
 
         ZStack {
             // Base brand surface so the bottom of the screen always reads
@@ -157,6 +169,29 @@ struct StoryView: View {
             // should disappear immediately.
             if let pending = pendingGenrePick {
                 StoryGenerationProgress(genre: pending)
+            } else if let pendingGenre = pendingSceneFor {
+                // Genre committed, scene not yet picked. Atmosphere stays
+                // locked on `pendingGenre` (priority #2 in the source
+                // chain above), so the transition feels like a page
+                // turn inside the same book.
+                StoryScenePicker(
+                    genre: pendingGenre,
+                    dogName: dog.name,
+                    selected: $sceneHover,
+                    onBegin: { scene in
+                        // Hand off to the LLM call. Set pendingGenrePick
+                        // BEFORE clearing pendingSceneFor so the
+                        // atmosphere coalescing chain never momentarily
+                        // falls through to the weather layer.
+                        pendingGenrePick = pendingGenre
+                        pendingSceneFor = nil
+                        Task { await pickGenre(pendingGenre, scene: scene, for: dog) }
+                    },
+                    onBack: {
+                        sceneHover = nil
+                        pendingSceneFor = nil
+                    }
+                )
             } else {
                 routedContent(for: dog)
             }
@@ -171,10 +206,13 @@ struct StoryView: View {
         switch state {
         case .noStory:
             StoryGenrePicker(selected: $pickerHover) { genre in
-                // Bloom the atmosphere + show the writing state
-                // BEFORE the await so the press feels alive.
-                pendingGenrePick = genre
-                Task { await pickGenre(genre, for: dog) }
+                // Genre committed → move to the scene picker. Atmosphere
+                // is already on this genre via `pickerHover`; setting
+                // `pendingSceneFor` keeps it locked there while the
+                // user picks where the story opens.
+                withAnimation(.brandDefault) {
+                    pendingSceneFor = genre
+                }
             }
         case .awaitingFirstWalk(let page):
             ScrollView {
@@ -316,8 +354,8 @@ struct StoryView: View {
 
     // MARK: - Actions
 
-    private func pickGenre(_ genre: StoryGenre, for dog: Dog) async {
-        _ = await StoryService.pickGenre(genre, for: dog, modelContext: modelContext)
+    private func pickGenre(_ genre: StoryGenre, scene: StoryGenre.Scene, for dog: Dog) async {
+        _ = await StoryService.pickGenre(genre, scene: scene, for: dog, modelContext: modelContext)
         // Bump refreshTick BEFORE clearing pendingGenrePick so SwiftUI
         // sees the state change and re-evaluates the body once. Then
         // drop pendingGenrePick — at this point the prologue page
@@ -331,6 +369,7 @@ struct StoryView: View {
             // `dog.story.genre`. Leaving this set is harmless (it's
             // last in the coalescing chain) but tidier to nil it.
             pickerHover = nil
+            sceneHover = nil
         }
     }
 

@@ -161,6 +161,9 @@ enum DebugSeed {
     @MainActor
     private static func seedStory(for dog: Dog, in context: ModelContext) {
         let story = Story(genre: .murderMystery)
+        // Match the existing Christie pastiche — the seeded chapter 1
+        // opens at the Hookwood horticultural show.
+        story.sceneRaw = "village_fete"
         story.bible = """
             Setting: Hookwood, a small village in the South Downs. Summer.
             Characters: Bonnie (Beagle, food-driven, scent-led, owner-curious). \

@@ -276,4 +276,165 @@ enum StoryGenre: String, Codable, CaseIterable, Sendable, Identifiable {
         case .adventure:     return .kraftFiber
         }
     }
+
+    // MARK: - Scene-setter
+
+    /// One of four genre-bound openings the user picks before page 1 is
+    /// written. The pick is persisted on `Story.sceneRaw` and shipped to
+    /// the LLM via `LLMService.storyPage`'s context dict so page 1
+    /// visibly opens in the chosen world.
+    ///
+    /// Scenes are intentionally bound to the genre rather than a flat
+    /// shared enum — a `village fête` reads differently in murder
+    /// mystery vs cosy mystery, and a "tomorrow" scene only makes sense
+    /// in sci-fi. Each genre ships exactly four.
+    struct Scene: Identifiable, Hashable, Sendable {
+        /// Stable raw value persisted on `Story.sceneRaw`.
+        let id: String
+        /// Card label and the noun re-used in fallback prologue prose.
+        let displayName: String
+        /// SF Symbol shown in an accent-tinted circle on the picker card.
+        let symbol: String
+        /// One-sentence LLM hint embedded in the prologue prompt.
+        let prompt: String
+    }
+
+    /// Headline question shown above the four scene cards. Phrased to feel
+    /// like flipping a book open at the right place, not filling in a form.
+    var sceneQuestion: String {
+        switch self {
+        case .murderMystery: return "Where does the trouble start?"
+        case .horror:        return "When?"
+        case .fantasy:       return "Where does the road begin?"
+        case .sciFi:         return "Era?"
+        case .cosyMystery:   return "Where do you walk?"
+        case .adventure:     return "What landscape?"
+        }
+    }
+
+    /// The four scene cards available for this genre.
+    var scenes: [Scene] {
+        switch self {
+        case .murderMystery:
+            return [
+                Scene(id: "village_fete",
+                      displayName: "Village fête",
+                      symbol: "flag.checkered",
+                      prompt: "Open at a village fête in full swing. Bunting, marquees, tea urns, the kind of crowd that knows each other. Something quiet has just gone wrong; nobody's quite admitted it yet."),
+                Scene(id: "seaside_hotel",
+                      displayName: "Seaside hotel",
+                      symbol: "building.columns.fill",
+                      prompt: "Open in the lobby of a small seaside hotel out of season. Salt on the windows, half the keys hanging on the rack, a piano somewhere. A guest is missing or shouldn't be there."),
+                Scene(id: "old_library",
+                      displayName: "Old library",
+                      symbol: "books.vertical.fill",
+                      prompt: "Open in a small village library. Stacks, dust motes, a librarian who knows everyone's borrowing history. A book has been returned that shouldn't have been, or one is missing that should be."),
+                Scene(id: "wi_meeting",
+                      displayName: "WI meeting",
+                      symbol: "cup.and.saucer.fill",
+                      prompt: "Open at a Women's Institute meeting in a chilly church hall. Tea urn, stacked chairs, an agenda being ignored. One member isn't here who never misses, or one is here who shouldn't be."),
+            ]
+        case .horror:
+            return [
+                Scene(id: "midwinter",
+                      displayName: "Midwinter",
+                      symbol: "snowflake",
+                      prompt: "Open in deep midwinter. Snow on the ground, breath visible, the kind of village where doors shut by four. Something has been moving outside the houses at night that shouldn't be."),
+                Scene(id: "harvest_moon",
+                      displayName: "Harvest moon",
+                      symbol: "moon.fill",
+                      prompt: "Open on a harvest-moon evening. Fields stubble-yellow, the moon abnormally large. Animals in the surrounding farms are uneasy. A walker has found something they can't explain."),
+                Scene(id: "long_summer_dusk",
+                      displayName: "Long summer dusk",
+                      symbol: "sun.haze.fill",
+                      prompt: "Open on a long summer dusk that won't quite end. The light is wrong, too gold, too still. A field's worth of birds went up at once and didn't come back."),
+                Scene(id: "storm_season",
+                      displayName: "Storm season",
+                      symbol: "cloud.bolt.rain.fill",
+                      prompt: "Open during storm season, just after the worst of it. Branches down, slate off roofs, the streetlights flickering. Something arrived in the wind that wasn't there before."),
+            ]
+        case .fantasy:
+            return [
+                Scene(id: "coastal_cliffs",
+                      displayName: "Coastal cliffs",
+                      symbol: "mountain.2.fill",
+                      prompt: "Open on a wild coastal cliff at the edge of a kingdom. Wind, gull cries, a stone marker carved with a name nobody remembers. An old prophecy is starting to come true."),
+                Scene(id: "old_forest",
+                      displayName: "Old forest",
+                      symbol: "tree.fill",
+                      prompt: "Open on the edge of an old forest with paths older than the kingdom. The trees know things. The dog is uncharacteristically quiet, watching."),
+                Scene(id: "market_town",
+                      displayName: "Market town",
+                      symbol: "bag.fill",
+                      prompt: "Open in a busy market town on fair day. Stalls, a juggler, a smell of roasting nuts. A stranger at the edge of the square is watching the dog with too much interest."),
+                Scene(id: "mountain_pass",
+                      displayName: "Mountain pass",
+                      symbol: "triangle.fill",
+                      prompt: "Open on a high mountain pass. A road goes through the rock, narrow and old. There are stories about this pass; today one of them is true."),
+            ]
+        case .sciFi:
+            return [
+                Scene(id: "tomorrow",
+                      displayName: "Tomorrow",
+                      symbol: "clock.fill",
+                      prompt: "Open in a recognisable Britain about a year from now. Streetlights still on at noon, a strange signal blocking radios, government cars in places they shouldn't be."),
+                Scene(id: "fifty_years_on",
+                      displayName: "Fifty years on",
+                      symbol: "gearshape.fill",
+                      prompt: "Open in a Britain fifty years on. The climate has shifted, cities have moved inland, people walk dogs in places that used to be villages. Something has come back into the country that shouldn't."),
+                Scene(id: "thousand_years_on",
+                      displayName: "A thousand years on",
+                      symbol: "globe.europe.africa.fill",
+                      prompt: "Open in a Britain a thousand years on. Ruins where towns used to be, new forests, a different sea level. Civilisation is small again. The dog finds something old."),
+                Scene(id: "alternate_now",
+                      displayName: "Alternate now",
+                      symbol: "arrow.triangle.branch",
+                      prompt: "Open in a Britain that's almost ours but slightly off. Different king, different border, different things on the radio. An ordinary walk becomes something else when the sky changes."),
+            ]
+        case .cosyMystery:
+            return [
+                Scene(id: "seaside",
+                      displayName: "Seaside",
+                      symbol: "water.waves",
+                      prompt: "Open on a quiet British seaside in low season. Pebble beach, wind off the water, a gull-watching regular at his usual bench. A small ordinary thing is wrong: a missed delivery, a regular not where they should be."),
+                Scene(id: "village",
+                      displayName: "Village",
+                      symbol: "house.fill",
+                      prompt: "Open on a small English village green at the soft hour. The pub doors are propped open, someone's sweeping the post office step. A trivial mystery is doing the rounds: a missing gnome, a feud over hedges."),
+                Scene(id: "woodland",
+                      displayName: "Woodland",
+                      symbol: "tree.fill",
+                      prompt: "Open on a footpath through old woodland. Bluebells if spring, leaf-litter if autumn. Quiet and bright. A small unusual find on the path: a single glove, a torn note, the dog already wagging at something hidden."),
+                Scene(id: "canal_towpath",
+                      displayName: "Canal towpath",
+                      symbol: "figure.walk",
+                      prompt: "Open on a canal towpath in the morning. Ducks, narrowboats, the smell of someone's bacon coming out of a chimney pipe. A regular walker isn't where they should be, or a boat is moored where one shouldn't be."),
+            ]
+        case .adventure:
+            return [
+                Scene(id: "highlands",
+                      displayName: "Highlands",
+                      symbol: "mountain.2.fill",
+                      prompt: "Open in a Scottish Highland glen in the early hours. Mist on the heather, a far cry of a buzzard, the prospect of a long day's walk. The dog is already pulling ahead."),
+                Scene(id: "downs",
+                      displayName: "Downs",
+                      symbol: "mountain.2",
+                      prompt: "Open on the South Downs above a coastal village. Long grass, wind, the sea visible miles off. The path forks at a wooden gate; one direction climbs, the other curls down."),
+                Scene(id: "moors",
+                      displayName: "Moors",
+                      symbol: "cloud.fog.fill",
+                      prompt: "Open on a high moor: Yorkshire or the Pennines. Endless heather, peat-cuts, a single drystone wall heading nowhere obvious. A long walk is starting; the weather might or might not hold."),
+                Scene(id: "coastal_path",
+                      displayName: "Coastal path",
+                      symbol: "water.waves",
+                      prompt: "Open on a coastal cliff path on a bright cold morning. Gulls, the smell of gorse, a footpath sign half-pulled out of the ground. A long day's walking ahead and the dog is keen."),
+            ]
+        }
+    }
+
+    /// Lookup by raw id. Used to rehydrate `Story.sceneRaw` into a typed
+    /// `Scene` in the model's computed property.
+    func scene(forID id: String) -> Scene? {
+        scenes.first { $0.id == id }
+    }
 }
