@@ -39,12 +39,12 @@ struct StoryIntroView: View {
                     bulletRow(
                         symbol: "pencil.and.outline",
                         title: "One page per walk.",
-                        body: "Walk \(resolvedDogName), get a fresh page. Two pages a day at most — the book grows at the pace the dog walks."
+                        body: "Walk \(resolvedDogName), get a fresh page. Two pages a day at most. The book grows at the pace the dog walks."
                     )
                     bulletRow(
                         symbol: "books.vertical.fill",
                         title: "Six worlds, one dog.",
-                        body: "Pick a genre — murder mystery, cosy, fantasy, sci-fi, horror, or adventure. Then pick where the story opens."
+                        body: "Pick a genre: murder mystery, cosy, fantasy, sci-fi, horror, or adventure. Then pick where the story opens."
                     )
                     bulletRow(
                         symbol: "arrow.triangle.branch",
