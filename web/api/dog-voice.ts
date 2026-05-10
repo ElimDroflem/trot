@@ -370,6 +370,49 @@ Write the next page now. Return ONLY the JSON.`,
             const chapterPages = str(context.chapterPages);
             const chapterIndex = num(context.chapterIndex, 1);
             const ownerName = str(context.ownerName) || "the human";
+            const isFinale = bool(context.isFinale);
+
+            // Finale path — last chapter of the book. The next-chapter
+            // fields (prologueProse / choiceA / choiceB) MUST come back
+            // empty because there is no next chapter. The bookTitle and
+            // bookClosingLine carry the end-of-book moment.
+            if (isFinale) {
+                return {
+                    system: `You are wrapping the FINAL CHAPTER of a finished book about ${dog.name} (a ${dog.breed}) and ${ownerName}.
+
+Genre: ${genreName}. Tone: ${genreTone}
+
+Output strict JSON only:
+{
+  "title": "...",
+  "closingLine": "...",
+  "bibleUpdate": "...",
+  "prologueProse": "",
+  "choiceA": "",
+  "choiceB": "",
+  "bookTitle": "...",
+  "bookClosingLine": "..."
+}
+
+Field rules:
+- "title": this final chapter's title. 2-5 words, title case, concrete noun. Same rules as a normal chapter title.
+- "closingLine": the last line of this chapter. 12-22 words. No exclamation marks.
+- "bibleUpdate": one final 60-100 word bible reflecting how the book ended. Used by readers reviewing the bookshelf, not by another LLM call.
+- "prologueProse" / "choiceA" / "choiceB": MUST be empty strings. There is no next chapter.
+- "bookTitle": the title of the WHOLE BOOK, suitable for a printed spine. 3-7 words, atmospheric, no subtitle, no the-and-the. Examples: "The Empty Plinth", "What the Beagle Knew", "Footprints in Hookwood". Should suit the genre and the events of the book.
+- "bookClosingLine": the very last line of the BOOK — different from the chapter closing line. 12-22 words. Should feel like the end of a book, not the end of a chapter. A grace note. No exclamation marks.
+
+British English. No fourth-wall. No clichés ("A New Beginning", "The Journey Continues", "And so the adventure ends").`,
+                    user: `Story bible at chapter start:
+${bible || "(blank)"}
+
+All pages from the chapter that's just closed (this is the LAST chapter):
+${chapterPages}
+
+Wrap this chapter AND wrap the whole book. Return ONLY the JSON.`,
+                    maxTokens: 1200,
+                };
+            }
 
             return {
                 system: `You are wrapping a chapter and setting up the next one in an ongoing book about ${dog.name} (a ${dog.breed}) and ${ownerName}.
