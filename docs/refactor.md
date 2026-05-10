@@ -192,6 +192,64 @@ Story mode is now the headline progression. Does onboarding mention it? Set the 
 
 ---
 
+## Strategic-shift items (added 2026-05-10)
+
+These items implement the book-as-lead repositioning captured in `decisions.md` "Strategic repositioning: book as lead, walking as cost". Each is a substantial feature deserving its own plan-mode session. Order matters — earlier items are prerequisites for later ones.
+
+### S1. Story-mode-on-day-0 — generate the prologue during onboarding
+
+**Highest-priority strategic item.** The wow moment moves from "your first walk → your first page" to "you finished onboarding → here's page 1." Replaces the current "no story → genre picker → scene picker → walk to unlock" flow on the noStory branch with: onboarding gathers the minimum profile, then drops the user straight into the genre picker, then the scene picker, then displays the prologue as the final onboarding screen with locked path-choices visible underneath.
+
+**Where:** RootView routing, AddDogView (compresses to photo + name + breed only), new OnboardingStoryFlow that wraps StoryGenrePicker + StoryScenePicker + the prologue display, StoryService.pickGenre called from the onboarding context.
+
+**Risk:** changes the onboarding mental model significantly. Plan-mode this thoroughly.
+
+**Acceptance:** new install → 90 seconds to a generated prologue on screen. The user reads page 1 before they're asked for any permissions. The Story tab is the home view from the moment the prologue lands.
+
+### S2. HealthKit history backfill on day 0
+
+After the user grants HealthKit, pull the last year of `distanceWalkingRunning` + step samples and surface "Bonnie has walked with you 84 hours over the past year" on the Insights tab + as part of lifetime stats. Free tier sees the last 30 days; Pro sees the full year.
+
+**Where:** new `HealthKitBackfillService` (or extension of HealthKitService when that ships); Insights tab to render the new stat; subscription gating on the year-vs-30-days split.
+
+**Acceptance:** day-0 install + grant → Insights tab shows real numbers, not the 7-day "learning" state.
+
+### S3. Share cards on book completion
+
+Generate a shareable card at book finish: dog photo (hero) + book title + genre badge + stats line + closing-line excerpt + "Made with Trot" mark. Export via `UIActivityViewController` to Photos / Messages / Instagram / etc.
+
+**Where:** new `BookShareCard` SwiftUI view rendered to UIImage via ImageRenderer, presented from `StoryFinaleOverlay`'s "Share" button (new) or available from any completed book on the bookshelf.
+
+**Acceptance:** finished book → tap Share → native iOS share sheet with a beautifully designed card.
+
+### S4. Trot Pro paid tier scaffolding
+
+Single subscription product (`trot.pro.monthly` £3 or `trot.pro.annual` £20) via StoreKit 2. Free vs Pro gates: HealthKit backfill horizon (30d vs 1y), multiple active dogs, share-card watermark, story-generation queue priority. Subscription state lives on AppState; gating helpers wrap the relevant features.
+
+**Where:** new `SubscriptionService`, paywall view (presented at upsell moments — not interruptive), gating sites in HealthKitBackfillService / Dog management / BookShareCard / StoryService.
+
+**Acceptance:** purchase flow works in StoreKit sandbox; restore-purchases works; paywall can be dismissed without buying; non-Pro users hit clear, kind upsell messaging at gate points.
+
+### S5. App Store + landing positioning rewrite (already partially done in docs)
+
+Update the actual landing-page HTML in `web/index.html` to match the new headline + feature blocks captured in `docs/landing.md`. Update the iOS app's Info.plist `CFBundleDisplayName` and the App Store Connect metadata when next building for TestFlight. Keep the current "walking tracker" backup variant in source comments for review-rejection fallback.
+
+**Where:** `web/index.html`, `web/styles.css` (if needed), iOS `Info.plist`, App Store Connect (manual when TestFlight build ships).
+
+### S6. Notification ask moves to "first page read"
+
+Currently asked on the walk-window reminder toggle (per `decisions.md` "Notification permission ask via walk-window reminder"). New primary trigger: after the user finishes reading the prologue on day 0, a one-time card appears with copy "Want me to nudge you when there's a fresh page?" and the Allow / Maybe later buttons. The walk-window reminder fallback path stays for users who decline.
+
+**New notification kind: story page-ready.** When a walk crosses 50% or 100% of target and a page unlocks, fire a local notification "Bonnie's next page is ready." with deep-link to Story tab. Replaces the under-target nudge as the headline daily push.
+
+**Where:** new card in `StoryView` that appears once after the prologue is read (gated on `UserPreferences.notificationAskShown`); `NotificationService` gains the page-ready scheduling; `WalkCompleteOverlay` enqueues the page-ready notification when its event has `pageUnlocked` non-nil.
+
+### S7. Couples / shared accounts (highest post-launch priority — NOT v1)
+
+Flagged here so it doesn't get lost. Two humans walking the same dog should both get credit. Uses CloudKit shared zones (or a server-mediated path). Plan-mode separately when v1 ships.
+
+---
+
 ## Working agreement for the refactor session
 
 Per `CLAUDE.md` workflow rules:

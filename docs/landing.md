@@ -18,29 +18,32 @@ A single-page site with three sections plus footer.
 - Headline that captures the value prop in one line
 - One-line subhead with the proof point or detail
 - Primary CTA: App Store badge if launched, email signup if pre-launch
-- Visual: a single screenshot of the Trot Home screen, on a phone, well-shot
+- Visual: the Story tab on a phone, with page 1 of a real-feeling sample book on screen and a dog's photo as the visual anchor
 
-The headline does the heavy lifting. Some directions to test:
+The headline leads with the book — the thing that makes Trot different, not the thing every walking app already does. Lead candidate:
 
-- "The dog walking app that keeps you on track."
-- "Built around your dog, not your steps."
-- "Your dog deserves a daily walk. Trot makes sure they get one."
-- "Walk your dog, every day."
+- "AI writes your dog a book."
 
-Subhead supports it with the differentiator:
+Strong runners-up to test:
 
-- "Trot detects walks automatically and tailors targets to your dog's breed, age, and health. iOS only."
-- "Passive walk detection, breed-tailored targets, and a streak that belongs to your dog."
+- "A book about your dog. One page per walk."
+- "Bonnie's story is waiting. So is the lead."
+- "What if your dog's walks were a book?"
+
+Subhead lands the mechanic + the proof:
+
+- "One page per walk. Six worlds to choose from. Five chapters per book. Picks up where you left off."
+- "Every walk writes the next page. Your dog is the protagonist; you steer the path."
 
 ### 2. Three feature blocks
 
 Three short blocks. Each one: an icon or small illustration, a one-line title, two sentences. That's it. No pricing tables, no comparison charts.
 
-The three features:
+The three features (book first, walking second, personalisation third — order matters):
 
-- **Walks log themselves.** Trot detects walks via HealthKit. Tap once to confirm; the rest is automatic.
-- **Targets that fit your dog.** Beagles, Frenchies, and Labradors don't need the same exercise. Trot's targets adjust to breed, age, and health.
-- **A streak worth keeping.** Track your dog's daily walking habit. One rest day a week is allowed. Skipping more breaks the streak.
+- **A book about your dog.** AI writes a 25-page story, one page per walk. Pick a genre, pick where it opens. Five chapters and the book finishes; pick a new genre for the next one.
+- **Walking is the page-turn.** Bonnie hits her exercise target, the next page lands. Take her on a longer walk, get two pages. The story grows at the pace your dog actually moves.
+- **Knows your dog.** Breed, age, and health shape the exercise plan. Photo and personality shape the prose. Bonnie's book reads like Bonnie.
 
 ### 3. CTA repeat
 

@@ -175,10 +175,12 @@ The following decisions came out of a structured pressure-test of the project pl
 
 **Rationale:** A proper memorialise flow needs careful UX and copy and isn't worth designing for v1. The 14-day safeguard prevents the worst case (a "Luna's quiet today" nudge weeks after a loss) without requiring the full design pass now. Full memorialise UX is in the Open list below for v1.1.
 
-### Pre-Trot lifetime stats backfill
-**Decision:** Accept zero. Lifetime stats start at zero on day one. Onboarding frames it as "Trot starts counting today."
+### Pre-Trot lifetime stats backfill — SUPERSEDED 2026-05-10
+**Original decision:** Accept zero. Lifetime stats start at zero on day one. Onboarding frames it as "Trot starts counting today."
 
-**Rationale:** Asking "how long have you had Luna?" and prorating fictional baseline minutes undermines the "doing right by your dog" tone. Clean zero is honest and less to build.
+**Original rationale:** Asking "how long have you had Luna?" and prorating fictional baseline minutes undermines the "doing right by your dog" tone. Clean zero is honest and less to build.
+
+**Superseded by `Day-0 HealthKit history backfill` (2026-05-10).** The original decision's concern — fictional baselines from a "how long have you had the dog?" prompt — is preserved by sourcing data from HealthKit instead of the user. HealthKit walking history is real, the user's own, and not asked-about; backfilling it on day 0 turns "Trot starts counting today" (a feature) into "Bonnie has walked with you 84 hours over the past year" (a wow).
 
 ### Multi-dog Home navigation
 **Decision:** Home defaults to the most-recently-active dog. User switches via top selector or horizontal swipe. Each dog has its own streak count visible.
@@ -406,6 +408,75 @@ The first application of this rule was the `firedMilestones` add (2026-05-06), w
 **Rationale:** First attempt at refactor items 5 + 10 combined them into a forced onboarding screen. User pushback was unambiguous; right answer was to delete the screen, not to tweak it. Two distinct concerns (notification permission, Story-mode discovery) needed two distinct contextual triggers. Patching would have been quicker but would have entrenched a wrong shape. Pattern: when the feedback is conceptual ("wrong place", "wrong bundling"), revert; when feedback is detail ("typo", "wrong colour"), patch.
 
 **Implementation note:** the sequence `cedbae2` (wrong design) → `5da822c` (revert + new design) → `242b072` (em-dash polish) is a useful pattern. Three tight commits, each reviewable, full provenance preserved.
+
+### Strategic repositioning: book as lead, walking as cost — 2026-05-10
+**Decision:** Trot is repositioned end-to-end as "an AI book about your dog that grows when you walk them" — not as a walking tracker with a story feature. The book leads marketing, leads onboarding, leads the App Store listing, leads the home view. Walking is reframed as the cost of the next page, not the thing the app does.
+
+This supersedes the original positioning ("Trot detects walks automatically and tailors targets to your dog's breed, age, and health") which was a feature list and put Trot in a category (walking tracker) where free alternatives were stronger. The new positioning is a job-to-be-done ("tell me a story about my dog") in a category Trot effectively owns.
+
+**Rationale:** Brutal product audit on 2026-05-10 surfaced three issues with the original v1 design — onboarding too long, cold start cliff before the wow, App Store positioning indistinguishable from generic tracker. All three converged on the same fix: Story mode is the actual product; everything else is supporting. Best practices in 2026 (Lensa-style instant-wow, Lapse-style social hook, Strava-style HealthKit history backfill) all confirmed the direction.
+
+**What this rules in for v1:** Story-mode-on-day-0 (prologue lands during onboarding from profile alone, before the first walk); HealthKit history backfill on day 0; share cards on book completion; minimum-viable Trot Pro paid tier; App Store + landing-page positioning rewrite.
+
+**What this defers / reverses:**
+- Reverses "lifetime stats start at zero" (now: HealthKit backfill on day 0)
+- Reverses "first-week milestone ladder as a separate UI surface" (now: woven into story mode page unlocks + chapter close + the streak/recap loops)
+- Defers full breed-table-driven targets — generic-breed defaults cover 90% of value; ship simple, refine later
+- Sci-fi / horror / fantasy genres can ship as v1.x content drops if the build budget tightens; cosy + mystery + adventure are the v1 minimum
+
+### Onboarding compresses to two screens, prologue lands in under 90s — 2026-05-10
+**Decision:** New onboarding shape: (1) sign in with Apple, (2) photo + name + breed, (3) genre pick, (4) scene pick, (5) prologue generates and displays, (6) permissions ask after the user has read page 1, (7) land on Story tab with locked path-choices. Postcode, DOB, weight, conditions, walk windows are deferred to optional in-app moments.
+
+The minimum viable profile to generate a prologue is name + photo + breed. Everything else is requested when its absence becomes a tax on a specific feature ("add postcode for the daily walk-window forecast" / "tell us Bonnie's age so the story can know how old she is").
+
+**Rationale:** Original onboarding asked for ten profile fields up front from a user who hadn't been sold yet. Lensa, Lapse, every successful 2026 onboarding gets to a wow in under three taps. The wow here is the prologue landing. Everything else is in service of getting there fast.
+
+**Replaces:** the previous 6-step onboarding (gate → AddDog with full profile → walk windows → permissions → Home with empty stats). The deferred fields don't disappear — they get asked at the moment the user would benefit from them.
+
+### Page-1 cliffhanger is a hard rule — 2026-05-10
+**Decision:** The proxy `story_page` system prompt now enforces "every page ends on a hard hook for the next page — a discovery, a name spoken, a door opening, a sudden change, a sound heard. NOT a closing summary, NOT a tied-off scene." The prologue line escalates: "the reader has not walked the dog yet — this is their first taste of the book, and it has to be strong enough to send them out the door for the next page."
+
+The fourth wall stays intact — the prose never mentions walking or the next page or the app. The UI handles the "walk to unlock" message via the dimmed-with-explainer decision panel. The prose alone earns the next walk.
+
+**Rationale:** Story mode is the retention engine; cliffhanger discipline is what makes it actually retain. Previous prompt said "end on something that pulls the reader forward" which is too soft. The new rule names the exact shape (discovery / name / door / change / sound / question) and disallows the genre-generic fail mode ("they walked home"). Fallback prologues need to be re-audited against this rule on the next pass.
+
+### Notification ask moves to the first earned moment — 2026-05-10
+**Decision:** Notification permission is asked **after the user reads page 1 of the prologue**, not on the walk-window reminder toggle (which was the previous landing — see `Notification permission ask via walk-window reminder` above). The copy: "Want me to nudge you when there's a fresh page?" The user has just received value from the app; the ask is earned.
+
+**Supersedes** the walk-window-reminder-toggle ask — that ask is now redundant once notifications are granted earlier in the flow. The reminder toggle still works for users who denied at onboarding (showing the inline "Open Settings" hint). The contextual reminder-toggle path is the fallback, not the primary.
+
+**New primary notification: "story page-ready nudge".** When a walk crosses a page-unlock threshold (50% or 100% of target), a notification fires: "Bonnie's next page is ready." Direct deep-link into Story tab. This replaces the "under-target nudge" as the headline daily push because it earns more taps and aligns with the book-as-lead positioning.
+
+### v1 gains share cards + paid tier — 2026-05-10
+**Decision:** Two features previously deferred to v1.x are pulled into v1 scope:
+
+**Share cards on book completion.** A finished book exports a beautifully designed card (dog photo, title, genre, stats line, closing line excerpt, "Made with Trot" mark) via `UIActivityViewController`. Without this, every install must come from paid acquisition or personal network. With it, finished books seed organic discovery — the single highest-leverage growth lever available pre-launch.
+
+**Trot Pro at £3/month or £20/year.** Free tier covers core loop (one dog, one book at a time, all walking + streak features, last 30 days HealthKit backfill, watermarked share cards). Pro unlocks: full HealthKit history backfill, multiple active dogs, clean share cards, priority story generation. StoreKit 2.
+
+**Rationale:** Free apps with LLM costs are unsustainable at scale; pet owners in 2026 are conditioned to pay for things they care about (BarkBox, FitBark, Whistle, Tractive). A small paid tier signals quality and funds the AI loop. The "no monetisation in v1" stance was a feature, not a virtue — adding the simplest viable paid tier strengthens v1 rather than compromising it.
+
+**Out of scope for v1 still:** print-on-demand for finished books, public web URLs for shared books, couples accounts (the latter pulled out of v1 reluctantly — flagged as the highest-priority post-launch feature).
+
+### App Store + landing positioning rewrite — 2026-05-10
+**Decision:** Lead App Store metadata becomes:
+- App Name: `Trot: A Book About Your Dog` (28 chars)
+- Subtitle: `AI writes a page every walk` (28 chars)
+
+Landing page hero leads with "AI writes your dog a book" (replacing "Daily walks for your dog"). Three feature blocks reorder: book first, walking second, personalisation third (was: walks-log-themselves first).
+
+Backup variant if Apple review pushes back on the "Book About Your Dog" framing: `Trot: Walk to Write the Book` / `AI writes a story when you walk`.
+
+**Supersedes** the previous metadata (`Trot: Daily Dog Walks` / `Build a daily walking habit`) which positioned Trot in the crowded walking-tracker category.
+
+### Day-0 HealthKit history backfill — 2026-05-10
+**Decision:** After the prologue lands and the user grants HealthKit, Trot pulls the last year of walking history from HealthKit and surfaces it as part of the dog's stats: "Bonnie has walked with you 84 hours over the past year." Insights tab uses this data immediately rather than the 7-day "learning" state.
+
+**Reverses** the previous "Pre-Trot lifetime stats backfill: Accept zero" decision. That decision's rationale (avoid the awkward "how long have you had Luna?" question + prorated fictional baselines) is preserved by sourcing the data from HealthKit, not from the user — there's no fictional anything; it's the user's own walking history.
+
+**Free tier sees the last 30 days; Pro sees the full year.** Backfill is a Pro-tier upsell and the day-0 wow.
+
+**Rationale:** "Lifetime stats start at zero" was the single most retention-hostile choice in the original v1 design. Best-practice 2026 apps (Strava, Apple Fitness, Whoop) all backfill from HealthKit on day 0 — empty home screens are conversion killers. Trot's strongest day-0 wow is the prologue; the second-strongest is "Bonnie has walked with you 84 hours over the past year."
 
 ---
 

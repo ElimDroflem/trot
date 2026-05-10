@@ -315,7 +315,7 @@ Maximum 10 words.`,
                 : "";
 
             const prologueLine = isPrologue
-                ? `THIS IS THE PROLOGUE — the first page of a brand-new ${genreName} story. Set the scene. Introduce the dog (${dog.name}, a ${dog.breed}) and the human (${ownerName}) as the protagonists, and plant the central tension or mystery of the genre. End on something that pulls the reader forward.`
+                ? `THIS IS THE PROLOGUE — the first page of a brand-new ${genreName} story. Set the scene. Introduce the dog (${dog.name}, a ${dog.breed}) and the human (${ownerName}) as the protagonists, and plant the central tension or mystery of the genre. The reader has not walked the dog yet — this is their first taste of the book, and it has to be strong enough to send them out the door for the next page.`
                 : "";
 
             const wrapLine = isFinalPageOfChapter
@@ -334,6 +334,7 @@ Hard rules:
 - "prose" is exactly one iPhone screen of reading: 140 to 180 words, broken into 2 or 3 paragraphs separated by single newlines (\\n). Not a teaser, but tight — fits without scrolling at body font. British English ("realise", "harbour", "grey").
 - Use the channelled author's pacing inside that length — short sentences where they bite, longer ones where the prose can breathe, paragraph breaks where the camera moves.
 - Comedy comes from the dog being a ${dog.breed}, not from the narrator winking at the reader. Genre tropes are taken seriously; the dog occasionally punctures them through breed-specific behaviour. NOT every page resolves to "the dog did it" — vary so the reader can't predict.
+- EVERY PAGE ends on a hard hook for the next page. A discovery, a name spoken, a door opening, a sudden change, an unanswered question, a sound heard. NOT a closing summary, NOT a tied-off scene, NOT "they walked home." The reader should put the phone down hungry, not satisfied. The next page is gated behind walking the dog; the prose must earn that walk every time. Don't break the fourth wall — never refer to the walk or the next page in the prose; the app's UI handles the "walk to unlock" message. The story alone has to make them want it.
 - Reference the owner (${ownerName}) sparingly — once every 3-4 pages, not every page. They're a co-protagonist.
 - Use the walk facts (duration, weather, time of day, distance) as concrete texture — never as a stat dump.
 - "choiceA" and "choiceB" are 4-8 word teasers for two possible next pages. Concrete, picture-able, genre-flavoured. Examples: "Follow the smell into the woods" / "Stay on the path and look back". They should feel like genuinely different threads, not rephrasings of the same thing.
