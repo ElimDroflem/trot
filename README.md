@@ -20,11 +20,13 @@ This monorepo contains:
 - `docs/brand.md` — brand and design system
 - `docs/landing.md` — landing page brief
 - `docs/decisions.md` — decision log
+- `docs/refactor.md` — prioritised refactor backlog
+- `docs/log.md` — session log (read on demand to pick up where you left off)
 - `setup-guide.md` — first-time setup walkthrough
 
 ## Stack
 
-**iOS:** Swift 6 / SwiftUI / SwiftData + CloudKit / HealthKit. Built with Xcode 26.3+ and the iOS 26 SDK. Deployment target iOS 17+.
+**iOS:** Swift 6 / SwiftUI / SwiftData + CloudKit / HealthKit. Built with Xcode 26.3+ and the iOS 26 SDK. Deployment target iOS 18.0.
 
 **Web:** Static HTML/CSS for the landing page. Vercel Edge Function in TypeScript for the LLM proxy. Single Vercel deployment.
 

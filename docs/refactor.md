@@ -4,9 +4,11 @@ Working document for the refactor pass after the Story tab rebuild (2026-05-08).
 
 The session that produced this list shipped a major Story-mode rewrite + ripped the Journey/Route system. Code is functionally clean (build passes, zero warnings) but several structural debts accumulated. Fix in this order, plan-mode each item before code.
 
+**Status as of 2026-05-10:** items 1, 3, 5, 10 ✅ shipped. Item 4 partially shipped (StoryServiceFinaleTests covers the new finale path; full `currentState` matrix still open). Items 2, 6, 7, 8, 9, 11–14 still open and best done as a single "spring clean" pass once features are locked.
+
 ---
 
-## 1. SwiftData migration: drop deprecated Dog journey fields
+## 1. ✅ SHIPPED 2026-05-08 — SwiftData migration: drop deprecated Dog journey fields
 
 `Dog.activeRouteID`, `Dog.routeProgressMinutes`, `Dog.completedRouteIDs` are persisted SwiftData properties left over from the Journey/Route system that was deleted on 2026-05-08. They sit on the model with a `// MARK: - Journey state (DEPRECATED — pending SwiftData migration)` comment. Nothing in the running app reads them.
 
@@ -50,7 +52,7 @@ Top offenders + suggested splits:
 
 ---
 
-## 3. Chapter-close overlay re-firing on fresh installs
+## 3. ✅ SHIPPED 2026-05-09 — Chapter-close overlay re-firing on fresh installs
 
 `StoryService.unseenClosedChapter` keys "seen" state via `UserDefaults.standard.bool(forKey: "trot.story.chapterSeen.\(chapter.persistentModelID.hashValue)")`. The hash changes per app install (SwiftData persistentModelID is install-scoped, not user-scoped), so on every fresh install the seed's closed chapter gets re-celebrated.
 
@@ -72,7 +74,11 @@ Option 1 is correct. UserDefaults was always a workaround.
 
 ---
 
-## 4. StoryService test coverage
+## 4. ⚠️ PARTIAL — StoryService test coverage
+
+**Status update 2026-05-10:** `StoryServiceFinaleTests` (8 tests) shipped alongside the book-length feature, covering `finishBook` field-stamping, relationship-swap, idempotency, fallback title, completed-stories sort. Full `currentState` matrix still open below.
+
+**Original plan:**
 
 `StoryService.currentState` was extended this session with milestone gating + page cap logic. Zero tests. We deleted `JourneyServiceTests.swift` (~150 lines) and added nothing. Net test count dropped.
 
@@ -94,7 +100,7 @@ Option 1 is correct. UserDefaults was always a workaround.
 
 ---
 
-## 5. Notification permission alert on every reinstall
+## 5. ✅ SHIPPED 2026-05-10 — Notification permission alert on every reinstall
 
 `DebugSeed.seedIfEmpty` pre-fires the `firstWalk` milestone (so the user lands on a "Luna already has 6 walks" state). That milestone enqueues a celebration which triggers `UNUserNotificationCenter.requestAuthorization` (because permission hasn't been requested yet on a fresh install). Result: the iOS notification permission alert overlays the centre of the screen on every reinstall, blocking simctl screenshots.
 
@@ -167,7 +173,7 @@ Story mode introduced a lot of new copy. Audit each line against `docs/brand.md`
 
 ---
 
-## 10. Onboarding flow — has it kept up with story mode?
+## 10. ✅ SHIPPED 2026-05-10 — Onboarding flow — has it kept up with story mode?
 
 Story mode is now the headline progression. Does onboarding mention it? Set the user's expectation that picking a dog → get a book per dog?
 

@@ -370,6 +370,43 @@ The first application of this rule was the `firedMilestones` add (2026-05-06), w
 
 **Mechanics that work:** delete the property, bump `Schema.Version`, leave `TrotMigrationPlan.stages` empty, `MigrationPlan.schemas` stays `[TrotSchemaV1.self]`. A `Mirror`-based test in `TrotTests/DogModelTests.swift` acts as a tripwire if anyone reintroduces a removed field by accident.
 
+**Subsequent applications (2026-05-09/10 session):** three more in-place migrations all worked cleanly under this pattern — `Story.sceneRaw` (1.1.0 → 1.2.0), `StoryChapter.seenAt` (1.2.0 → 1.3.0), and the book-length cluster `Story.finishedAt` + `title` + `closingLine` + `Dog.completedStories` (1.3.0 → 1.4.0). The pattern is now battle-tested for both adds and drops.
+
+### Scene-setter step before page 1 — 2026-05-09
+**Decision:** Between the genre-pick and the first LLM call, the user picks one of four genre-bound scenes (`StoryGenre.scenes`) — e.g. murder mystery: village fête / seaside hotel / old library / WI meeting. The pick persists on `Story.sceneRaw` and ships into the `story_page` proxy as `scenePrompt`, used to anchor page 1's opening lines. Nested under StoryGenre rather than a flat enum because scenes are intrinsically genre-bound.
+
+**Rationale:** The "prologue is random — the user contributed nothing but a genre" problem. Best-practice scan of adjacent products (personalised kids' books, AI character makers, AI photo apps) showed: one constrained-choice tap is the sweet spot; user expects the input to *show up* in the output; two questions starts to feel like a form. Settling on ONE per-genre scene-question, 4 cards, ~3 seconds of friction. Real artwork is a v1.x swap that doesn't change the data model.
+
+**What was rejected:** a second optional "Bonnie's nature in a word" personality picker. Held back as a v1.x candidate — only add if the scene-setter alone feels thin in playtest. Two questions risks the form-feel.
+
+### Notification permission ask via walk-window reminder, not onboarding — 2026-05-10
+**Decision:** No notification permission ask on launch and no forced onboarding step. The ask fires on the first "Remind me" tap on the walk-window tile (`WalkWindowTile.toggleReminder`). Once granted, `NotificationService.reschedule` picks up the other three scheduled types automatically (nudge, milestone, recap, morning-window) — permission is app-wide, not per-type. On denial, an inline "Notifications are off · Open Settings" hint sits under the capsule with `UIApplication.openSettingsURLString` deep link.
+
+**Rationale:** First attempt at refactor item 5 (notification permission alert blocking first-launch) was a forced `OnboardingPermissionsView` between AddDog and Home, bundled with a Story-mode teaser. User pushback was sharp and clear: looked like sign-in, didn't motivate the ask, didn't explain Story mode well. The right pattern is a contextual trigger — the user explicitly opting in to a notification, which earns the prompt. The walk-window reminder is the cleanest such moment in v1; one-tap, user-initiated, intent unambiguous.
+
+**What this rules out:** any future "ask permission on launch" or "forced screen bundling unrelated asks" pattern. If a future feature needs notifications, wire it to its own contextual moment (the user enabling that specific feature), not a global onboarding step.
+
+### Story-mode discovery via Story-tab intro — 2026-05-10
+**Decision:** The first time a user visits the Story tab without an active story (and without `UserPreferences.storyIntroSeen`), they see `StoryIntroView` — a one-screen explainer with three plain bullets ("one page per walk · six worlds · you steer it") and a Begin CTA that flips the flag. Subsequent Story-tab visits go straight to the genre picker (or active story). Discovery happens on the surface being discovered, not before it.
+
+**Rationale:** Refactor item 10 ("onboarding doesn't mention Story mode"). Tried bundling Story-mode discovery into a forced onboarding screen; user pushback (see notification decision above) made it clear that discovery belongs ON the Story tab, not BEFORE it. Bottom-tab "Story" with the open-book icon already does most of the discovery work; the intro adds clean framing for the moment the user actually engages.
+
+### Books are 5 chapters long, finished books archive — 2026-05-10
+**Decision:** Each book is exactly 5 chapters × 5 pages = 25 pages. After chapter 5 closes, the proxy switches to a finale variant of `story_chapter_close` and returns a book title + book-closing line on top of the chapter wrap. The Story moves from `dog.story` (active) to `dog.completedStories` (cascade-delete `[Story]?` archive); `dog.story = nil`; the genre picker reappears on the Story tab. Completed books surface as `CompletedBooksShelf` below the genre picker. Per-genre `chaptersPerBook: Int` keeps the door open for varying pacing later.
+
+**Rationale:** Books were rolling forever (chapter N → N+1 → ∞). No "finished" moment, no library, no way to start a fresh genre. 5 chapters at 1 page per walk + 50%/100% gating is roughly 2-4 weeks per book at typical use — frequent enough that the genre-pick moment recurs without feeling rushed; ~12 books per active dog per year.
+
+**Bookshelf placement:** below the genre picker on the Story tab (vs separate Library tab vs sub-page). Same surface, no new bottom-tab, discoverable when you're already looking at story state. Tap → opens the book in the existing `StoryFullPageReader`.
+
+**Storage shape:** two distinct cascade-delete relationships on `Dog` — `story: Story?` (active) and `completedStories: [Story]?` (archive). Avoided the "one collection, filter by finishedAt" alternative because it would have required updating every existing `dog.story` read site. The two-relationship model is symmetric, simple, and Story moves between them at the moment of finale via direct assignment.
+
+### Course correct as a discipline — 2026-05-10
+**Decision:** When the user pushes back hard on a design — especially with words like "confused", "didn't understand", "felt like X when it should be Y" — revert and redesign rather than patch. Keep the failed attempt in git history (don't rebase) so the trail of the course correct is visible.
+
+**Rationale:** First attempt at refactor items 5 + 10 combined them into a forced onboarding screen. User pushback was unambiguous; right answer was to delete the screen, not to tweak it. Two distinct concerns (notification permission, Story-mode discovery) needed two distinct contextual triggers. Patching would have been quicker but would have entrenched a wrong shape. Pattern: when the feedback is conceptual ("wrong place", "wrong bundling"), revert; when feedback is detail ("typo", "wrong colour"), patch.
+
+**Implementation note:** the sequence `cedbae2` (wrong design) → `5da822c` (revert + new design) → `242b072` (em-dash polish) is a useful pattern. Three tight commits, each reviewable, full provenance preserved.
+
 ---
 
 ## Open

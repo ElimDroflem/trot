@@ -8,6 +8,87 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-09 / 2026-05-10 — Refactor + retention bundle: scene-setter, course-corrected onboarding, book length, finale, archive
+
+Two-day session. The Story tab journey went from "loosely shaped" to "structurally complete with a beginning, middle, and end". Plus a handful of refactor items closed: deprecated journey fields dropped, chapter-seen state moved off install-scoped UserDefaults onto SwiftData, notification permission re-wired to a contextual moment, and a clean onboarding-vs-discovery course correction.
+
+**Done — Story journey overhaul:**
+
+- **Scene-setter step before page 1.** New `StoryGenrePicker` → `StoryScenePicker` flow. Each genre exposes 4 hand-picked scenes (e.g. murder mystery: village fête / seaside hotel / old library / WI meeting). The pick persists on `Story.sceneRaw` and ships into the proxy's `scenePrompt` context key so page 1 visibly opens in the chosen world. Solves the "prologue feels random — the user contributed nothing but a genre" problem. Real artwork is a v1.x swap; SF Symbols today.
+- **Story-tab intro replaces forced onboarding screen.** First-pass attempt was a forced `OnboardingPermissionsView` between AddDog and Home. User pushed back hard ("came up while I was logging in", "didn't see why this would make me press allow notifications"). Reverted that screen entirely and added `StoryIntroView` as the noStory branch on the Story tab — fires the first time the user visits Story, three plain bullets explain Story mode, "Begin" flips `UserPreferences.storyIntroSeen` and the genre picker takes over. Notification permission removed from the bundle.
+- **Book length: 5 chapters / 25 pages per book.** `StoryGenre.chaptersPerBook` is per-genre (locked at 5 across the board for v1, future-proof for varying pacing). When chapter 5 closes, the proxy switches to a finale variant of `story_chapter_close` and returns a book title + book-closing line on top of the chapter wrap. The Story is moved from `dog.story` (active) to `dog.completedStories` (archive); `dog.story` is now nil and the genre picker re-appears.
+- **`StoryFinaleOverlay`.** Full-screen genre-saturated takeover. Book title in display type, stats line ("5 chapters · 25 pages · N walks"), closing line in italic, two CTAs: "Read it all" (opens StoryFullPageReader scoped to that book's first page) and "Start a new story" (dismiss → router lands on noStory → genre picker).
+- **`CompletedBooksShelf`.** Horizontal scroll under the genre picker once any book is finished. One card per book, themed in that genre's `bookSurface` / `bookBorder` / `bookProseColor`. Tap → opens the book in the existing reader.
+- **Debug Tools card extension.** Profile → Settings → Debug Tools gains a "Debug · story" section: active-story row (genre · scene · chapter index · page count), Swap genre / Swap scene buttons, Force-finish (templated copy, no LLM), Seed completed book (synthesises a 5×5 placeholder book directly into the archive). Symmetric `trot://debug/story/finish` and `trot://debug/story/seed-completed-book?genre=fantasy` deep links — UI and deep-links call into the same `StoryService.debug...` helpers in `StoryService+Debug.swift`.
+
+**Done — refactor.md items closed:**
+
+- **Item 1 — drop deprecated `Dog.activeRouteID` / `routeProgressMinutes` / `completedRouteIDs`.** Schema bumped 1.0.0 → 1.1.0; SwiftData lightweight migration on the existing simulator store dropped the columns, preserved every other field (verified via sqlite). Locked in `decisions.md` as "Pre-launch schema cleanup: destructive in-place V1 edit" — applied two more times this session (sceneRaw add, chapter-seen field, book-length fields).
+- **Item 3 — chapter seen-state moves to SwiftData.** `StoryChapter.seenAt: Date?` replaces the install-scoped UserDefaults key (`trot.story.chapterSeen.<persistentModelID.hashValue>` was breaking on every reinstall because the hash changed). Schema 1.1.0 → 1.2.0 → 1.3.0 (scene field then chapter-seen field). One-shot legacy migrator promotes any pre-existing UserDefaults flags onto the new field on first launch.
+- **Item 5 — notification permission alert on every reinstall.** Removed the launch-time `requestPermission()` call from `RootView.task`. After the failed forced-onboarding-screen detour, ended up wiring the ask **contextually** to the walk-window reminder toggle (`WalkWindowTile.toggleReminder`). Tap "Remind me" while undetermined → iOS prompt → if granted, schedule and capsule flips to "Reminder set"; if denied, capsule stays at "Remind me" and an inline "Notifications are off · Open Settings" hint appears (deep-links to iOS Settings via `UIApplication.openSettingsURLString`). Once granted, `NotificationService.reschedule` picks up the other three scheduled types (nudge, milestone, recap, morning-window) automatically — permission is app-wide, not per-type.
+- **Item 10 — onboarding doesn't mention Story mode.** Closed via `StoryIntroView` on the Story tab (not via onboarding — see course correct above).
+
+**Done — bug fixes:**
+
+- **Weather background didn't refresh on postcode add.** `WeatherMoodLayer.load()` reads `UserPreferences.postcode` only when its `refreshTrigger` bumps; that only happens on `.onAppear`. The postcode-edit sheet is owned by `WalkWindowTile` / `DogSettingsSheet`, so dismissing it never fires `onAppear` on the mood layer. Fixed by posting `Notification.Name.trotPostcodeChanged` from `UserPreferences.postcode.set` and observing it in the layer with `.onReceive`. Pattern mirrors the existing `trotRecapTapped` notification.
+- **Seeded debug dog renamed Luna → Bonnie.** Per user request. Brand docs / test fixtures / SwiftUI Preview placeholders kept Luna deliberately — Luna is still the canonical brand example dog; Bonnie is the dog you meet on a fresh debug install. The full Christie-pastiche book chapters in DebugSeed got renamed end-to-end.
+
+**Done — gotchas hit and resolved:**
+
+- **Bundling notification ask with Story-mode discovery flopped.** First attempt at refactor item 5 + 10 combined them onto one forced screen between AddDog and Home. User flagged: looked like sign-in, didn't motivate the notification ask, didn't explain Story mode clearly. Lesson: don't bundle disparate concerns. Notifications need a contextual trigger (an explicit user-initiated request); discovery belongs on the surface being discovered. Saved as a memory rule.
+- **SwiftData Mirror tripwire pattern: presence vs absence.** The DogModelTests pattern checks for ABSENCE of removed property names (`!names.contains("activeRouteID")`) — works regardless of SwiftData's `_` prefix. New StoryModelTests adapted to check PRESENCE — needed `_sceneRaw` / `_genreRaw` not `sceneRaw` / `genreRaw`. Tripped the test on first run; fixed.
+- **Course correct as a discipline.** `cedbae2` shipped the wrong forced screen; `5da822c` reverted and replaced with the right design. Kept both commits in history rather than rebasing — useful trail of the course correct, and the user could see the journey not just the destination.
+
+**Schema migrations this session (all lightweight, all in-place V1):**
+
+- 1.0.0 → 1.1.0 — drop deprecated `Dog.activeRoute*` fields
+- 1.1.0 → 1.2.0 — `Story.sceneRaw`
+- 1.2.0 → 1.3.0 — `StoryChapter.seenAt`
+- 1.3.0 → 1.4.0 — `Story.finishedAt` / `title` / `closingLine` + `Dog.completedStories`
+
+Each verified by sqlite inspection of `default.store` post-migration: new columns present, existing rows preserved, no fatalError on launch.
+
+**Committed this session (15 commits, all on `main`, all pushed to `origin`):**
+
+- `a8b38e3` — Drop deprecated Dog journey fields (route/progress/completed)
+- `e845c36` — DebugSeed: rename seeded dog Luna → Bonnie
+- `e7afe7b` — Story proxy: scene-aware prologue prompt
+- `a3a8bd8` — Story scene-setter: one-tap world pick before page 1
+- `9b146c5` — Weather: refresh mood layer when postcode changes mid-session
+- `67bcd0e` — Story: chapter seen-state moves to SwiftData
+- `cedbae2` — Onboarding: permissions step + Story-mode discovery (wrong design)
+- `5da822c` — Story intro replaces forced onboarding permissions step (course correct)
+- `242b072` — Story intro: drop em dashes from bullet copy
+- `20decf3` — Story proxy: finale-aware chapter close
+- `bd9b317` — Story: book length, finale, and archived books
+- `13ed9af` — Debug Tools: story controls + deep links for finale + archive
+- `021bdcc` — Notifications: contextual permission ask on walk-window reminder
+- (+ 2 doc/admin commits via this handoff pass)
+
+**Test count: 190 unit + 4 UI passing, all serial.** Net additions across the session: scene tests (6), chapter tests (3), finale tests (8). No flakes; full suite under 90 seconds.
+
+**Refactor.md state:**
+
+- Items 1, 3, 5, 10: ✅ shipped
+- Item 4 (StoryService test coverage): partially closed by `StoryServiceFinaleTests`; full `currentState` matrix still open
+- Items 2, 6, 7, 8, 9, 11–14: open. None block anything user-visible. Best done as a single "spring clean" pass once features are locked.
+
+**Next session — pickup options:**
+
+- **Use the app for a few days.** Honest recommendation. The journey loop is now coherent end-to-end. Living with it will surface real priorities better than an imagined list. Bonnie has a story → walk her → page lands → hit milestones → close chapter → finish book → start a new genre. That whole cycle hasn't been actually walked through yet by a real human (only deep-link-driven simulations).
+- **Brand voice audit on the new Story-mode surfaces** (refactor item 9). Lots of new copy this session — finale overlay, intro view, completed-books shelf, debug card, scene prompts. ~30 minute pass against `brand.md`'s Never list. Already caught and fixed em dashes once on the intro; might be more lurking.
+- **Visual polish for TestFlight readiness.** App icon is still placeholder, Bonnie's photo placeholder is the paw-print. Bookshelf cards look noticeably barer without a dog photo. A couple of hours of mostly visual work.
+- **Manual recap entry on Home** (small discoverability — Sunday auto-trigger works, manual entry from Insights tab works, but Home has no surface).
+- **A general notifications settings toggle in the Profile sheet.** Spec says "all notifications individually toggleable" but those toggles aren't built; the contextual ask is the only on-ramp today.
+
+**End-of-build chunks (deliberately held until last):**
+
+Sign in with Apple, CloudKit production turn-on, HealthKitService + walk detection algorithm, Apple Developer Program $99 spend. Trigger per `decisions.md` is "I want to walk around the block and confirm iOS wakes my app in the background." Not yet.
+
+**Blockers / open:** none. Build clean, all tests passing, Vercel proxy live (verified post-deploy via curl), schema migrations all verified end-to-end.
+
+---
+
 ## 2026-05-08 — Story tab rebuild end-to-end + journey rip-out + handoff prep
 
 A long single session. The Story tab went from "loosely scaffolded" to "fully functional with milestone gating, atmosphere, swipe reader, error/loading banners, page-cap anti-grind, author-channelling LLM prompts, and live deploy of the proxy." Mid-session the Journey/route system (which was the previous progression spine) got fully ripped out and replaced by story-mode milestones. End of session is a deliberate handoff to a fresh chat for refactor work — see `docs/refactor.md` (new this session).
