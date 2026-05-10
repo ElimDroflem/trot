@@ -42,13 +42,20 @@ final class Dog {
 
     var walks: [Walk]? = []
 
-    /// One-shot reference to this dog's narrative book. `nil` until the
-    /// user picks a genre on the Story tab — that pick creates the Story
-    /// + the first chapter + the prologue page in one transaction.
-    /// Cascade-delete so archiving a dog cleans up their book; one dog,
-    /// one story, lifetime.
+    /// The dog's CURRENT (in-progress) book. `nil` when no story is
+    /// active — either because the user hasn't picked a genre yet, or
+    /// because their last book finished and they haven't started the
+    /// next one. When a book finishes (5 chapters closed), the Story is
+    /// moved from this relationship into `completedStories`.
     @Relationship(deleteRule: .cascade)
     var story: Story?
+
+    /// Archive of finished books. Cascade-delete so archiving a dog
+    /// cleans up the whole library. Sorted by `Story.finishedAt` desc
+    /// at the read site (`Dog.completedStoriesSorted`). New books move
+    /// here from `story` at the moment of finale.
+    @Relationship(deleteRule: .cascade)
+    var completedStories: [Story]? = []
 
     init(
         name: String,
@@ -68,5 +75,13 @@ final class Dog {
         self.isNeutered = isNeutered
         self.activityLevel = activityLevel
         self.dailyTargetMinutes = dailyTargetMinutes
+    }
+
+    /// Finished books, newest first. The model stores them as an
+    /// unordered relationship; this is the read order for the bookshelf.
+    var completedStoriesSorted: [Story] {
+        (completedStories ?? []).sorted {
+            ($0.finishedAt ?? .distantPast) > ($1.finishedAt ?? .distantPast)
+        }
     }
 }

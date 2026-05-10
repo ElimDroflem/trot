@@ -33,6 +33,22 @@ final class Story {
 
     var startedAt: Date = Date()
 
+    /// Set the moment a book ends (final chapter closed). nil = active
+    /// book; non-nil = archived. The Dog moves the Story from its
+    /// `story` (active) relationship into `completedStories` at finish
+    /// time, but the timestamp lives on the Story itself so any view
+    /// can sort/filter without joining back to Dog.
+    var finishedAt: Date?
+
+    /// LLM-generated book title, set when the book ends. Suitable for a
+    /// printed spine: 3-7 words, atmospheric, no subtitle. Empty until
+    /// finish.
+    var title: String = ""
+
+    /// LLM-generated last line of the BOOK (distinct from a chapter
+    /// closing line). 12-22 words. Empty until finish.
+    var closingLine: String = ""
+
     /// All chapters in this story, in `index` order. Length-of-array =
     /// number of chapters started; the most-recent chapter is the active
     /// one if its `closedAt` is nil.

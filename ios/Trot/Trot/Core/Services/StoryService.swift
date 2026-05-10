@@ -64,6 +64,10 @@ enum StoryService {
     enum GenerationResult {
         case page(StoryPage)
         case chapterClosed(closedChapter: StoryChapter, newChapter: StoryChapter, prologue: StoryPage)
+        /// Final chapter just closed AND there's no next chapter — the
+        /// book is done. The Story has been moved off `dog.story` and
+        /// onto `dog.completedStories`. UI surfaces a finale takeover.
+        case bookFinished(closedChapter: StoryChapter, finishedStory: Story)
         case failed(String)
     }
 
@@ -317,7 +321,8 @@ enum StoryService {
         try? modelContext.save()
 
         // Page 5 closes the chapter. Fire the close call, persist title +
-        // closing + bible, open the next chapter with its prologue.
+        // closing + bible, open the next chapter (or finalise the book if
+        // this was the final chapter).
         if nextIndex >= 5 {
             return await closeChapter(
                 story: story,
@@ -341,6 +346,8 @@ enum StoryService {
         }
         let genre = story.genre
         let ownerName = UserPreferences.ownerName
+        // Final chapter? Finale prompt instead of next-chapter prompt.
+        let isFinale = closingChapter.index >= genre.chaptersPerBook
 
         let chapterPagesText = closingChapter.orderedPages
             .map { "Page \($0.index): \($0.prose)" }
@@ -352,14 +359,19 @@ enum StoryService {
             ownerName: ownerName,
             bible: story.bible,
             chapterPages: chapterPagesText,
-            chapterIndex: closingChapter.index
+            chapterIndex: closingChapter.index,
+            isFinale: isFinale
         ) else {
             // Don't fail the whole user action — we already saved page 5.
             // Fall back to a templated close so the chapter still wraps.
+            // (Templated finale is fine too — it produces a generic book
+            // title + closing.)
             return fallbackClose(
                 story: story,
                 closingChapter: closingChapter,
-                modelContext: modelContext
+                isFinale: isFinale,
+                modelContext: modelContext,
+                dog: dog
             )
         }
 
@@ -368,8 +380,20 @@ enum StoryService {
         closingChapter.closingLine = payload.closingLine
         closingChapter.closedAt = .now
 
-        // Roll the bible forward.
+        // Roll the bible forward (used by the bookshelf reader on
+        // finished books too — never wasted).
         story.bible = payload.bibleUpdate
+
+        if isFinale {
+            return finishBook(
+                story: story,
+                closingChapter: closingChapter,
+                bookTitle: payload.bookTitle,
+                bookClosingLine: payload.bookClosingLine,
+                dog: dog,
+                modelContext: modelContext
+            )
+        }
 
         // Open the next chapter with its prologue page.
         let nextChapter = StoryChapter(index: closingChapter.index + 1)
@@ -393,6 +417,44 @@ enum StoryService {
             newChapter: nextChapter,
             prologue: prologue
         )
+    }
+
+    /// Final chapter just closed. Stamp the book's finishing fields,
+    /// move it from `dog.story` (active) to `dog.completedStories`
+    /// (archive), save, and return `.bookFinished` so the UI shows the
+    /// finale overlay.
+    ///
+    /// Internal (not private) so `StoryServiceFinaleTests` can call it
+    /// without going through the LLM round-trip in `closeChapter`. Pure
+    /// in everything except the SwiftData save.
+    static func finishBook(
+        story: Story,
+        closingChapter: StoryChapter,
+        bookTitle: String,
+        bookClosingLine: String,
+        dog: Dog,
+        modelContext: ModelContext
+    ) -> GenerationResult {
+        story.finishedAt = .now
+        story.title = bookTitle.isEmpty
+            ? "\(dog.name)'s \(story.genre.displayName)"
+            : bookTitle
+        story.closingLine = bookClosingLine
+
+        // Move from active to archive. SwiftData treats both as
+        // independent cascade-delete relationships; the Story object
+        // stays alive because completedStories now references it.
+        if dog.story?.persistentModelID == story.persistentModelID {
+            dog.story = nil
+        }
+        if dog.completedStories == nil {
+            dog.completedStories = [story]
+        } else if !(dog.completedStories ?? []).contains(where: { $0.persistentModelID == story.persistentModelID }) {
+            dog.completedStories?.append(story)
+        }
+
+        try? modelContext.save()
+        return .bookFinished(closedChapter: closingChapter, finishedStory: story)
     }
 
     /// Templated prologue used when the LLM is unreachable on the very
@@ -479,11 +541,27 @@ enum StoryService {
     private static func fallbackClose(
         story: Story,
         closingChapter: StoryChapter,
-        modelContext: ModelContext
+        isFinale: Bool,
+        modelContext: ModelContext,
+        dog: Dog
     ) -> GenerationResult {
         closingChapter.title = "Chapter \(closingChapter.index)"
-        closingChapter.closingLine = "And so the chapter closes — for now."
+        closingChapter.closingLine = "And so the chapter closes."
         closingChapter.closedAt = .now
+
+        if isFinale {
+            // Templated book wrap when the LLM is unreachable on the
+            // very last chapter. The user still gets a finale moment;
+            // the offline copy is generic but not embarrassing.
+            return finishBook(
+                story: story,
+                closingChapter: closingChapter,
+                bookTitle: "\(dog.name)'s \(story.genre.displayName)",
+                bookClosingLine: "And there the book closes, for now.",
+                dog: dog,
+                modelContext: modelContext
+            )
+        }
 
         // Open chapter N+1 with a placeholder prologue so the user can
         // still continue reading. The LLM can be retried by the user

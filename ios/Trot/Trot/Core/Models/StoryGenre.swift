@@ -437,4 +437,11 @@ enum StoryGenre: String, Codable, CaseIterable, Sendable, Identifiable {
     func scene(forID id: String) -> Scene? {
         scenes.first { $0.id == id }
     }
+
+    /// Total chapters in a finished book. After this many chapter
+    /// closes, the next would-be chapter doesn't open and instead the
+    /// book is marked finished. Per-genre to keep the door open for
+    /// varying pacing later (a fast-paced thriller could land at 4, a
+    /// sprawling fantasy at 7); v1 ships every genre at 5.
+    var chaptersPerBook: Int { 5 }
 }

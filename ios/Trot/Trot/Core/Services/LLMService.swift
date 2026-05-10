@@ -53,7 +53,11 @@ enum LLMService {
         let choiceB: String
     }
 
-    /// Decoded payload for a `storyChapterClose` response.
+    /// Decoded payload for a `storyChapterClose` response. The
+    /// `prologueProse` / `choiceA` / `choiceB` are empty on the finale
+    /// path (no next chapter); `bookTitle` / `bookClosingLine` are
+    /// non-empty only on the finale path. Both groups have defaults so
+    /// the same struct decodes both proxy variants.
     struct StoryChapterClosePayload: Decodable, Sendable {
         let title: String
         let closingLine: String
@@ -61,6 +65,49 @@ enum LLMService {
         let prologueProse: String
         let choiceA: String
         let choiceB: String
+        let bookTitle: String
+        let bookClosingLine: String
+
+        init(
+            title: String,
+            closingLine: String,
+            bibleUpdate: String,
+            prologueProse: String,
+            choiceA: String,
+            choiceB: String,
+            bookTitle: String = "",
+            bookClosingLine: String = ""
+        ) {
+            self.title = title
+            self.closingLine = closingLine
+            self.bibleUpdate = bibleUpdate
+            self.prologueProse = prologueProse
+            self.choiceA = choiceA
+            self.choiceB = choiceB
+            self.bookTitle = bookTitle
+            self.bookClosingLine = bookClosingLine
+        }
+
+        // Custom decoding so the new `bookTitle` / `bookClosingLine`
+        // fields default to "" if the proxy didn't return them (older
+        // deploy or non-finale path that omits them).
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self.title = try c.decode(String.self, forKey: .title)
+            self.closingLine = try c.decode(String.self, forKey: .closingLine)
+            self.bibleUpdate = try c.decode(String.self, forKey: .bibleUpdate)
+            self.prologueProse = try c.decodeIfPresent(String.self, forKey: .prologueProse) ?? ""
+            self.choiceA = try c.decodeIfPresent(String.self, forKey: .choiceA) ?? ""
+            self.choiceB = try c.decodeIfPresent(String.self, forKey: .choiceB) ?? ""
+            self.bookTitle = try c.decodeIfPresent(String.self, forKey: .bookTitle) ?? ""
+            self.bookClosingLine = try c.decodeIfPresent(String.self, forKey: .bookClosingLine) ?? ""
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case title, closingLine, bibleUpdate
+            case prologueProse, choiceA, choiceB
+            case bookTitle, bookClosingLine
+        }
     }
 
     // MARK: - Public surfaces
@@ -243,7 +290,8 @@ enum LLMService {
         ownerName: String,
         bible: String,
         chapterPages: String,
-        chapterIndex: Int
+        chapterIndex: Int,
+        isFinale: Bool
     ) async -> StoryChapterClosePayload? {
         let context: [String: any Sendable] = [
             "toneInstruction": genre.toneInstruction,
@@ -252,6 +300,7 @@ enum LLMService {
             "bible": bible,
             "chapterPages": chapterPages,
             "chapterIndex": chapterIndex,
+            "isFinale": isFinale,
         ]
         guard let raw = await request(
             kind: .storyChapterClose,

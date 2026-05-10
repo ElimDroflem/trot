@@ -50,6 +50,11 @@ struct StoryView: View {
     /// when the user taps Begin on the one-shot intro. Initialised from
     /// the persistent flag, then locally + persistently flipped true.
     @State private var storyIntroSeen = UserPreferences.storyIntroSeen
+    /// Set by `generateNext` when the chapter-5 close runs and the book
+    /// finalises. Drives the finale takeover via `.fullScreenCover(item:)`.
+    /// Cleared on dismiss; the book at that point lives in
+    /// `dog.completedStories` and the genre picker takes over the tab.
+    @State private var pendingBookFinale: StoryRef?
     /// Set when the user has committed a genre but hasn't yet committed
     /// a scene. Drives the routing to `StoryScenePicker`. Distinct from
     /// `pendingGenrePick` (which fires once the LLM call kicks off) so
@@ -145,6 +150,31 @@ struct StoryView: View {
                 celebrationChapter = nil
             }
         }
+        .fullScreenCover(item: $pendingBookFinale) { ref in
+            if let dog = selectedDog {
+                StoryFinaleOverlay(
+                    story: ref.story,
+                    dog: dog,
+                    onReadAll: {
+                        // Open the full reader scoped to the finished
+                        // book's first page. The reader collects every
+                        // page across the book chronologically.
+                        if let firstPage = (ref.story.chapters ?? [])
+                            .sorted(by: { $0.index < $1.index })
+                            .flatMap({ $0.orderedPages })
+                            .first {
+                            fullReaderStart = PageRef(page: firstPage)
+                        }
+                        pendingBookFinale = nil
+                    },
+                    onStartNew: {
+                        // Dismiss → router lands on .noStory because
+                        // dog.story is nil, picker takes over.
+                        pendingBookFinale = nil
+                    }
+                )
+            }
+        }
         .fullScreenCover(item: $fullReaderStart) { ref in
             // Swipe-stack source: every page in the dog's story across
             // every chapter, in reading order. So the user can swipe
@@ -222,13 +252,33 @@ struct StoryView: View {
                     }
                 }
             } else {
-                StoryGenrePicker(selected: $pickerHover) { genre in
-                    // Genre committed → move to the scene picker. Atmosphere
-                    // is already on this genre via `pickerHover`; setting
-                    // `pendingSceneFor` keeps it locked there while the
-                    // user picks where the story opens.
-                    withAnimation(.brandDefault) {
-                        pendingSceneFor = genre
+                ScrollView {
+                    VStack(spacing: Space.lg) {
+                        StoryGenrePicker(selected: $pickerHover) { genre in
+                            // Genre committed → move to the scene picker. Atmosphere
+                            // is already on this genre via `pickerHover`; setting
+                            // `pendingSceneFor` keeps it locked there while the
+                            // user picks where the story opens.
+                            withAnimation(.brandDefault) {
+                                pendingSceneFor = genre
+                            }
+                        }
+
+                        // Bookshelf appears below the picker once the user
+                        // has finished one or more books. Tap a card to
+                        // re-read; the picker stays the primary action.
+                        let completed = dog.completedStoriesSorted
+                        if !completed.isEmpty {
+                            CompletedBooksShelf(stories: completed) { story in
+                                if let firstPage = (story.chapters ?? [])
+                                    .sorted(by: { $0.index < $1.index })
+                                    .flatMap({ $0.orderedPages })
+                                    .first {
+                                    fullReaderStart = PageRef(page: firstPage)
+                                }
+                            }
+                            Color.clear.frame(height: Space.lg)
+                        }
                     }
                 }
             }
@@ -421,6 +471,10 @@ struct StoryView: View {
             case .page, .chapterClosed:
                 lastPickArgs = nil
                 pageGenerationError = nil
+            case .bookFinished(_, let finishedStory):
+                lastPickArgs = nil
+                pageGenerationError = nil
+                pendingBookFinale = StoryRef(story: finishedStory)
             case .failed(let message):
                 pageGenerationError = message
             }
@@ -466,6 +520,13 @@ private struct ChapterRef: Identifiable {
 private struct PageRef: Identifiable {
     let page: StoryPage
     var id: PersistentIdentifier { page.persistentModelID }
+}
+
+/// Identifiable wrapper around a finished `Story` for the finale
+/// `.fullScreenCover(item:)`.
+struct StoryRef: Identifiable {
+    let story: Story
+    var id: PersistentIdentifier { story.persistentModelID }
 }
 
 /// Captures the user's most recent path-pick so the Retry button on the

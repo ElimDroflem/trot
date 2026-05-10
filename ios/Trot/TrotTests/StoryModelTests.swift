@@ -18,6 +18,19 @@ struct StoryModelTests {
         #expect(names.contains("_genreRaw"))
     }
 
+    /// Tripwire — the book-length feature relies on `finishedAt`,
+    /// `title`, and `closingLine` being persisted on `Story`. If any
+    /// were removed, finishing a book would silently lose the title
+    /// and the bookshelf would render blank cards.
+    @Test("Story has finishedAt, title, and closingLine fields")
+    func storyHasFinaleFields() {
+        let story = Story(genre: .cosyMystery)
+        let names = Set(Mirror(reflecting: story).children.compactMap(\.label))
+        #expect(names.contains("_finishedAt"))
+        #expect(names.contains("_title"))
+        #expect(names.contains("_closingLine"))
+    }
+
     /// `scene` returns nil for legacy stories that pre-date the
     /// scene-setter feature (sceneRaw == "").
     @Test("scene returns nil for empty sceneRaw (legacy story)")
