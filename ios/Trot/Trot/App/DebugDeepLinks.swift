@@ -176,13 +176,17 @@ enum DebugDeepLinks {
         return true
     }
 
-    /// Story-tab QA helpers. Two routes:
+    /// Story-tab QA helpers. Routes:
     ///   - `trot://debug/story/wipe` — deletes the active dog's story so
     ///     the genre picker re-appears.
     ///   - `trot://debug/story/set-genre?name=fantasy` — flips the active
-    ///     story to a different genre (preserving chapters/pages) so the
-    ///     six genre treatments can be screenshot-cycled without
-    ///     re-seeding.
+    ///     story to a different genre (preserving chapters/pages).
+    ///   - `trot://debug/story/finish` — fast-tracks the active story
+    ///     into its finale state (no LLM call, templated copy).
+    ///   - `trot://debug/story/seed-completed-book?genre=fantasy` —
+    ///     synthesises a fully-formed completed book on the active dog
+    ///     so the bookshelf can be QA'd without slogging through 25
+    ///     walks. `genre=` defaults to cosy mystery.
     private static func handleStory(
         segments: [String],
         url: URL,
@@ -221,6 +225,15 @@ enum DebugDeepLinks {
                 }
                 try? modelContext.save()
             }
+            return true
+        case "finish":
+            _ = StoryService.debugForceFinishActiveStory(for: dog, in: modelContext)
+            return true
+        case "seed-completed-book":
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let raw = comps?.queryItems?.first(where: { $0.name == "genre" })?.value ?? ""
+            let genre = StoryGenre(rawValue: raw) ?? .cosyMystery
+            _ = StoryService.debugSeedCompletedBook(for: dog, genre: genre, in: modelContext)
             return true
         default:
             return false
