@@ -28,6 +28,11 @@ struct WalkWindowTile: View {
     /// window's start time. We mirror this from UserDefaults on appear so
     /// the toggle survives an app restart.
     @State private var reminderScheduledFor: Date?
+    /// True when the user tapped "Remind me" while notifications are
+    /// denied. Surfaces an inline "Notifications are off · Open Settings"
+    /// hint under the capsule. iOS only shows the system prompt once, so
+    /// the only path back is via Settings.
+    @State private var permissionDeniedHint: Bool = false
 
     enum TileState {
         case loading
@@ -196,6 +201,28 @@ struct WalkWindowTile: View {
                     ReminderCapsule(isScheduled: scheduled, action: action)
                 }
             }
+            // Inline hint shown only after the user tapped "Remind me"
+            // while notifications are denied. Sits below the capsule
+            // (not next to it) so the tap target stays comfortable on
+            // small screens.
+            if permissionDeniedHint {
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text("Notifications are off.")
+                        .font(.caption)
+                        .foregroundStyle(Color.brandTextSecondary)
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.brandPrimary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Notifications are off. Open Settings to enable them.")
+            }
         }
         .padding(Space.md)
         .background(Color.brandSurfaceElevated)
@@ -356,16 +383,39 @@ struct WalkWindowTile: View {
     }
 
     /// Toggles the reminder for the picked window. If one is already
-    /// scheduled, cancels it. Otherwise schedules a single
+    /// scheduled, cancels it. Otherwise asks for notification permission
+    /// (if undetermined), then schedules a single
     /// `UNCalendarNotificationTrigger` for the window's start time today.
+    /// On denial, surfaces an inline hint and does not schedule.
     private func toggleReminder(for rec: WalkRecommendationService.Recommendation) async {
         if reminderScheduledFor != nil {
             await WalkWindowReminder.cancel()
             await MainActor.run {
                 reminderScheduledFor = nil
+                permissionDeniedHint = false
             }
             return
         }
+
+        // Permission gate — only on the ON path. The first explicit
+        // user-initiated request for any Trot notification, so this is
+        // the right earned moment to ask. Once granted, the existing
+        // NotificationService.reschedule call (in RootView) picks up
+        // the auto-scheduled types (nudge / milestone / recap /
+        // morning-window) on its next firing.
+        var status = await NotificationService.authorizationStatus()
+        if status == .notDetermined {
+            _ = await NotificationService.requestPermission()
+            status = await NotificationService.authorizationStatus()
+        }
+        let granted = status == .authorized || status == .provisional || status == .ephemeral
+        guard granted else {
+            await MainActor.run {
+                permissionDeniedHint = true
+            }
+            return
+        }
+
         let title = llmHeadline ?? rec.headline
         let body = "Time for \(dog.name)'s walk."
         let scheduled = await WalkWindowReminder.schedule(
@@ -375,6 +425,7 @@ struct WalkWindowTile: View {
         )
         await MainActor.run {
             reminderScheduledFor = scheduled ? rec.start : nil
+            permissionDeniedHint = false
         }
     }
 

@@ -23,6 +23,13 @@ enum NotificationService {
         }
     }
 
+    /// Current authorisation status. Cheap to call — the OS caches.
+    /// Used by `WalkWindowTile.toggleReminder` to decide between
+    /// requesting permission, scheduling, or surfacing a denied hint.
+    static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
     /// Cancels all Trot-owned pending notifications and re-schedules based on `dog`'s
     /// current state. Cheap to call frequently.
     static func reschedule(for dog: Dog, now: Date = .now, calendar: Calendar = .current) async {
