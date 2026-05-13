@@ -8,6 +8,117 @@ A lightweight "where are we" file. Read this when resuming work after a break. U
 
 ---
 
+## 2026-05-10 → 2026-05-12 — Polish + DEBUG affordances for living with the new onboarding
+
+Short follow-up session on top of the onboarding rebuild. The goal was to get the new flow into a "I can actually use this for a few days" state — Corey is parking the project to live with the build before deciding what's next. Three small fixes + the simulator media setup.
+
+**Done — polish + DEBUG:**
+
+- **"Restart onboarding" button in Profile → Debug Tools.** New `onboardingCard` section in `DebugToolsCard.swift` with a destructive button + confirmation. Wipes every dog/walk/window/story, resets `onboardingDone` / `onboardingMigrationDone` / `storyIntroSeen` UserDefaults flags, drains pending overlays, and bumps `AppState.debugRestartCounter` so RootView observes the change and flips `hasContinued` back to false synchronously. Result: tapping the button bounces the user from Home directly to the sign-in gate, where Continue runs the new flow end-to-end. No app kill required.
+- **`trot://debug/reset` deep link parity.** `handleReset` now bumps the same `debugRestartCounter` and drains the same pending overlays, so the terminal path matches the in-app button. Anyone using `xcrun simctl openurl ... trot://debug/reset` lands on the gate immediately.
+- **Prologue "Read the file" pill fix.** The pill on the prologue page card was a no-op in onboarding because `OnboardingFlowView` mounted `StoryPageReader` without an `onOpenFullReader` callback. Wired up a private `ProloguePageRef` Identifiable wrapper + a `.fullScreenCover(item:)` modifier that opens the existing `StoryFullPageReader` for the single prologue page. The pill now opens the iPhone-screen-sized reader, matching the Story tab's behaviour post-onboarding.
+- **AI dog photos imported to the iPhone 17 simulator's Photos library** via `xcrun simctl addmedia`. `dog-luna.jpg` / `dog-walk-1.jpg` / `dog-walk-2.jpg` are now pickable from the onboarding photo step. The photos do NOT ship in the app bundle (per `decisions.md` → "Design-system AI-generated images") — they're simulator-only conveniences. **Gotcha:** `simctl addmedia` chokes on paths with spaces. Fix is to copy to `/tmp/` first.
+
+**Tests:** 194 unit + 4 UI still passing. No new tests added — the polish is UI/DEBUG wiring around already-tested service logic.
+
+**Build:** clean. App installed and verified on iPhone 17 simulator.
+
+**Status of uncommitted work (working tree):**
+
+- New files (4): `OnboardingFlowView.swift`, `OnboardingProfileStep.swift`, `OnboardingPermissionsStep.swift`, `OnboardingFlowResumeTests.swift`
+- Modified (8): `RootView.swift`, `DebugDeepLinks.swift`, `AppState.swift`, `UserPreferences.swift`, `OnboardingGateView.swift`, `DebugToolsCard.swift`, `AddDogFormStateTests.swift`, `docs/log.md`
+
+Nothing committed yet — Corey is reviewing the working tree before deciding what to bundle. Suggested commits if splitting cleanly:
+1. UserPreferences + RootView routing + migration one-shot
+2. OnboardingProfileStep + OnboardingPermissionsStep + OnboardingFlowView
+3. RootView/AppState/DebugDeepLinks/DebugToolsCard restart-onboarding affordance
+4. Tests + minimal-fields AddDogFormStateTests case
+5. docs/log.md
+
+Or one bundled commit for the whole onboarding rebuild — also fine for pre-launch.
+
+**Next session pickup:**
+
+- **Corey is parking the project to live with the new build for a few days.** Real use is the validation we need — does the prologue land emotionally on day 0, does the under-90s claim hold, does the "READ THE FILE" reader feel right, is the permissions ask landing in the right emotional moment, are the genre + scene picks well-named, does the picker UX feel calm or fussy. Qualitative read.
+- **On return**, the open candidates from `decisions.md` 2026-05-10 are (highest leverage first):
+  - **Day-0 HealthKit history backfill** — depends on `HealthKitService` which is held to end-of-build per `decisions.md`. The copy ("Bonnie has walked with you 84 hours over the past year") can be drafted ahead, but the data hookup waits.
+  - **Cliffhanger prompt tightening** on the Vercel proxy. The new onboarding makes the prologue's quality more load-bearing. ~30-60 minute pass.
+  - **Deferred-field in-app prompts** (postcode/DOB/weight/health) surfaced on Home/Profile with contextualised value framing. ~half-day chunk.
+  - **Share cards on book completion** — pulled into v1 scope on 2026-05-10 but not yet built. Bigger chunk; UIActivityViewController + designed share card.
+  - **Trot Pro paid tier** — pulled into v1 scope but a meaningful lift (StoreKit 2 + feature gating).
+  - **App Store + landing copy update** to match the repositioning. Smaller chunk; mostly copywriting.
+- **End-of-build chunks (held intentionally, decided 2026-05-10):** Sign in with Apple, CloudKit production turn-on, HealthKitService + walk detection algorithm, Apple Developer Program £79 spend. Trigger is still "I want to walk around the block and confirm iOS wakes my app in the background." Not yet.
+
+**Blockers / open:** none. Live build is good. Run via `Restart onboarding` from Profile → Debug Tools whenever Corey wants to re-experience the cold-start journey.
+
+---
+
+## 2026-05-10 (afternoon) — Onboarding rebuild: prologue lands in under 90s
+
+The 2026-05-10 repositioning ("book is the lead, walking is the cost") was in `decisions.md` but not in the code. Today's onboarding still asked for the full profile up front and the prologue only landed once the user found the Story tab and tapped through the genre + scene pickers. This session implements the new shape: gate → photo+name+breed → genre → scene → prologue → permissions ask → Home, with the prologue landing in under 90 seconds.
+
+**Done — new onboarding flow:**
+
+- **`OnboardingFlowView` coordinator** (`Features/Onboarding/OnboardingFlowView.swift`) — six-step state machine: `.profile` → `.genre` → `.scene` → `.generating` → `.prologue` → `.permissions`. Embeds the existing `StoryGenrePicker`, `StoryScenePicker`, `StoryGenerationProgress`, and `StoryPageReader` so the genre+scene UI is identical to what users see later on the Story tab. Atmosphere coalescing chain (genre preview behind scene picker behind generating step) mirrors `StoryView`'s pattern. Resumes at the right step on `.onAppear` so a backgrounded mid-flow is recoverable: no dog → `.profile`, dog without story → `.genre`, dog with story but `onboardingDone == false` → `.permissions`. The resume logic is extracted as `static func resumeStep(for dog: Dog?) -> Step` for unit-testability.
+- **`OnboardingProfileStep`** (`Features/Onboarding/OnboardingProfileStep.swift`) — compressed to three fields: photo (optional), name (required), breed (required). Reuses `AddDogFormState` so the breed-table-driven daily target still computes (graceful degradation: DOB and weight defaults feed `ExerciseTargetService` which has size/breed fallbacks). Postcode, DOB, weight, sex, neuter, activity, health flags are deferred to in-app prompts (not yet built — follow-up UX work).
+- **`OnboardingPermissionsStep`** (`Features/Onboarding/OnboardingPermissionsStep.swift`) — post-prologue ask with the headline "Fresh page?" and copy "A nudge when {dog}'s next page is ready. Nothing else, no spam." Two buttons: "Yes, nudge me" (calls `NotificationService.requestPermission()` + `reschedule(for:)`) and "Maybe later" (no-op). Both paths flip `UserPreferences.onboardingDone = true` and fire the coordinator's `onComplete` callback.
+- **`UserPreferences.onboardingDone` + `onboardingMigrationDone`** (`Core/Services/UserPreferences.swift`) — new UserDefaults-backed flags. `onboardingDone` drives the `RootView` routing decision; `onboardingMigrationDone` is a one-shot flag that lets the routing differentiate between "pre-existing user (already onboarded under the old flow)" and "new user genuinely mid-flow with a story but no permissions decision yet."
+- **`RootView` routing rewrite** (`App/RootView.swift`) — added `shouldShowOnboardingFlow` as a pure-function read of state. Routing branches: gate → onboarding (if `shouldShowOnboardingFlow`) → legacy `AddDogView` (defensive fallback when `onboardingDone == true && activeDogs.isEmpty`) → `HomeView`. The migration check (`!onboardingDone && !onboardingMigrationDone && dog.story != nil → treat as migrated`) runs **inline** in the routing decision, not just in `.task`, so first-paint routing is consistent for existing users — no flash through `OnboardingFlowView` while the `.task` migration races. The `.task` version of the migration still runs as a backstop to flip the persisted flags.
+- **DEBUG paths reset onboarding flags too** — `OnboardingGateView`'s "Reset all data (DEBUG)" button now also resets `onboardingDone`, `onboardingMigrationDone`, and `storyIntroSeen` so the next-launch flow runs through the new onboarding cleanly. Same change applied to `trot://debug/reset` in `DebugDeepLinks.swift`. The wipe button gains an `onDebugWipe` callback so `RootView` can sync its `@State onboardingDone` synchronously and avoid a one-frame flash through the legacy `AddDogView` fallback.
+
+**Done — tests:**
+
+- New `OnboardingFlowResumeTests` (3 tests) — covers the three resume cases via the extracted `OnboardingFlowView.resumeStep(for:)` static helper. In-memory `ModelContainer` per test, fixture-style.
+- New `AddDogFormStateTests.minimalFieldsProduceUsableTarget` — confirms that the new compressed form (only name + breed + photo) still produces a positive `dailyTargetMinutes` via `ExerciseTargetService`'s fallbacks. Sanity-bounds the result (>0, <240).
+- **Test count: 194 unit + 4 UI passing, all serial.** Net additions this session: 4 new tests (3 resume + 1 minimal-fields).
+
+**Done — gotchas hit and resolved:**
+
+- **iOS Simulator UserDefaults persistence quirk.** `simctl uninstall` does NOT wipe UserDefaults stored at the device-level path (`~/Library/Developer/CoreSimulator/Devices/<id>/data/Library/Preferences/<bundle>.plist`). The actual UserDefaults the app reads/writes lives in the *app container* (`/data/Containers/Data/Application/<id>/Library/Preferences/<bundle>.plist`), which IS wiped on uninstall. Spent some time confused by `defaults read` showing stale top-level state while the app was reading fresh container state. Resolution: `plutil -p` against the container path tells the truth.
+- **Race between `.task` migration and first-paint routing.** Initial implementation only flipped `onboardingDone` in `.task(id: isPastGate)`, which fires asynchronously. Result: the user who already had a dog with a story flashed through `OnboardingFlowView`'s permissions step for one frame before the routing re-evaluated. Fixed by inlining the migration condition into a synchronous `shouldShowOnboardingFlow` computed property that the routing reads directly. The `.task` migration stays as a backstop to persist the flags.
+- **DebugSeed seeds Bonnie WITH a story by default** — so testing the "no dog" new-user path requires either resetting state in the same process (without relaunching) or launching with `-DebugSkipStorySeed YES`. Documented for future testing.
+
+**Out of scope for this session (deliberately deferred — listed in `decisions.md` 2026-05-10):**
+
+- Day-0 HealthKit history backfill (depends on HealthKitService, held to end-of-build)
+- Cliffhanger prompt tightening (separate prompt-tightening pass on the Vercel proxy)
+- Deferred-field in-app prompts (postcode/DOB/weight/etc. surfaced on Home/Profile)
+- App Store + landing positioning copy update
+- Share cards on book completion
+- Trot Pro paid tier
+- Rebuilding the "add another dog" path — still uses the existing `AddDogView` from Profile
+
+**Files changed this session:**
+
+- New: `Features/Onboarding/OnboardingFlowView.swift`, `OnboardingProfileStep.swift`, `OnboardingPermissionsStep.swift`, `TrotTests/OnboardingFlowResumeTests.swift`
+- Modified: `App/RootView.swift`, `App/DebugDeepLinks.swift`, `Core/Services/UserPreferences.swift`, `Features/Onboarding/OnboardingGateView.swift`, `TrotTests/AddDogFormStateTests.swift`
+
+**Verification done:**
+
+- Full test suite green (194 unit + 4 UI, serial)
+- Visual: fresh-state path lands on `OnboardingProfileStep` with "Show us your dog. Three things and the book starts." copy
+- Visual: existing-user (DebugSeed Bonnie with story) bypasses onboarding cleanly to Home — migration via routing, no flash
+
+**Verification deferred (covered by unit tests, not visually walked):**
+
+- Genre + scene pickers inside `OnboardingFlowView` — same components as Story tab, already exercised
+- Prologue display step — uses `StoryPageReader` with `.awaitingWalk` interaction, same component as Story tab
+- Permissions step iOS dialog — requires real interaction
+- Resume cases (dog without story → `.genre`, dog with story but flag false → `.permissions`) — covered by `OnboardingFlowResumeTests`
+
+**Not committed yet** — pending Corey's review of the working tree (9 files, 4 new + 5 modified).
+
+**Next session pickup:**
+
+- **Walk through the new onboarding end-to-end on the simulator.** Time-to-prologue measurement, copy sanity-check, scene-picker UX, generation-progress feel, prologue length on iPhone 17 Pro screen, permissions step dialog timing.
+- **The deferred-field in-app prompts.** Postcode/DOB/weight need surfaces on Home/Profile that contextualise their value ("Add Bonnie's date of birth so the story can know her age"). Probably four small tiles wrapped in a discoverable section. Could be a single ~half-day chunk.
+- **Cliffhanger prompt tightening** on the Vercel proxy. The new onboarding makes the prologue's quality more load-bearing — it's the headline payoff. The proxy's `story_page` system prompt was tightened in a previous session but a re-audit against the "hard cliffhanger every page" rule from `spec.md` is worth doing before the next round of pre-launch validation.
+- **Day-0 HealthKit history backfill** is the next big move — but it's blocked on HealthKitService which is held to end-of-build per `decisions.md`. The "Bonnie has walked with you 84 hours over the past year" copy can be drafted ahead, but the data hookup waits.
+
+**Blockers / open:** none. Build clean, all tests passing, both routing paths verified visually.
+
+---
+
 ## 2026-05-09 / 2026-05-10 — Refactor + retention bundle: scene-setter, course-corrected onboarding, book length, finale, archive
 
 Two-day session. The Story tab journey went from "loosely shaped" to "structurally complete with a beginning, middle, and end". Plus a handful of refactor items closed: deprecated journey fields dropped, chapter-seen state moved off install-scoped UserDefaults onto SwiftData, notification permission re-wired to a contextual moment, and a clean onboarding-vs-discovery course correction.
