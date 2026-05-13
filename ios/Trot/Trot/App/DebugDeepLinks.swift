@@ -171,8 +171,19 @@ enum DebugDeepLinks {
         for w in windows { modelContext.delete(w) }
         for d in dogs { modelContext.delete(d) }
         try? modelContext.save()
+        // Reset onboarding so the gate's "Continue" lands on the new
+        // OnboardingFlowView. Bumping `debugRestartCounter` signals
+        // RootView to flip `hasContinued` back to false so the user
+        // sees the gate immediately — no app kill required.
+        UserPreferences.onboardingDone = false
+        UserPreferences.onboardingMigrationDone = false
+        UserPreferences.storyIntroSeen = false
         appState.selectedDogID = nil
         appState.selectedTab = .today
+        appState.pendingCelebrations.removeAll()
+        appState.pendingWalkCompletes.removeAll()
+        appState.pendingRecapDogID = nil
+        appState.debugRestartCounter &+= 1
         return true
     }
 

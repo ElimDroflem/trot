@@ -6,6 +6,11 @@ struct RootView: View {
     private var activeDogs: [Dog]
 
     @State private var hasContinued = false
+    /// Mirror of `UserPreferences.onboardingDone` so SwiftUI re-renders
+    /// the routing decision when the new-user onboarding flow finishes.
+    /// Initialised from the persisted flag, then flipped in tandem on
+    /// completion.
+    @State private var onboardingDone = UserPreferences.onboardingDone
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
@@ -33,11 +38,46 @@ struct RootView: View {
         return activeDogs.first(where: { $0.persistentModelID == id })
     }
 
+    /// Pure read of routing state. Includes the existing-user migration
+    /// inline so the routing decision is consistent on first paint —
+    /// otherwise the new-user `OnboardingFlowView` flashes for one frame
+    /// before `.task` flips the persisted flag and routing falls through
+    /// to Home.
+    private var shouldShowOnboardingFlow: Bool {
+        if onboardingDone { return false }
+        // Existing-user migration: a dog with a committed story before
+        // this code shipped means they were already onboarded. Treat
+        // them as done. The matching UserPreferences flip happens in
+        // `runOnboardingMigrationIfNeeded` so the migration sticks.
+        if !UserPreferences.onboardingMigrationDone,
+           let dog = activeDogs.first, dog.story != nil {
+            return false
+        }
+        return true
+    }
+
     var body: some View {
         Group {
             if !hasContinued && !debugGateBypassed {
-                OnboardingGateView(onContinue: { hasContinued = true })
+                OnboardingGateView(
+                    onContinue: { hasContinued = true },
+                    onDebugWipe: {
+                        // The wipe button reset the persisted flag.
+                        // Sync the local @State synchronously so the
+                        // very next render lands on `OnboardingFlowView`
+                        // rather than flashing the legacy AddDogView
+                        // fallback for one frame.
+                        onboardingDone = false
+                    }
+                )
+            } else if shouldShowOnboardingFlow {
+                OnboardingFlowView(onComplete: {
+                    onboardingDone = true
+                })
             } else if activeDogs.isEmpty {
+                // Defensive fallback — onboardingDone should not be true
+                // unless a dog exists. Could happen if the user wipes
+                // data via the DEBUG reset without resetting the flag.
                 AddDogView()
             } else {
                 HomeView()
@@ -102,12 +142,20 @@ struct RootView: View {
         // arrive at Home directly (debugGateBypassed = true on launch) AND for
         // users who tap Continue (hasContinued flips true mid-session).
         .task(id: isPastGate) {
+            // Run the one-shot onboarding migration before any routing
+            // side effects. Existing users (DEBUG-seeded Bonnie with a
+            // story already) get `onboardingDone` set to true here so
+            // they don't see `OnboardingFlowView` after tapping
+            // Continue — they go straight to Home.
+            runOnboardingMigrationIfNeeded()
+
             guard isPastGate else { return }
             // Notification permission ask moved into
-            // `OnboardingPermissionsView` so it fires in a clean
-            // dedicated context, not on top of milestone celebrations
-            // queued by DebugSeed on first paint. Reschedule still runs
-            // here — it's a no-op if permission was denied.
+            // `OnboardingPermissionsStep` (post-prologue) so it fires
+            // in a clean dedicated context, not on top of milestone
+            // celebrations queued by DebugSeed on first paint.
+            // Reschedule still runs here — it's a no-op if permission
+            // was denied.
             await rescheduleNotificationsIfNeeded()
             checkMilestones()
             checkRecapAutoShow()
@@ -130,6 +178,16 @@ struct RootView: View {
                 appState.pendingRecapDogID = dog.persistentModelID
             }
         }
+        .onChange(of: appState.debugRestartCounter) { _, _ in
+            // Profile → Debug Tools "Restart onboarding" (and the matching
+            // `trot://debug/reset` deep link) wiped data + reset the
+            // persisted flags. Flip the gate's @State back to false and
+            // sync the onboarding @State so the user lands on the gate
+            // and can run the new flow end-to-end.
+            hasContinued = false
+            appState.debugGateBypassed = false
+            onboardingDone = false
+        }
     }
 
     private func rescheduleNotificationsIfNeeded() async {
@@ -138,6 +196,28 @@ struct RootView: View {
         } else {
             await NotificationService.cancelAll()
         }
+    }
+
+    /// One-shot migration for users who were already onboarded under
+    /// the old flow (gate → AddDog → Home). If they have an active dog
+    /// with a committed story, mark `onboardingDone` so they don't get
+    /// re-onboarded by the new `OnboardingFlowView` branch in routing.
+    /// Idempotent via `onboardingMigrationDone`.
+    ///
+    /// Also syncs the local `@State` from `UserPreferences` so that
+    /// external flips (DEBUG wipe-and-continue, which resets the flag
+    /// to false) take effect on the next routing decision.
+    private func runOnboardingMigrationIfNeeded() {
+        if onboardingDone != UserPreferences.onboardingDone {
+            onboardingDone = UserPreferences.onboardingDone
+        }
+
+        guard !UserPreferences.onboardingMigrationDone else { return }
+        if let dog = activeDogs.first, dog.story != nil {
+            UserPreferences.onboardingDone = true
+            onboardingDone = true
+        }
+        UserPreferences.onboardingMigrationDone = true
     }
 
     /// Catches time-based beats (firstWeek) plus any beats that became eligible

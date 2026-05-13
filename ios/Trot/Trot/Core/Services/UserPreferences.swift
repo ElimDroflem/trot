@@ -8,6 +8,27 @@ enum UserPreferences {
     private static let postcodeKey = "trot.user.postcode"
     private static let ownerNameKey = "trot.user.ownerName"
     private static let storyIntroSeenKey = "trot.story.introSeen"
+    private static let onboardingDoneKey = "trot.onboarding.done"
+    private static let onboardingMigrationDoneKey = "trot.onboarding.migrationDone"
+
+    /// True once the user has finished the new-user onboarding flow
+    /// (profile → genre → scene → prologue → permissions). Drives
+    /// `RootView` routing: false sends the user into `OnboardingFlowView`,
+    /// true lets them through to `HomeView`. Set at the end of the
+    /// permissions step (whether the user granted or skipped).
+    static var onboardingDone: Bool {
+        get { UserDefaults.standard.bool(forKey: onboardingDoneKey) }
+        set { UserDefaults.standard.set(newValue, forKey: onboardingDoneKey) }
+    }
+
+    /// One-shot flag that flips true after the first launch in which
+    /// `RootView` checked whether the user already had a dog with a
+    /// story (i.e. they were already onboarded under the old flow). If
+    /// so, `onboardingDone` is set to true so they don't get re-onboarded.
+    static var onboardingMigrationDone: Bool {
+        get { UserDefaults.standard.bool(forKey: onboardingMigrationDoneKey) }
+        set { UserDefaults.standard.set(newValue, forKey: onboardingMigrationDoneKey) }
+    }
 
     /// True once the user has tapped through the one-shot Story-mode intro
     /// that appears the first time they visit the Story tab. Survives app

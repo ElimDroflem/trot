@@ -18,6 +18,7 @@ import SwiftData
 /// belt-and-braces (the call site in `DogProfileView` is also `#if DEBUG`).
 struct DebugToolsCard: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppState.self) private var appState
     @Query(filter: #Predicate<Dog> { $0.archivedAt == nil })
     private var activeDogs: [Dog]
 
@@ -36,6 +37,10 @@ struct DebugToolsCard: View {
     @State private var showingGenreSwap = false
     @State private var showingSceneSwap = false
     @State private var showingFinishConfirm = false
+    /// Confirmation for the "Restart onboarding" button — wipes everything
+    /// and sends the user back to the gate. Destructive enough to warrant
+    /// a confirm dialog.
+    @State private var showingRestartConfirm = false
 
     /// First active dog — the implicit subject of the story-control buttons.
     /// Mirrors the deep-link contract (`firstActiveDog(in:)`).
@@ -46,6 +51,7 @@ struct DebugToolsCard: View {
             weatherCard
             demoDataCard
             storyControlsCard
+            onboardingCard
         }
         .onAppear {
             override = WeatherCategoryChoice(category: DebugOverrides.weatherCategory)
@@ -147,6 +153,75 @@ struct DebugToolsCard: View {
     private func wipeSynthetic() {
         _ = DebugSeed.wipeSyntheticWalks(in: modelContext)
         refreshSyntheticCount()
+    }
+
+    // MARK: - Onboarding restart
+
+    /// Wipes Dog/Walk/WalkWindow + every Story, resets the onboarding
+    /// flags, and signals `RootView` to flip back to the gate so the
+    /// new-user onboarding flow can be run end-to-end. Used to exercise
+    /// the new flow without rebuilding the simulator binary.
+    private var onboardingCard: some View {
+        FormCard(title: "Debug · onboarding") {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                Text("Wipe everything and bounce back to the sign-in gate. Tapping Continue from there runs the new onboarding flow (photo + name + breed → genre → scene → prologue → notifications).")
+                    .font(.caption)
+                    .foregroundStyle(Color.brandTextTertiary)
+
+                Button(role: .destructive) {
+                    showingRestartConfirm = true
+                } label: {
+                    Text("Restart onboarding")
+                        .font(.bodyMedium.weight(.semibold))
+                        .foregroundStyle(Color.brandError)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Space.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.md)
+                                .stroke(Color.brandError.opacity(0.5), lineWidth: 1)
+                        )
+                }
+            }
+            .padding(.vertical, Space.xs)
+        }
+        .confirmationDialog(
+            "Wipe all data and restart onboarding?",
+            isPresented: $showingRestartConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Wipe and restart", role: .destructive) { restartOnboarding() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Deletes every dog, walk, and book, then sends you back to the gate. DEBUG only.")
+        }
+    }
+
+    private func restartOnboarding() {
+        // Mirror `OnboardingGateView.wipeAllData` — order matters so
+        // SwiftData's relationship cascades don't trip up over dangling
+        // refs.
+        do {
+            try modelContext.delete(model: Walk.self)
+            try modelContext.delete(model: WalkWindow.self)
+            try modelContext.delete(model: StoryPage.self)
+            try modelContext.delete(model: StoryChapter.self)
+            try modelContext.delete(model: Story.self)
+            try modelContext.delete(model: Dog.self)
+            try modelContext.save()
+        } catch {
+            print("Restart wipe failed: \(error)")
+        }
+        UserPreferences.onboardingDone = false
+        UserPreferences.onboardingMigrationDone = false
+        UserPreferences.storyIntroSeen = false
+        appState.selectedDogID = nil
+        appState.pendingCelebrations.removeAll()
+        appState.pendingWalkCompletes.removeAll()
+        appState.pendingRecapDogID = nil
+        // Bump the counter — RootView observes this and flips the gate
+        // @State, sending the user back to the sign-in screen so they
+        // can run the new flow end-to-end.
+        appState.debugRestartCounter &+= 1
     }
 
     // MARK: - Story controls

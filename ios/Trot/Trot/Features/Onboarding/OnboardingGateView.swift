@@ -3,6 +3,11 @@ import SwiftData
 
 struct OnboardingGateView: View {
     var onContinue: () -> Void
+    /// DEBUG hook: lets `RootView` keep its `@State onboardingDone`
+    /// in sync when the wipe button resets the persisted flag. Default
+    /// is a no-op so the Preview and the production gate don't need
+    /// to wire it.
+    var onDebugWipe: () -> Void = {}
 
     #if DEBUG
     @Environment(\.modelContext) private var modelContext
@@ -64,11 +69,12 @@ struct OnboardingGateView: View {
                     ) {
                         Button("Wipe and continue", role: .destructive) {
                             wipeAllData()
+                            onDebugWipe()
                             onContinue()
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {
-                        Text("Clears the SwiftData store so you can test the add-a-dog form. DEBUG only.")
+                        Text("Clears the SwiftData store and resets onboarding so you can run the new-user flow end-to-end. DEBUG only.")
                     }
                     #endif
                 }
@@ -88,6 +94,14 @@ struct OnboardingGateView: View {
         } catch {
             print("Wipe failed: \(error)")
         }
+        // Reset onboarding so the next launch goes through the new
+        // OnboardingFlowView. Without this, the user lands on the
+        // legacy AddDogView fallback which doesn't take them through
+        // genre/scene/prologue — a regression for testing the new
+        // flow end-to-end.
+        UserPreferences.onboardingDone = false
+        UserPreferences.onboardingMigrationDone = false
+        UserPreferences.storyIntroSeen = false
     }
     #endif
 

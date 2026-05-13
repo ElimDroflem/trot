@@ -88,6 +88,30 @@ struct AddDogFormStateTests {
         #expect(dog.dailyTargetMinutes > 0)
     }
 
+    @Test("minimal-field state from new onboarding produces a usable target")
+    func minimalFieldsProduceUsableTarget() {
+        // Mirrors what `OnboardingProfileStep` produces: just name +
+        // breed + (optional) photo populated, every other field at the
+        // form's default. The breed-table-driven target should still
+        // come back in a sane range.
+        var state = AddDogFormState()
+        state.name = "Bonnie"
+        state.breedPrimary = "Beagle"
+        state.photoData = Data([0xFF, 0xD8, 0xFF])  // not a real JPEG, just a marker
+
+        #expect(state.isValid, "defaults for weight/DOB are good enough to be valid")
+
+        let dog = state.makeDog()
+        #expect(dog.name == "Bonnie")
+        #expect(dog.breedPrimary == "Beagle")
+        #expect(dog.dailyTargetMinutes > 0,
+                "ExerciseTargetService should produce a positive target for a known breed at the default age/weight")
+        #expect(dog.dailyTargetMinutes < 240,
+                "sanity bound — even high-energy adults sit well below 4 hours")
+        #expect(!dog.llmRationale.isEmpty,
+                "templated rationale is the day-1 fallback; should never be empty")
+    }
+
     @Test("from(dog) round-trips into apply(to:)")
     func roundTripFromApply() {
         let original = Dog(

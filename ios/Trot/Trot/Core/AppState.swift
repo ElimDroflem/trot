@@ -36,6 +36,14 @@ final class AppState {
     /// as `false` by default; never read in Release.
     var debugGateBypassed: Bool = false
 
+    /// DEBUG-only counter the Profile → Debug Tools "Restart onboarding"
+    /// button bumps after wiping data + resetting the persisted flags.
+    /// `RootView` observes the change and flips `hasContinued` back to
+    /// false so the user lands on the gate, ready to re-run the new
+    /// onboarding flow end-to-end. Same signal fires from
+    /// `trot://debug/reset`.
+    var debugRestartCounter: Int = 0
+
     /// FIFO queue of milestone celebrations waiting to be shown.
     /// Producer (LogWalkSheet save, RootView .task) pushes new beats from
     /// `MilestoneService.newMilestones(for:)`. Consumer (a celebration overlay
